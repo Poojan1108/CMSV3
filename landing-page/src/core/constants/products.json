@@ -1,0 +1,172 @@
+[
+  {
+    "id": "DEMO-PROD-01",
+    "name": "Demo Paracetamol 500mg",
+    "segmentId": "general",
+    "dosageForm": "Tablet",
+    "composition": "Paracetamol 500mg",
+    "strength": "500mg",
+    "packaging": "10 x 10 Blister",
+    "indications": "Pain relief and fever reduction."
+  },
+  {
+    "id": "DEMO-PROD-02",
+    "name": "Demo Amoxicillin 250mg",
+    "segmentId": "anti_infective",
+    "dosageForm": "Capsule",
+    "composition": "Amoxicillin Trihydrate 250mg",
+    "strength": "250mg",
+    "packaging": "10 x 10 Alu-Alu",
+    "indications": "Treatment of bacterial infections."
+  },
+  {
+    "id": "DEMO-PROD-03",
+    "name": "Demo Azithromycin 500mg",
+    "segmentId": "anti_infective",
+    "dosageForm": "Tablet",
+    "composition": "Azithromycin Dihydrate 500mg",
+    "strength": "500mg",
+    "packaging": "3 x 10 Blister",
+    "indications": "Broad-spectrum antibiotic for respiratory and skin infections."
+  },
+  {
+    "id": "DEMO-PROD-04",
+    "name": "Demo Telmisartan 40mg",
+    "segmentId": "cardiovascular",
+    "dosageForm": "Tablet",
+    "composition": "Telmisartan 40mg",
+    "strength": "40mg",
+    "packaging": "10 x 10 Alu-Alu",
+    "indications": "Management of essential hypertension."
+  },
+  {
+    "id": "DEMO-PROD-05",
+    "name": "Demo Amlodipine 5mg",
+    "segmentId": "cardiovascular",
+    "dosageForm": "Tablet",
+    "composition": "Amlodipine Besylate 5mg",
+    "strength": "5mg",
+    "packaging": "10 x 10 Blister",
+    "indications": "Treatment of hypertension and coronary artery disease."
+  },
+  {
+    "id": "DEMO-PROD-06",
+    "name": "Demo Ibuprofen 400mg",
+    "segmentId": "pain_management",
+    "dosageForm": "Tablet",
+    "composition": "Ibuprofen 400mg",
+    "strength": "400mg",
+    "packaging": "10 x 10 Blister",
+    "indications": "Anti-inflammatory and pain relief."
+  },
+  {
+    "id": "DEMO-PROD-07",
+    "name": "Demo Aceclofenac & Paracetamol",
+    "segmentId": "pain_management",
+    "dosageForm": "Tablet",
+    "composition": "Aceclofenac 100mg + Paracetamol 325mg",
+    "strength": "Combination",
+    "packaging": "10 x 10 Alu-Alu",
+    "indications": "Relief from acute muscle pain and joint inflammation."
+  },
+  {
+    "id": "DEMO-PROD-08",
+    "name": "Demo Pantoprazole 40mg",
+    "segmentId": "gastrointestinal",
+    "dosageForm": "Tablet",
+    "composition": "Pantoprazole Sodium 40mg",
+    "strength": "40mg",
+    "packaging": "10 x 10 Alu-Alu",
+    "indications": "Treatment of acid reflux and gastric ulcers."
+  },
+  {
+    "id": "DEMO-PROD-09",
+    "name": "Demo Omeprazole 20mg",
+    "segmentId": "gastrointestinal",
+    "dosageForm": "Capsule",
+    "composition": "Omeprazole 20mg",
+    "strength": "20mg",
+    "packaging": "10 x 10 Strip",
+    "indications": "Relief from heartburn and gastroesophageal reflux."
+  },
+  {
+    "id": "DEMO-PROD-10",
+    "name": "Demo Escitalopram 10mg",
+    "segmentId": "neurocare",
+    "dosageForm": "Tablet",
+    "composition": "Escitalopram Oxalate 10mg",
+    "strength": "10mg",
+    "packaging": "10 x 10 Blister",
+    "indications": "Treatment of major depressive disorder and anxiety."
+  },
+  {
+    "id": "DEMO-PROD-11",
+    "name": "Demo Hydrocortisone Cream 1%",
+    "segmentId": "dermocosmetics",
+    "dosageForm": "Cream",
+    "composition": "Hydrocortisone 1% w/w",
+    "strength": "1%",
+    "packaging": "30g Tube",
+    "indications": "Topical relief for eczema and skin irritations."
+  },
+  {
+    "id": "DEMO-PROD-12",
+    "name": "Demo Metformin 500mg SR",
+    "segmentId": "diabetic",
+    "dosageForm": "Tablet",
+    "composition": "Metformin Hydrochloride 500mg (Sustained Release)",
+    "strength": "500mg",
+    "packaging": "10 x 10 Blister",
+    "indications": "Glycemic control in Type-2 Diabetes Mellitus."
+  },
+  {
+    "id": "DEMO-PROD-13",
+    "name": "Demo Multivitamin & Minerals Syrup",
+    "segmentId": "nutrition",
+    "dosageForm": "Syrup",
+    "composition": "Essential Vitamins + Minerals Blend",
+    "strength": "200ml",
+    "packaging": "200ml Pet Bottle",
+    "indications": "Daily nutritional support and vitality enhancement."
+  },
+  {
+    "id": "DEMO-PROD-14",
+    "name": "Demo IV Infusion Set",
+    "segmentId": "surgicals",
+    "dosageForm": "IV Infusion Set",
+    "composition": "Intravenous Fluid Administration Set",
+    "strength": "N/A",
+    "packaging": "Single Use (Sterile)",
+    "indications": "For clinical IV administration."
+  },
+  {
+    "id": "DEMO-PROD-15",
+    "name": "Demo Sterile Surgical Gloves",
+    "segmentId": "surgicals",
+    "dosageForm": "Surgical Gloves",
+    "composition": "Powder-Free Latex Gloves",
+    "strength": "N/A",
+    "packaging": "Pair Pack",
+    "indications": "Protective sterile barrier for surgical procedures."
+  },
+  {
+    "id": "DEMO-PROD-16",
+    "name": "Demo Folic Acid & Iron Supplement",
+    "segmentId": "gynecare",
+    "dosageForm": "Tablet",
+    "composition": "Ferrous Ascorbate + Folic Acid",
+    "strength": "100mg + 1.5mg",
+    "packaging": "10 x 10 Alu-Alu",
+    "indications": "Nutritional support during pregnancy and anemia management."
+  },
+  {
+    "id": "DEMO-PROD-17",
+    "name": "Demo Medicated Antiseptic Mouthwash",
+    "segmentId": "dental",
+    "dosageForm": "Mouthwash",
+    "composition": "Chlorhexidine Gluconate 0.2% w/v",
+    "strength": "0.2%",
+    "packaging": "150ml Bottle",
+    "indications": "Oral antiseptic solution for gingivitis and plaque control."
+  }
+]

@@ -1,0 +1,10 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Exclude potential sensitive files or build folders if any
+Disallow: /dist/
+Disallow: /node_modules/
+
+# Sitemaps
+Sitemap: https://carenzapharma.com/sitemap.xml

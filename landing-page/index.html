@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="Demo Pharma — A leading pharmaceutical company delivering high-quality, affordable and innovative medicines across cardiovascular, anti-infective, neurocare, and pain management therapeutic areas." />
+  <link rel="icon" type="image/png" href="/carnezalog2.png" />
+  <!-- Preload the Google Fonts CSS to avoid render-blocking FOIT -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <title>Demo Pharma — Better Medicine For A Better Tomorrow</title>
+  <style>
+    /* Inline critical CSS for instant first paint before JS bundles arrive.
+       This prevents a blank white screen during the network waterfall. */
+    #app-preloader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #030712;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      gap: 16px;
+    }
+
+    #app-preloader .logo-img {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+      animation: pulse-logo 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse-logo {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.7;
+        transform: scale(0.95);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root">
+    <!-- Inline preloader: visible immediately, replaced once React mounts -->
+    <div id="app-preloader">
+      <img src="/carnezalog2.png" alt="Demo Logo" class="logo-img" />
+    </div>
+  </div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

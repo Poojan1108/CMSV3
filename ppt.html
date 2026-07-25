@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResolveX Project Report Presentation</title>
+  <!-- Modern Premium Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #050505;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-primary: #ffffff;
+      --text-secondary: #8e8e93;
+      --accent-blue: #0066ff;
+      --accent-glow: rgba(0, 102, 255, 0.15);
+      --transition-speed: 0.6s;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 50%, #0c1830 0%, #050505 80%);
+    }
+
+    /* Presentation Container */
+    .presentation-container {
+      position: relative;
+      width: 90vw;
+      height: 80vh;
+      max-width: 1200px;
+      max-height: 700px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Slide Styling */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(30px) scale(0.98);
+      transition: opacity var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
+                  transform var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
+                  visibility var(--transition-speed);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 3rem 5rem;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 
+                  0 0 100px var(--accent-glow);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Slide Content Typographies */
+    .slide-number {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 1.5rem;
+    }
+
+    .slide-title {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 2rem;
+      letter-spacing: -1px;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #3b82f6 0%, #0066ff 50%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-body {
+      font-size: 1.5rem;
+      font-weight: 300;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* Points List */
+    .points-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .points-list li {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 1.6rem;
+      font-weight: 400;
+    }
+
+    .points-list li strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .bullet-icon {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-blue);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-blue);
+      flex-shrink: 0;
+    }
+
+    /* Grid Layout for Tech Stack */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+      margin-top: 1rem;
+    }
+
+    .tech-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+
+    .tech-card h3 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tech-card p {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      margin-top: 2rem;
+      z-index: 10;
+    }
+
+    .control-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.75rem 1.5rem;
+      border-radius: 30px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .control-btn:hover {
+      background-color: var(--text-primary);
+      color: var(--bg-color);
+      border-color: var(--text-primary);
+      transform: scale(1.05);
+    }
+
+    .slide-indicator {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    /* Keyboard hint */
+    .keyboard-hint {
+      position: absolute;
+      bottom: 2rem;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.3);
+      letter-spacing: 1px;
+    }
+
+    @media (max-width: 768px) {
+      .slide {
+        padding: 2rem;
+      }
+      .slide-title {
+        font-size: 2.2rem;
+      }
+      .slide-body, .points-list li {
+        font-size: 1.2rem;
+      }
+      .tech-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="presentation-container">
+    
+    <!-- Slide 1: Welcome -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-number">Slide 01</div>
+      <h1 class="slide-title">ResolveX — <span class="gradient-text">Our Project Report</span></h1>
+      <div class="slide-body">
+        <p>Hey there! This is our project presentation for ResolveX, a premium platform we are building to make lodging and resolving complaints easy and transparent.</p>
+        <p style="margin-top: 1.5rem; font-weight: 600; color: var(--accent-blue);">Current Status: We finished the entire landing page and the interactive mock login system!</p>
+      </div>
+    </div>
+
+    <!-- Slide 2: Problem & Solution -->
+    <div class="slide" id="slide-2">
+      <div class="slide-number">Slide 02</div>
+      <h1 class="slide-title">Why are we building this?</h1>
+      <ul class="points-list">
+        <li>
+          <div class="bullet-icon"></div>
+          <span><strong>The Problem:</strong> Existing portals are super outdated. Users get frustrated because complaints get lost and nobody knows who is working on them.</span>
+        </li>
+        <li>
+          <div class="bullet-icon"></div>
+          <span><strong>Our Solution:</strong> We created a workflow where complaints are structured, tracked in real-time, and routed to the correct department automatically.</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Slide 3: Frontend Stack -->
+    <div class="slide" id="slide-3">
+      <div class="slide-number">Slide 03</div>
+      <h1 class="slide-title">What we used for the Frontend</h1>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <h3>⚡ React 19 & Vite 8</h3>
+          <p>We chose React for building reusable UI components and Vite to bundle the app super fast during development.</p>
+        </div>
+        <div class="tech-card">
+          <h3>🎨 Custom Vanilla CSS</h3>
+          <p>We designed the dark mode and glassmorphism cards entirely in raw CSS to avoid bulky UI frameworks like Tailwind.</p>
+        </div>
+        <div class="tech-card">
+          <h3>✨ Lenis Smooth Scroll</h3>
+          <p>We added Lenis scroll physics so that scrolling through sections feels incredibly smooth and premium.</p>
+        </div>
+        <div class="tech-card">
+          <h3>🔐 Interactive Auth Portal</h3>
+          <p>We coded mock Login/Signup screens so users can see how the client-side authentication flow looks.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Decided Backend Stack -->
+    <div class="slide" id="slide-4">
+      <div class="slide-number">Slide 04</div>
+      <h1 class="slide-title">What we decided for the Backend</h1>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <h3>🔒 Firebase Auth</h3>
+          <p>We decided to use Firebase to handle user signups, logins, and secure token management out-of-the-box.</p>
+        </div>
+        <div class="tech-card">
+          <h3>🗄️ Supabase (PostgreSQL)</h3>
+          <p>We chose Supabase to store our relational data (complaints, statuses, and profiles) and to leverage its real-time database sync.</p>
+        </div>
+        <div class="tech-card">
+          <h3>⚙️ Custom API Layer</h3>
+          <p>We will build a custom backend service to coordinate database queries, handle file uploads, and trigger alerts.</p>
+        </div>
+        <div class="tech-card">
+          <h3>🤖 AI Auto-Routing</h3>
+          <p>We want to add a backend script that reads complaint descriptions and auto-assigns them to the correct department.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Remaining Backend Decisions -->
+    <div class="slide" id="slide-5">
+      <div class="slide-number">Slide 05</div>
+      <h1 class="slide-title">Backend options we are considering</h1>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <h3>Option A: Node.js (Express/NestJS)</h3>
+          <p><strong>Our Recommendation:</strong> Lets us use JavaScript/TypeScript on both frontend and backend. We also get access to massive libraries and SDKs.</p>
+        </div>
+        <div class="tech-card">
+          <h3>Option B: Python (FastAPI)</h3>
+          <p><strong>AI Friendly:</strong> Great if we want to write native machine learning classifiers to categorize complaint text automatically.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Navigation Controls -->
+  <div class="controls">
+    <button class="control-btn" id="prev-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      Prev
+    </button>
+    <div class="slide-indicator" id="slide-indicator">1 / 5</div>
+    <button class="control-btn" id="next-btn">
+      Next
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+    </button>
+  </div>
+
+  
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const indicator = document.getElementById('slide-indicator');
+    
+    let currentSlide = 0;
+
+    function updateSlides() {
+      slides.forEach((slide, index) => {
+        if (index === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+      indicator.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+      } else {
+        currentSlide = 0; // Wrap around
+      }
+      updateSlides();
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+      } else {
+        currentSlide = slides.length - 1; // Wrap around
+      }
+      updateSlides();
+    }
+
+    // Event Listeners
+    nextBtn.addEventListener('click', nextSlide);
+    prevBtn.addEventListener('click', prevSlide);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+
+    // Initialize slide indicator and active states on load
+    updateSlides();
+  </script>
+</body>
+</html>

@@ -68,83 +68,25 @@ export const formatRelativeTime = (dateInput) => {
  * @returns {{ bg: string, text: string, border: string, dot: string }}
  */
 export const getStatusBadgeColor = (status) => {
-  switch (status) {
-    case STATUSES.PENDING:
-      return {
-        bg: 'bg-amber-500/10 dark:bg-amber-500/20',
-        text: 'text-amber-700 dark:text-amber-300',
-        border: 'border-amber-500/30',
-        dot: 'bg-amber-500',
-      };
-    case STATUSES.IN_PROGRESS:
-      return {
-        bg: 'bg-blue-500/10 dark:bg-blue-500/20',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-500/30',
-        dot: 'bg-blue-500',
-      };
-    case STATUSES.RESOLVED:
-      return {
-        bg: 'bg-emerald-500/10 dark:bg-emerald-500/20',
-        text: 'text-emerald-700 dark:text-emerald-300',
-        border: 'border-emerald-500/30',
-        dot: 'bg-emerald-500',
-      };
-    case STATUSES.REJECTED:
-      return {
-        bg: 'bg-rose-500/10 dark:bg-rose-500/20',
-        text: 'text-rose-700 dark:text-rose-300',
-        border: 'border-rose-500/30',
-        dot: 'bg-rose-500',
-      };
-    default:
-      return {
-        bg: 'bg-slate-500/10 dark:bg-slate-500/20',
-        text: 'text-slate-700 dark:text-slate-300',
-        border: 'border-slate-500/30',
-        dot: 'bg-slate-500',
-      };
-  }
+  return {
+    bg: `status-${status || 'default'}`,
+    text: '',
+    border: '',
+    dot: 'status-dot',
+  };
 };
 
 /**
- * Returns Tailwind badge classes for a given priority level.
+ * Returns custom badge classes for a given priority level.
  * @param {string} priority
  * @returns {{ bg: string, text: string, border: string }}
  */
 export const getPriorityBadgeColor = (priority) => {
-  switch (priority) {
-    case PRIORITIES.LOW:
-      return {
-        bg: 'bg-slate-100 dark:bg-slate-800',
-        text: 'text-slate-600 dark:text-slate-400',
-        border: 'border-slate-300 dark:border-slate-700',
-      };
-    case PRIORITIES.MEDIUM:
-      return {
-        bg: 'bg-sky-100 dark:bg-sky-950/60',
-        text: 'text-sky-700 dark:text-sky-300',
-        border: 'border-sky-300 dark:border-sky-800',
-      };
-    case PRIORITIES.HIGH:
-      return {
-        bg: 'bg-orange-100 dark:bg-orange-950/60',
-        text: 'text-orange-700 dark:text-orange-300',
-        border: 'border-orange-300 dark:border-orange-800',
-      };
-    case PRIORITIES.URGENT:
-      return {
-        bg: 'bg-red-100 dark:bg-red-950/60',
-        text: 'text-red-700 dark:text-red-300',
-        border: 'border-red-300 dark:border-red-800',
-      };
-    default:
-      return {
-        bg: 'bg-gray-100 dark:bg-gray-800',
-        text: 'text-gray-600 dark:text-gray-400',
-        border: 'border-gray-300 dark:border-gray-700',
-      };
-  }
+  return {
+    bg: `priority-${priority || 'default'}`,
+    text: '',
+    border: '',
+  };
 };
 
 /**

@@ -98,7 +98,10 @@ export const getSlaStatus = (complaint) => {
     return { isBreached: false, badgeText: 'SLA N/A', remainingHours: 0, elapsedHours: 0, limitHours: 48 };
   }
 
-  const isCompleted = complaint.status === STATUSES.RESOLVED || complaint.status === STATUSES.REJECTED;
+  const isCompleted =
+    complaint.status === STATUSES.RESOLVED ||
+    complaint.status === STATUSES.REJECTED ||
+    complaint.status === STATUSES.PENDING_CONFIRMATION;
 
   let limitHours = 48;
   if (complaint.priority === PRIORITIES.URGENT) {

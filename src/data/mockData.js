@@ -278,4 +278,63 @@ export const INITIAL_COMPLAINTS = [
     ],
     comments: [],
   },
+  {
+    id: 'CMS-2026-1006',
+    title: 'Replacement of damaged study desk in Room 304',
+    description: 'The wooden study table leg is broken and wobbling severely. Needs repair or replacement desk.',
+    category: 'Hostel & Mess',
+    priority: PRIORITIES.MEDIUM,
+    status: STATUSES.PENDING_CONFIRMATION,
+    location: 'Hostel Block B, Room 304',
+    createdAt: '2026-07-24T10:00:00.000Z',
+    updatedAt: '2026-07-24T14:30:00.000Z',
+    student: {
+      id: 'usr_student_1',
+      name: 'Alex Chen',
+      email: 'alex.chen@campus.edu',
+      rollNo: 'CS-2024-042',
+      room: 'Block B - 304',
+    },
+    assignedTo: {
+      id: 'usr_staff_warden',
+      name: 'Dr. Robert Vance',
+      department: 'Hostel Administration',
+    },
+    resolutionDetails: {
+      notes: 'Carpentry staff replaced the broken study desk with a new ergonomic desk from central store. Please confirm if satisfactory.',
+      staffName: 'Dr. Robert Vance',
+      proposedAt: '2026-07-24T14:30:00.000Z',
+    },
+    statusHistory: [
+      {
+        status: STATUSES.PENDING,
+        updatedBy: 'Alex Chen',
+        note: 'Complaint submitted by student.',
+        timestamp: '2026-07-24T10:00:00.000Z',
+      },
+      {
+        status: STATUSES.IN_PROGRESS,
+        updatedBy: 'Dr. Robert Vance',
+        note: 'Dispatched carpenter for desk inspection and replacement.',
+        timestamp: '2026-07-24T11:15:00.000Z',
+      },
+      {
+        status: STATUSES.PENDING_CONFIRMATION,
+        updatedBy: 'Dr. Robert Vance',
+        note: 'Resolution proposed: Carpentry staff replaced the desk. Awaiting student confirmation.',
+        timestamp: '2026-07-24T14:30:00.000Z',
+      },
+    ],
+    comments: [
+      {
+        id: 'c501',
+        senderName: 'Dr. Robert Vance',
+        senderRole: ROLES.STAFF,
+        senderId: 'usr_staff_warden',
+        text: '[Resolution Proposed] Desk replaced with unit #D-109 from central hostel inventory. Please inspect and confirm.',
+        timestamp: '2026-07-24T14:30:00.000Z',
+        isInternal: false,
+      },
+    ],
+  },
 ];

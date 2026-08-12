@@ -181,17 +181,34 @@ export default function StaffQueue() {
   // Handler: Quick Status Update
   const handleQuickStatusChange = (ticketId, newStatus, note = '') => {
     try {
-      const updated = complaintService.updateStatus(
-        ticketId,
-        newStatus,
-        user || { name: 'Staff Resolver', role: 'staff' },
-        note || `Quick status updated to ${STATUS_LABELS[newStatus] || newStatus}`
-      );
-      if (updated) {
-        showToast(
-          `Ticket ${ticketId} status updated to ${STATUS_LABELS[newStatus] || newStatus}`,
-          'success'
+      let updated;
+      if (newStatus === STATUSES.RESOLVED) {
+        updated = complaintService.proposeResolution(
+          ticketId,
+          user || { name: 'Staff Resolver', role: 'staff' },
+          note || 'Staff marked ticket as resolved. Awaiting user confirmation.'
         );
+        if (updated) {
+          showToast(
+            `Resolution request sent to complainant for ticket ${ticketId}`,
+            'success'
+          );
+        }
+      } else {
+        updated = complaintService.updateStatus(
+          ticketId,
+          newStatus,
+          user || { name: 'Staff Resolver', role: 'staff' },
+          note || `Quick status updated to ${STATUS_LABELS[newStatus] || newStatus}`
+        );
+        if (updated) {
+          showToast(
+            `Ticket ${ticketId} status updated to ${STATUS_LABELS[newStatus] || newStatus}`,
+            'success'
+          );
+        }
+      }
+      if (updated) {
         loadComplaints();
       }
     } catch (err) {
@@ -244,7 +261,7 @@ export default function StaffQueue() {
       );
 
       if (updated) {
-        showToast(`Internal audit note logged for ${selectedTicket.id}`, 'success');
+        showToast('Internal note added to ticket', 'success');
         setModalInternalNote('');
         setSelectedTicket(updated);
         loadComplaints();
@@ -261,15 +278,29 @@ export default function StaffQueue() {
     if (!selectedTicket) return;
 
     try {
-      const updated = complaintService.updateStatus(
-        selectedTicket.id,
-        newStatus,
-        user || { name: 'Staff Resolver', role: 'staff' },
-        modalStatusNote || `Status updated to ${STATUS_LABELS[newStatus]}`
-      );
+      let updated;
+      if (newStatus === STATUSES.RESOLVED) {
+        updated = complaintService.proposeResolution(
+          selectedTicket.id,
+          user || { name: 'Staff Resolver', role: 'staff' },
+          modalStatusNote || 'Resolution details provided by staff. Pending user confirmation.'
+        );
+        if (updated) {
+          showToast(`Resolution request sent to complainant for ${selectedTicket.id}`, 'success');
+        }
+      } else {
+        updated = complaintService.updateStatus(
+          selectedTicket.id,
+          newStatus,
+          user || { name: 'Staff Resolver', role: 'staff' },
+          modalStatusNote || `Status updated to ${STATUS_LABELS[newStatus]}`
+        );
+        if (updated) {
+          showToast(`Ticket ${selectedTicket.id} updated to ${STATUS_LABELS[newStatus]}`, 'success');
+        }
+      }
 
       if (updated) {
-        showToast(`Ticket ${selectedTicket.id} updated to ${STATUS_LABELS[newStatus]}`, 'success');
         setModalStatusNote('');
         setSelectedTicket(updated);
         loadComplaints();

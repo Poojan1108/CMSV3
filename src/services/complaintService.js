@@ -334,6 +334,149 @@ export const complaintService = {
   },
 
   /**
+   * Propose resolution for a complaint (Staff action).
+   * Moves ticket to PENDING_CONFIRMATION status and dispatches request to complainant.
+   * @param {string} id
+   * @param {Object|string} staffUser
+   * @param {string} resolutionNotes
+   * @returns {Object|null}
+   */
+  proposeResolution: (id, staffUser, resolutionNotes = '') => {
+    const list = getRawComplaints();
+    const index = list.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    const now = new Date().toISOString();
+    const staffName = typeof staffUser === 'object' && staffUser ? staffUser.name : staffUser || 'Staff';
+
+    const complaint = list[index];
+    complaint.status = STATUSES.PENDING_CONFIRMATION;
+    complaint.updatedAt = now;
+    complaint.resolutionDetails = {
+      notes: resolutionNotes || 'Staff has resolved the issue and requested your confirmation.',
+      staffName,
+      proposedAt: now,
+    };
+
+    if (!complaint.statusHistory) complaint.statusHistory = [];
+    complaint.statusHistory.push({
+      status: STATUSES.PENDING_CONFIRMATION,
+      updatedBy: staffName,
+      note: `Resolution proposed: ${resolutionNotes || 'Issue fixed. Awaiting user confirmation.'}`,
+      timestamp: now,
+    });
+
+    if (!complaint.comments) complaint.comments = [];
+    complaint.comments.push({
+      id: `c_${Date.now()}`,
+      senderName: staffName,
+      senderRole: ROLES.STAFF,
+      text: `[Resolution Proposed] ${resolutionNotes || 'Issue has been addressed. Please review and confirm resolution.'}`,
+      timestamp: now,
+      isInternal: false,
+    });
+
+    list[index] = complaint;
+    saveComplaints(list);
+    return complaint;
+  },
+
+  /**
+   * Confirm resolution (Complainant action).
+   * Moves ticket from PENDING_CONFIRMATION to RESOLVED.
+   * @param {string} id
+   * @param {Object|string} user
+   * @param {string} feedbackNote
+   * @returns {Object|null}
+   */
+  confirmResolution: (id, user, feedbackNote = '') => {
+    const list = getRawComplaints();
+    const index = list.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    const now = new Date().toISOString();
+    const userName = typeof user === 'object' && user ? user.name : user || 'User';
+
+    const complaint = list[index];
+    complaint.status = STATUSES.RESOLVED;
+    complaint.updatedAt = now;
+    complaint.resolvedAt = now;
+    if (complaint.resolutionDetails) {
+      complaint.resolutionDetails.confirmedAt = now;
+      complaint.resolutionDetails.userFeedback = feedbackNote;
+    }
+
+    if (!complaint.statusHistory) complaint.statusHistory = [];
+    complaint.statusHistory.push({
+      status: STATUSES.RESOLVED,
+      updatedBy: userName,
+      note: `Resolution confirmed by user.${feedbackNote ? ` Feedback: ${feedbackNote}` : ''}`,
+      timestamp: now,
+    });
+
+    if (!complaint.comments) complaint.comments = [];
+    complaint.comments.push({
+      id: `c_${Date.now()}`,
+      senderName: userName,
+      senderRole: ROLES.STUDENT,
+      text: `[Ticket Closed & Confirmed Resolved] ${feedbackNote || 'Confirmed issue is completely resolved. Thank you!'}`,
+      timestamp: now,
+      isInternal: false,
+    });
+
+    list[index] = complaint;
+    saveComplaints(list);
+    return complaint;
+  },
+
+  /**
+   * Reject resolution (Complainant action).
+   * Reverts ticket from PENDING_CONFIRMATION back to IN_PROGRESS.
+   * @param {string} id
+   * @param {Object|string} user
+   * @param {string} rejectionReason
+   * @returns {Object|null}
+   */
+  rejectResolution: (id, user, rejectionReason = '') => {
+    const list = getRawComplaints();
+    const index = list.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    const now = new Date().toISOString();
+    const userName = typeof user === 'object' && user ? user.name : user || 'User';
+
+    const complaint = list[index];
+    complaint.status = STATUSES.IN_PROGRESS;
+    complaint.updatedAt = now;
+    if (complaint.resolutionDetails) {
+      complaint.resolutionDetails.rejectedAt = now;
+      complaint.resolutionDetails.rejectionReason = rejectionReason;
+    }
+
+    if (!complaint.statusHistory) complaint.statusHistory = [];
+    complaint.statusHistory.push({
+      status: STATUSES.IN_PROGRESS,
+      updatedBy: userName,
+      note: `Resolution rejected by user. Reopened ticket. Reason: ${rejectionReason || 'Issue not resolved yet.'}`,
+      timestamp: now,
+    });
+
+    if (!complaint.comments) complaint.comments = [];
+    complaint.comments.push({
+      id: `c_${Date.now()}`,
+      senderName: userName,
+      senderRole: ROLES.STUDENT,
+      text: `[Resolution Rejected / Reopened] ${rejectionReason || 'The issue is not completely fixed yet. Please inspect further.'}`,
+      timestamp: now,
+      isInternal: false,
+    });
+
+    list[index] = complaint;
+    saveComplaints(list);
+    return complaint;
+  },
+
+  /**
    * Resets local storage complaints back to initial mock seed data.
    */
   resetToSeedData: () => {
@@ -356,6 +499,7 @@ export const complaintService = {
       total: list.length,
       pending: list.filter((c) => c.status === STATUSES.PENDING).length,
       inProgress: list.filter((c) => c.status === STATUSES.IN_PROGRESS).length,
+      pendingConfirmation: list.filter((c) => c.status === STATUSES.PENDING_CONFIRMATION).length,
       resolved: list.filter((c) => c.status === STATUSES.RESOLVED).length,
       rejected: list.filter((c) => c.status === STATUSES.REJECTED).length,
       urgent: list.filter((c) => c.priority === PRIORITIES.URGENT).length,

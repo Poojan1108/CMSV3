@@ -28,13 +28,14 @@ import { complaintService } from '../services/complaintService';
 import { STATUSES, PRIORITIES, STATUS_LABELS, PRIORITY_LABELS, ROLES } from '../utils/constants';
 import { formatDate, formatRelativeTime, getStatusBadgeColor, getPriorityBadgeColor } from '../utils/formatters';
 
-// Define the 5 canonical timeline stages
+// Define the 6 canonical timeline stages
 const TIMELINE_STAGES = [
   { key: 'submitted', label: 'Submitted', desc: 'Ticket registered in system' },
   { key: 'under_review', label: 'Under Review', desc: 'Triage & verification by admin' },
   { key: 'assigned', label: 'Assigned', desc: 'Staff / Department handler assigned' },
   { key: 'in_progress', label: 'In Progress', desc: 'Active repair & resolution in progress' },
-  { key: 'resolved', label: 'Resolved', desc: 'Ticket completed & verified' }
+  { key: 'pending_confirmation', label: 'Pending Confirmation', desc: 'Staff resolved issue; awaiting user sign-off' },
+  { key: 'resolved', label: 'Resolved & Closed', desc: 'Resolution confirmed by user & ticket closed' }
 ];
 
 export default function TicketTracker() {
@@ -52,6 +53,12 @@ export default function TicketTracker() {
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [userComplaintsList, setUserComplaintsList] = useState([]);
+
+  // Resolution confirmation states
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmFeedbackText, setConfirmFeedbackText] = useState('');
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [reopenReasonText, setReopenReasonText] = useState('');
 
   // Fetch ticket details when query param changes
   useEffect(() => {
@@ -101,22 +108,64 @@ export default function TicketTracker() {
     setTimeout(() => setCopiedId(false), 2000);
   };
 
+  // Handle User Confirming Ticket Resolution
+  const handleConfirmResolution = () => {
+    if (!complaint) return;
+    try {
+      const updated = complaintService.confirmResolution(
+        complaint.id,
+        user || { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' },
+        confirmFeedbackText.trim()
+      );
+      if (updated) {
+        setComplaint(updated);
+        setShowConfirmModal(false);
+        setConfirmFeedbackText('');
+        showToast('Ticket confirmed and officially closed as Resolved!', 'success');
+      }
+    } catch (err) {
+      console.error('Error confirming resolution:', err);
+      showToast('Failed to confirm resolution', 'error');
+    }
+  };
+
+  // Handle User Rejecting Resolution (Reopening Ticket)
+  const handleRejectResolution = () => {
+    if (!complaint) return;
+    try {
+      const updated = complaintService.rejectResolution(
+        complaint.id,
+        user || { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' },
+        reopenReasonText.trim()
+      );
+      if (updated) {
+        setComplaint(updated);
+        setShowReopenModal(false);
+        setReopenReasonText('');
+        showToast('Ticket reopened! Returned to staff for further action.', 'info');
+      }
+    } catch (err) {
+      console.error('Error rejecting resolution:', err);
+      showToast('Failed to reopen ticket', 'error');
+    }
+  };
+
   // Determine timeline stage indices based on complaint status
   const currentStageIndex = useMemo(() => {
     if (!complaint) return 0;
 
     switch (complaint.status) {
       case STATUSES.RESOLVED:
-        return 4; // Step 5: Resolved
+        return 5; // Step 6: Resolved & Closed
+      case STATUSES.PENDING_CONFIRMATION:
+        return 4; // Step 5: Pending Confirmation
       case STATUSES.IN_PROGRESS:
         return 3; // Step 4: In Progress
       case STATUSES.PENDING:
       default:
-        // Check if assignedTo exists
         if (complaint.assignedTo) {
           return 2; // Step 3: Assigned
         }
-        // Check if status history has triage notes
         if (complaint.statusHistory && complaint.statusHistory.length > 1) {
           return 1; // Step 2: Under Review
         }
@@ -315,6 +364,89 @@ export default function TicketTracker() {
                 </div>
               </div>
             </div>
+
+            {/* Interactive Resolution Confirmation Panel */}
+            {complaint.status === STATUSES.PENDING_CONFIRMATION && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(56, 189, 248, 0.08))',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  marginBottom: '24px',
+                  boxShadow: '0 8px 32px rgba(16, 185, 129, 0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#34d399',
+                    }}
+                  >
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>
+                      Action Required: Confirm Issue Resolution
+                    </h3>
+                    <p style={{ fontSize: '13px', color: '#9ca3af', margin: '2px 0 0 0' }}>
+                      Staff marked your problem as fixed. Please verify and confirm so the ticket can be officially closed.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(17, 24, 39, 0.6)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    margin: '16px 0',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', marginBottom: '4px' }}>
+                    RESOLUTION SUMMARY BY {complaint.resolutionDetails?.staffName?.toUpperCase() || 'STAFF'}:
+                  </div>
+                  <p style={{ fontSize: '14px', color: '#e5e7eb', margin: 0, fontStyle: 'italic' }}>
+                    "{complaint.resolutionDetails?.notes || 'Staff marked this ticket as resolved. Please confirm.'}"
+                  </p>
+                  {complaint.resolutionDetails?.proposedAt && (
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
+                      Proposed on {formatDate(complaint.resolutionDetails.proposedAt)}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => setShowConfirmModal(true)}
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Confirm & Close Ticket</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowReopenModal(true)}
+                    style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#f87171' }}
+                  >
+                    <AlertTriangle size={16} />
+                    <span>Issue Not Solved (Reopen)</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Step-by-Step Progress Timeline */}
             <div className="timeline-tracker-card">
@@ -565,6 +697,172 @@ export default function TicketTracker() {
 
           </div>
 
+        </div>
+      )}
+
+      {/* MODAL: Confirm Resolution */}
+      {showConfirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: '#111827',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              borderRadius: '20px',
+              padding: '28px',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>Confirm Ticket Resolution</h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0 0' }}>Ticket {complaint?.id}</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '16px' }}>
+              By confirming, you verify that the staff member's work has satisfactorily solved your complaint. The ticket status will be changed to <strong>Resolved (Closed)</strong>.
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#9ca3af', marginBottom: '6px' }}>
+                Feedback or Rating Note (Optional):
+              </label>
+              <textarea
+                style={{
+                  width: '100%',
+                  background: 'rgba(31, 41, 55, 0.8)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  color: '#f9fafb',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+                rows={3}
+                placeholder="e.g. Work was completed quickly and desk is in perfect condition. Thank you!"
+                value={confirmFeedbackText}
+                onChange={(e) => setConfirmFeedbackText(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmResolution}
+                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+              >
+                Confirm & Close Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Reopen Ticket */}
+      {showReopenModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: '#111827',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '20px',
+              padding: '28px',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>Reopen Complaint Ticket</h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0 0' }}>Ticket {complaint?.id}</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '16px' }}>
+              If your problem is not resolved yet, please explain what still needs attention so staff can inspect it further.
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#9ca3af', marginBottom: '6px' }}>
+                Reason / Details (Required):
+              </label>
+              <textarea
+                style={{
+                  width: '100%',
+                  background: 'rgba(31, 41, 55, 0.8)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  color: '#f9fafb',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+                rows={3}
+                placeholder="e.g. The leak started spattering again after 10 minutes..."
+                value={reopenReasonText}
+                onChange={(e) => setReopenReasonText(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowReopenModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRejectResolution}
+                style={{ background: '#ef4444', color: '#ffffff', borderColor: '#dc2626' }}
+              >
+                Reopen Ticket
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

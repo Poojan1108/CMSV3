@@ -142,6 +142,7 @@ export const PRIORITY_LABELS = {
 export const STATUSES = {
   PENDING: 'pending',
   IN_PROGRESS: 'in_progress',
+  PENDING_CONFIRMATION: 'pending_confirmation',
   RESOLVED: 'resolved',
   REJECTED: 'rejected',
 };
@@ -149,6 +150,7 @@ export const STATUSES = {
 export const STATUS_LABELS = {
   [STATUSES.PENDING]: 'Pending',
   [STATUSES.IN_PROGRESS]: 'In Progress',
+  [STATUSES.PENDING_CONFIRMATION]: 'Pending User Confirmation',
   [STATUSES.RESOLVED]: 'Resolved',
   [STATUSES.REJECTED]: 'Rejected',
 };

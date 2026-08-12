@@ -66,9 +66,15 @@ export default function MyComplaintsList() {
     const total = complaints.length;
     const pending = complaints.filter((c) => c.status === STATUSES.PENDING).length;
     const inProgress = complaints.filter((c) => c.status === STATUSES.IN_PROGRESS).length;
+    const pendingConfirmation = complaints.filter((c) => c.status === STATUSES.PENDING_CONFIRMATION).length;
     const resolved = complaints.filter((c) => c.status === STATUSES.RESOLVED).length;
     const rejected = complaints.filter((c) => c.status === STATUSES.REJECTED).length;
-    return { total, pending, inProgress, resolved, rejected };
+    return { total, pending, inProgress, pendingConfirmation, resolved, rejected };
+  }, [complaints]);
+
+  // Tickets awaiting user confirmation
+  const unconfirmedTickets = useMemo(() => {
+    return complaints.filter((c) => c.status === STATUSES.PENDING_CONFIRMATION);
   }, [complaints]);
 
   // Filter complaints client-side based on search, status, category, priority
@@ -174,6 +180,61 @@ export default function MyComplaintsList() {
         </div>
       </div>
 
+      {/* Unconfirmed Resolution Alert Banner */}
+      {unconfirmedTickets.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(56, 189, 248, 0.12))',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            borderRadius: '16px',
+            padding: '20px 24px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            boxShadow: '0 8px 32px rgba(16, 185, 129, 0.12)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                background: 'rgba(16, 185, 129, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#34d399',
+                flexShrink: 0,
+              }}
+            >
+              <CheckCircle2 size={24} />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>
+                {unconfirmedTickets.length} Ticket{unconfirmedTickets.length > 1 ? 's' : ''} Awaiting Your Resolution Confirmation!
+              </h4>
+              <p style={{ fontSize: '13px', color: '#9ca3af', margin: '2px 0 0 0' }}>
+                Staff has resolved the issue. Please inspect and confirm to close your ticket.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => navigate(`/track?id=${encodeURIComponent(unconfirmedTickets[0].id)}`)}
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}
+          >
+            <span>Review Resolution ({unconfirmedTickets[0].id})</span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Toolbar: Filters & Search */}
       <div className="filter-toolbar-card">
         {/* Top Search Bar & Sort */}
@@ -241,6 +302,16 @@ export default function MyComplaintsList() {
             >
               In Progress ({metrics.inProgress})
             </button>
+            {metrics.pendingConfirmation > 0 && (
+              <button
+                type="button"
+                className={`status-pill ${statusFilter === STATUSES.PENDING_CONFIRMATION ? 'active' : ''}`}
+                onClick={() => setStatusFilter(STATUSES.PENDING_CONFIRMATION)}
+                style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+              >
+                Needs Confirmation ({metrics.pendingConfirmation})
+              </button>
+            )}
             <button
               type="button"
               className={`status-pill pill-resolved ${statusFilter === STATUSES.RESOLVED ? 'active' : ''}`}

@@ -1060,6 +1060,7 @@ export default function AdminAnalytics() {
             <option value="all">All Statuses</option>
             <option value={STATUSES.PENDING}>Pending</option>
             <option value={STATUSES.IN_PROGRESS}>In Progress</option>
+            <option value={STATUSES.PENDING_CONFIRMATION}>Pending Confirmation</option>
             <option value={STATUSES.RESOLVED}>Resolved</option>
             <option value={STATUSES.REJECTED}>Rejected</option>
           </select>
@@ -1209,6 +1210,7 @@ export default function AdminAnalytics() {
                         >
                           <option value={STATUSES.PENDING} style={{ background: '#111827', color: '#f9fafb' }}>Pending</option>
                           <option value={STATUSES.IN_PROGRESS} style={{ background: '#111827', color: '#f9fafb' }}>In Progress</option>
+                          <option value={STATUSES.PENDING_CONFIRMATION} style={{ background: '#111827', color: '#f9fafb' }}>Pending Confirmation</option>
                           <option value={STATUSES.RESOLVED} style={{ background: '#111827', color: '#f9fafb' }}>Resolved</option>
                           <option value={STATUSES.REJECTED} style={{ background: '#111827', color: '#f9fafb' }}>Rejected</option>
                         </select>

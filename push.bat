@@ -15,15 +15,19 @@ if "%COMMIT_MSG%"=="" (
 )
 
 echo.
-echo [1/3] Staging changes (git add .)...
+echo [1/4] Staging changes (git add .)...
 git add .
 
 echo.
-echo [2/3] Creating commit: "%COMMIT_MSG%"...
+echo [2/4] Creating commit: "%COMMIT_MSG%"...
 git commit -m "%COMMIT_MSG%"
 
 echo.
-echo [3/3] Pushing to GitHub (git push origin main)...
+echo [3/4] Syncing with GitHub (git pull --rebase origin main)...
+git pull --rebase origin main
+
+echo.
+echo [4/4] Pushing to GitHub (git push origin main)...
 git push origin main
 
 echo.
@@ -39,3 +43,4 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 pause
+

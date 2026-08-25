@@ -1,108 +1,144 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 
+const NAV_ITEMS = [
+  { label: 'Problem', href: '#problem' },
+  { label: 'Solution', href: '#solution' },
+  { label: 'Workflow', href: '#workflow' },
+  { label: 'Features', href: '#features' },
+  { label: 'Dashboard', href: '#dashboard' },
+  { label: 'Impact', href: '#stats' },
+];
+
+export function BrandMark({ size = 26 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M16 6L25 11.2V20.8L16 26L7 20.8V11.2L16 6Z" stroke="var(--lx-accent)" strokeWidth="2" />
+      <circle cx="16" cy="16" r="3" fill="currentColor" />
+    </svg>
+  );
+}
+
 export default function Navbar({ setView }) {
   const [scrolled, setScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 40) {
-        setScrolled(true);
-      } else {
-        setScrolled(false);
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
+    const handleScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const closeMobileMenu = () => setIsMobileMenuOpen(false);
-
-  const handleNavClick = (e, sectionId) => {
-    if (sectionId) {
-      const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-    closeMobileMenu();
+  const handleNavClick = (e, href) => {
+    e.preventDefault();
+    setIsDrawerOpen(false);
+    const el = document.querySelector(href);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <>
-      <header className={`navbar ${scrolled ? 'scrolled' : ''}`} style={scrolled ? { padding: '10px 0' } : {}}>
-        <div className="nav-container">
-          <a href="#" className="logo-group" onClick={(e) => { e.preventDefault(); setView('landing'); closeMobileMenu(); }}>
-            {/* ResolveX Geometric Tech Logo */}
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="32" height="32" rx="8" fill="var(--bg-landing)"/>
-              <path d="M16 6L25 11.2V20.8L16 26L7 20.8V11.2L16 6Z" stroke="var(--primary)" strokeWidth="2"/>
-              <circle cx="16" cy="16" r="3" fill="var(--text-white)"/>
-            </svg>
-            <span className="logo-text">ResolveX</span>
+      <header className={`lx-navbar ${scrolled ? 'scrolled' : ''}`}>
+        <div className="lx-container lx-navbar-inner">
+          <a
+            href="#top"
+            className="lx-logo"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            <BrandMark />
+            ResolveX
           </a>
 
-          <nav className="nav-links desktop-only">
-            <a href="#problem" onClick={(e) => handleNavClick(e, 'problem')}>The Problem</a>
-            <a href="#solution" onClick={(e) => handleNavClick(e, 'solution')}>Solution</a>
-            <a href="#workflow" onClick={(e) => handleNavClick(e, 'workflow')}>Workflow</a>
-            <a href="#features" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
-            <a href="#dashboard" onClick={(e) => handleNavClick(e, 'dashboard')}>Dashboard</a>
-            <a href="#stats" onClick={(e) => handleNavClick(e, 'stats')}>Impact</a>
+          <nav className="lx-nav-links" aria-label="Primary">
+            {NAV_ITEMS.map((item) => (
+              <a key={item.href} href={item.href} onClick={(e) => handleNavClick(e, item.href)}>
+                {item.label}
+              </a>
+            ))}
           </nav>
 
-          <div className="nav-actions desktop-only">
-            <a href="#" className="btn-link" onClick={(e) => { e.preventDefault(); setView('login'); }}>Log in</a>
-            <a href="#" className="btn btn-primary" onClick={(e) => { e.preventDefault(); setView('signup'); }}>Get Started</a>
+          <div className="lx-nav-actions">
+            <a
+              href="#login"
+              className="lx-link"
+              onClick={(e) => {
+                e.preventDefault();
+                setView('login');
+              }}
+            >
+              Log in
+            </a>
+            <button
+              type="button"
+              className="lx-btn lx-btn-primary lx-btn-sm"
+              onClick={() => setView('signup')}
+            >
+              Get Started
+            </button>
           </div>
 
           <button
             type="button"
-            className="landing-mobile-toggle"
-            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="lx-mobile-toggle"
+            onClick={() => setIsDrawerOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
+            aria-expanded={isDrawerOpen}
           >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            {isDrawerOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
         </div>
       </header>
 
-      {/* Mobile Navigation Drawer */}
-      {isMobileMenuOpen && (
-        <div className="landing-mobile-backdrop" onClick={closeMobileMenu}>
-          <div className="landing-mobile-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header">
-              <span className="logo-text">ResolveX Navigation</span>
-              <button type="button" className="drawer-close-btn" onClick={closeMobileMenu}>
-                <X size={20} />
+      {isDrawerOpen && (
+        <div className="lx-drawer-backdrop" onClick={() => setIsDrawerOpen(false)}>
+          <div className="lx-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="lx-drawer-head">
+              <span className="lx-logo">
+                <BrandMark size={22} />
+                ResolveX
+              </span>
+              <button
+                type="button"
+                className="lx-mobile-toggle"
+                onClick={() => setIsDrawerOpen(false)}
+                aria-label="Close menu"
+              >
+                <X size={19} />
               </button>
             </div>
 
-            <nav className="drawer-nav-links">
-              <a href="#problem" onClick={(e) => handleNavClick(e, 'problem')}>The Problem</a>
-              <a href="#solution" onClick={(e) => handleNavClick(e, 'solution')}>Solution</a>
-              <a href="#workflow" onClick={(e) => handleNavClick(e, 'workflow')}>Workflow</a>
-              <a href="#features" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
-              <a href="#dashboard" onClick={(e) => handleNavClick(e, 'dashboard')}>Dashboard</a>
-              <a href="#stats" onClick={(e) => handleNavClick(e, 'stats')}>Impact</a>
+            <nav className="lx-drawer-nav" aria-label="Mobile">
+              {NAV_ITEMS.map((item) => (
+                <a key={item.href} href={item.href} onClick={(e) => handleNavClick(e, item.href)}>
+                  {item.label}
+                </a>
+              ))}
             </nav>
 
-            <div className="drawer-nav-actions">
-              <a 
-                href="#" 
-                className="btn btn-secondary btn-full" 
-                onClick={(e) => { e.preventDefault(); setView('login'); closeMobileMenu(); }}
+            <div className="lx-drawer-actions">
+              <button
+                type="button"
+                className="lx-btn lx-btn-ghost"
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  setView('login');
+                }}
               >
                 Log in
-              </a>
-              <a 
-                href="#" 
-                className="btn btn-primary btn-full" 
-                onClick={(e) => { e.preventDefault(); setView('signup'); closeMobileMenu(); }}
+              </button>
+              <button
+                type="button"
+                className="lx-btn lx-btn-primary"
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  setView('signup');
+                }}
               >
                 Get Started
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -110,4 +146,3 @@ export default function Navbar({ setView }) {
     </>
   );
 }
-

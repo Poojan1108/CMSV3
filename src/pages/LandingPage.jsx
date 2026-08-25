@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Lenis from 'lenis';
 import { useNavigate } from 'react-router-dom';
 
-// Import Landing Page Components
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import Problem from '../components/Problem';
@@ -15,72 +14,88 @@ import Testimonials from '../components/Testimonials';
 import CTA from '../components/CTA';
 import Footer from '../components/Footer';
 import Auth from '../components/Auth';
+import { complaintService } from '../services/complaintService';
+import { useAuth } from '../context/AuthContext';
+import { ROLES } from '../utils/constants';
 
-export default function LandingPage() {
-  const [view, setView] = useState('landing');
+export default function LandingPage({ initialMode = 'landing' }) {
+  const [view, setView] = useState(initialMode);
   const navigate = useNavigate();
+  const { role } = useAuth();
+
+  // On initial mount, trigger background sync with Supabase
+  useEffect(() => {
+    complaintService.syncFromSupabase().catch((err) => {
+      console.warn('Initial Supabase sync notice:', err);
+    });
+  }, []);
+
+  useEffect(() => {
+    setView(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     if (view !== 'landing') return;
 
     const lenisInstance = new Lenis({
-      duration: 1.2,
+      duration: 1.1,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smooth: true,
     });
 
+    let rafId;
     function raf(time) {
       lenisInstance.raf(time);
-      requestAnimationFrame(raf);
+      rafId = requestAnimationFrame(raf);
     }
+    rafId = requestAnimationFrame(raf);
 
-    requestAnimationFrame(raf);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    );
 
-    const handleHeroScroll = () => {
-      const hero = document.getElementById('hero');
-      if (hero) {
-        const scrollY = window.scrollY;
-        const vh = window.innerHeight;
-        const opacity = Math.max(0, 1 - (scrollY / (vh * 0.75)));
-        hero.style.opacity = opacity;
-      }
-    };
-    window.addEventListener('scroll', handleHeroScroll);
-
-    const revealElements = document.querySelectorAll('.reveal-on-scroll');
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, {
-      threshold: 0.15,
-      rootMargin: '0px 0px -50px 0px'
-    });
-
-    revealElements.forEach(el => observer.observe(el));
+    document
+      .querySelectorAll('.landing .reveal-on-scroll')
+      .forEach((el) => observer.observe(el));
 
     return () => {
       lenisInstance.destroy();
       observer.disconnect();
-      window.removeEventListener('scroll', handleHeroScroll);
+      cancelAnimationFrame(rafId);
     };
   }, [view]);
 
-  if (view === 'login' || view === 'signup') {
+  if (view === 'login' || view === 'signup' || view === 'forgot-password') {
     return (
-      <Auth 
-        initialView={view} 
-        onBackToHome={() => setView('landing')} 
-        onSuccess={() => navigate('/dashboard')}
+      <Auth
+        initialView={view}
+        onBackToHome={() => {
+          setView('landing');
+          navigate('/');
+        }}
+        onSuccess={() => {
+          if (role === ROLES.ADMIN) {
+            navigate('/admin/dashboard');
+          } else if (role === ROLES.STAFF) {
+            navigate('/staff/queue');
+          } else {
+            navigate('/dashboard');
+          }
+        }}
       />
     );
   }
 
   return (
-    <>
+    <div className="landing">
       <Navbar setView={setView} />
       <main>
         <Hero setView={setView} />
@@ -94,6 +109,6 @@ export default function LandingPage() {
         <CTA setView={setView} />
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

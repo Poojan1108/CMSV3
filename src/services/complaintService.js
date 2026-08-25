@@ -10,6 +10,7 @@ import {
   getRoleTerm,
   resolveOrg,
 } from '../utils/constants.js';
+import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 
 const STORAGE_KEY = 'cms_complaints_v1';
 const ID_COUNTER_KEY = 'cms_complaint_counter_v1';
@@ -66,6 +67,87 @@ const getNextId = () => {
   return `CMS-${year}-${currentCounter}`;
 };
 
+/**
+ * Helper to asynchronously sync a complaint to Supabase
+ */
+async function syncComplaintToSupabase(complaint) {
+  if (!isSupabaseConfigured || !supabase || !complaint) return;
+  try {
+    const complaintRecord = {
+      id: complaint.id,
+      title: complaint.title,
+      description: complaint.description,
+      category: complaint.category,
+      priority: complaint.priority || PRIORITIES.MEDIUM,
+      status: complaint.status || STATUSES.PENDING,
+      location: complaint.location || '',
+      org_key: complaint.org || complaint.currentOrg || 'COLLEGE',
+      student_id: complaint.student?.id || 'usr_unknown',
+      student_name: complaint.student?.name || 'Anonymous',
+      student_email: complaint.student?.email || '',
+      student_meta: complaint.student || null,
+      assigned_to: complaint.assignedTo || null,
+      resolution_details: complaint.resolutionDetails || null,
+      created_at: complaint.createdAt,
+      updated_at: complaint.updatedAt,
+      resolved_at: complaint.resolvedAt || null,
+    };
+
+    const { error: upsertErr } = await supabase
+      .from('complaints')
+      .upsert(complaintRecord, { onConflict: 'id' });
+
+    if (upsertErr) {
+      console.warn('[Supabase Complaints Upsert Warning]:', upsertErr.message);
+    }
+  } catch (err) {
+    console.warn('[Supabase Sync Error]:', err);
+  }
+}
+
+/**
+ * Helper to record a status change history row in Supabase
+ */
+async function recordStatusHistoryToSupabase(complaintId, status, updatedBy, note) {
+  if (!isSupabaseConfigured || !supabase || !complaintId) return;
+  try {
+    await supabase.from('complaint_history').insert([
+      {
+        complaint_id: complaintId,
+        status,
+        updated_by: typeof updatedBy === 'object' ? updatedBy.name : updatedBy,
+        note: note || `Status changed to ${status}`,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('[Supabase History Insert Error]:', err);
+  }
+}
+
+/**
+ * Helper to insert comment record into Supabase
+ */
+async function recordCommentToSupabase(complaintId, comment) {
+  if (!isSupabaseConfigured || !supabase || !complaintId || !comment) return;
+  try {
+    await supabase.from('complaint_comments').insert([
+      {
+        id: comment.id,
+        complaint_id: complaintId,
+        sender_id: comment.senderId || '',
+        sender_name: comment.senderName,
+        sender_role: comment.senderRole,
+        text: comment.text,
+        is_internal: Boolean(comment.isInternal),
+        created_at: comment.timestamp || new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('[Supabase Comment Insert Error]:', err);
+  }
+}
+
 export const complaintService = {
   /**
    * Helper methods to dynamically resolve organization template attributes
@@ -75,6 +157,85 @@ export const complaintService = {
   getUserLabel: (org = 'COLLEGE') => getOrgUserLabel(org),
   getRoleTerm: (role, org = 'COLLEGE') => getRoleTerm(role, org),
   resolveOrg: (org = 'COLLEGE') => resolveOrg(org),
+
+  /**
+   * Sync complaints from Supabase into local storage cache
+   */
+  syncFromSupabase: async () => {
+    if (!isSupabaseConfigured || !supabase) return getRawComplaints();
+    try {
+      const { data: dbComplaints, error } = await supabase
+        .from('complaints')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error || !dbComplaints || dbComplaints.length === 0) {
+        return getRawComplaints();
+      }
+
+      // Fetch comments & history for richer cache
+      const { data: dbComments } = await supabase.from('complaint_comments').select('*');
+      const { data: dbHistory } = await supabase.from('complaint_history').select('*');
+
+      const mappedList = dbComplaints.map((row) => {
+        const comments = (dbComments || [])
+          .filter((c) => c.complaint_id === row.id)
+          .map((c) => ({
+            id: c.id,
+            senderId: c.sender_id,
+            senderName: c.sender_name,
+            senderRole: c.sender_role,
+            text: c.text,
+            isInternal: c.is_internal,
+            timestamp: c.created_at,
+          }));
+
+        const statusHistory = (dbHistory || [])
+          .filter((h) => h.complaint_id === row.id)
+          .map((h) => ({
+            status: h.status,
+            updatedBy: h.updated_by,
+            note: h.note,
+            timestamp: h.created_at,
+          }));
+
+        return {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          category: row.category,
+          priority: row.priority,
+          status: row.status,
+          location: row.location,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          resolvedAt: row.resolved_at,
+          student: row.student_meta || {
+            id: row.student_id,
+            name: row.student_name,
+            email: row.student_email,
+          },
+          assignedTo: row.assigned_to || null,
+          resolutionDetails: row.resolution_details || null,
+          statusHistory: statusHistory.length > 0 ? statusHistory : [
+            {
+              status: row.status,
+              updatedBy: row.student_name || 'User',
+              note: 'Complaint registered.',
+              timestamp: row.created_at,
+            },
+          ],
+          comments,
+        };
+      });
+
+      saveComplaints(mappedList);
+      return mappedList;
+    } catch (err) {
+      console.warn('[Supabase syncFromSupabase Error]:', err);
+      return getRawComplaints();
+    }
+  },
 
   /**
    * Fetch all complaints filtered and sorted.
@@ -151,6 +312,7 @@ export const complaintService = {
 
   /**
    * Create and store a new complaint with dynamic org defaults.
+   * Persists to Supabase & localStorage.
    * @param {Object} data
    * @returns {Object} Newly created complaint
    */
@@ -170,6 +332,7 @@ export const complaintService = {
       priority: data.priority || PRIORITIES.MEDIUM,
       status: STATUSES.PENDING,
       location: data.location || locationLabel,
+      org: activeOrg,
       createdAt: now,
       updatedAt: now,
       student: data.student || {
@@ -193,6 +356,16 @@ export const complaintService = {
 
     list.unshift(newComplaint);
     saveComplaints(list);
+
+    // Sync to Supabase in background
+    syncComplaintToSupabase(newComplaint);
+    recordStatusHistoryToSupabase(
+      newId,
+      STATUSES.PENDING,
+      data.student?.name || userLabel,
+      'Complaint registered in system.'
+    );
+
     return newComplaint;
   },
 
@@ -215,6 +388,9 @@ export const complaintService = {
     const complaint = list[index];
     complaint.status = newStatus;
     complaint.updatedAt = now;
+    if (newStatus === STATUSES.RESOLVED) {
+      complaint.resolvedAt = now;
+    }
 
     if (!complaint.statusHistory) {
       complaint.statusHistory = [];
@@ -229,6 +405,11 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordStatusHistoryToSupabase(id, newStatus, updaterName || 'System', note);
+
     return complaint;
   },
 
@@ -255,7 +436,7 @@ export const complaintService = {
     const senderId = typeof sender === 'object' ? sender.id : '';
 
     const newComment = {
-      id: `c_${Date.now()}`,
+      id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       senderName: senderName || 'Anonymous',
       senderRole: senderRole || 'user',
       senderId,
@@ -274,16 +455,16 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordCommentToSupabase(id, newComment);
+
     return complaint;
   },
 
   /**
    * Reassign a complaint ticket to another staff member or department.
-   * @param {string} id
-   * @param {Object} targetAssignee - { id, name, department }
-   * @param {string|Object} reassignedBy
-   * @param {string} reason
-   * @returns {Object|null}
    */
   reassign: (id, targetAssignee, reassignedBy, reason = '') => {
     const list = getRawComplaints();
@@ -316,7 +497,7 @@ export const complaintService = {
       complaint.comments = [];
     }
 
-    complaint.comments.push({
+    const reassignmentComment = {
       id: `c_${Date.now()}`,
       senderName: reassignerName || 'Staff',
       senderRole: ROLES.STAFF,
@@ -326,20 +507,23 @@ export const complaintService = {
       }`,
       timestamp: now,
       isInternal: true,
-    });
+    };
+
+    complaint.comments.push(reassignmentComment);
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordStatusHistoryToSupabase(id, complaint.status, reassignerName, note);
+    recordCommentToSupabase(id, reassignmentComment);
+
     return complaint;
   },
 
   /**
    * Propose resolution for a complaint (Staff action).
-   * Moves ticket to PENDING_CONFIRMATION status and dispatches request to complainant.
-   * @param {string} id
-   * @param {Object|string} staffUser
-   * @param {string} resolutionNotes
-   * @returns {Object|null}
    */
   proposeResolution: (id, staffUser, resolutionNotes = '') => {
     const list = getRawComplaints();
@@ -367,27 +551,34 @@ export const complaintService = {
     });
 
     if (!complaint.comments) complaint.comments = [];
-    complaint.comments.push({
+    const propComment = {
       id: `c_${Date.now()}`,
       senderName: staffName,
       senderRole: ROLES.STAFF,
       text: `[Resolution Proposed] ${resolutionNotes || 'Issue has been addressed. Please review and confirm resolution.'}`,
       timestamp: now,
       isInternal: false,
-    });
+    };
+    complaint.comments.push(propComment);
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordStatusHistoryToSupabase(
+      id,
+      STATUSES.PENDING_CONFIRMATION,
+      staffName,
+      `Resolution proposed: ${resolutionNotes}`
+    );
+    recordCommentToSupabase(id, propComment);
+
     return complaint;
   },
 
   /**
    * Confirm resolution (Complainant action).
-   * Moves ticket from PENDING_CONFIRMATION to RESOLVED.
-   * @param {string} id
-   * @param {Object|string} user
-   * @param {string} feedbackNote
-   * @returns {Object|null}
    */
   confirmResolution: (id, user, feedbackNote = '') => {
     const list = getRawComplaints();
@@ -415,27 +606,34 @@ export const complaintService = {
     });
 
     if (!complaint.comments) complaint.comments = [];
-    complaint.comments.push({
+    const confComment = {
       id: `c_${Date.now()}`,
       senderName: userName,
       senderRole: ROLES.STUDENT,
       text: `[Ticket Closed & Confirmed Resolved] ${feedbackNote || 'Confirmed issue is completely resolved. Thank you!'}`,
       timestamp: now,
       isInternal: false,
-    });
+    };
+    complaint.comments.push(confComment);
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordStatusHistoryToSupabase(
+      id,
+      STATUSES.RESOLVED,
+      userName,
+      `Resolution confirmed: ${feedbackNote}`
+    );
+    recordCommentToSupabase(id, confComment);
+
     return complaint;
   },
 
   /**
    * Reject resolution (Complainant action).
-   * Reverts ticket from PENDING_CONFIRMATION back to IN_PROGRESS.
-   * @param {string} id
-   * @param {Object|string} user
-   * @param {string} rejectionReason
-   * @returns {Object|null}
    */
   rejectResolution: (id, user, rejectionReason = '') => {
     const list = getRawComplaints();
@@ -462,17 +660,29 @@ export const complaintService = {
     });
 
     if (!complaint.comments) complaint.comments = [];
-    complaint.comments.push({
+    const rejComment = {
       id: `c_${Date.now()}`,
       senderName: userName,
       senderRole: ROLES.STUDENT,
       text: `[Resolution Rejected / Reopened] ${rejectionReason || 'The issue is not completely fixed yet. Please inspect further.'}`,
       timestamp: now,
       isInternal: false,
-    });
+    };
+    complaint.comments.push(rejComment);
 
     list[index] = complaint;
     saveComplaints(list);
+
+    // Sync to Supabase
+    syncComplaintToSupabase(complaint);
+    recordStatusHistoryToSupabase(
+      id,
+      STATUSES.IN_PROGRESS,
+      userName,
+      `Resolution rejected: ${rejectionReason}`
+    );
+    recordCommentToSupabase(id, rejComment);
+
     return complaint;
   },
 
@@ -492,8 +702,8 @@ export const complaintService = {
   getStats: (org) => {
     let list = getRawComplaints();
     if (org) {
-      const categories = getOrgCategories(org);
-      // Keeps stats calculation smooth and compatible across org templates
+      const allowedCategories = getOrgCategories(org);
+      list = list.filter((c) => allowedCategories.includes(c.category));
     }
     return {
       total: list.length,
@@ -516,4 +726,3 @@ export const complaintService = {
     return generateComplaintsCSV(list);
   },
 };
-

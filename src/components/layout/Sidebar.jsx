@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   PlusCircle,
@@ -12,201 +12,126 @@ import {
   TrendingUp,
   Building2,
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   ShieldAlert,
   Wrench,
-  GraduationCap
+  GraduationCap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
 
-export default function Sidebar({
-  isMobileOpen,
-  onCloseMobile,
-  isCollapsed,
-  onToggleCollapse,
-}) {
-  const { role } = useAuth();
+/**
+ * Navigation model. `match` controls how the active state is resolved so
+ * sibling routes (e.g. /complaints vs /complaints/new) never highlight
+ * at the same time.
+ */
+const NAV_CONFIG = {
+  [ROLES.STUDENT]: [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: 'exact' },
+    { path: '/complaints/new', label: 'New Complaint', icon: PlusCircle, match: 'exact' },
+    { path: '/complaints', label: 'My Complaints', icon: FileText, match: 'exact' },
+    { path: '/track', label: 'Track Ticket', icon: Search, match: 'exact' },
+  ],
+  [ROLES.STAFF]: [
+    { path: '/staff/queue', label: 'Department Queue', icon: Inbox, match: 'exact' },
+    { path: '/staff/assigned', label: 'Assigned to Me', icon: CheckSquare, match: 'exact' },
+    { path: '/staff/resolutions', label: 'Resolution Log', icon: History, match: 'exact' },
+  ],
+  [ROLES.ADMIN]: [
+    { path: '/admin/dashboard', label: 'Global Dashboard', icon: BarChart3, match: 'exact' },
+    { path: '/admin/analytics', label: 'Analytics', icon: TrendingUp, match: 'exact' },
+    { path: '/admin/departments', label: 'Departments', icon: Building2, match: 'exact' },
+  ],
+};
 
-  // Define nav links for each role
-  const getNavItems = () => {
-    switch (role) {
-      case ROLES.STAFF:
-        return [
-          {
-            path: '/staff/queue',
-            label: 'Department Queue',
-            icon: Inbox,
-            badge: 'Queue',
-          },
-          {
-            path: '/staff/assigned',
-            label: 'Assigned Complaints',
-            icon: CheckSquare,
-          },
-          {
-            path: '/staff/resolutions',
-            label: 'Resolution Log',
-            icon: History,
-          },
-        ];
-      case ROLES.ADMIN:
-        return [
-          {
-            path: '/admin/dashboard',
-            label: 'Global Dashboard',
-            icon: BarChart3,
-          },
-          {
-            path: '/admin/analytics',
-            label: 'Analytics & Insights',
-            icon: TrendingUp,
-          },
-          {
-            path: '/admin/departments',
-            label: 'Department Mgmt',
-            icon: Building2,
-          },
-        ];
-      case ROLES.STUDENT:
-      default:
-        return [
-          {
-            path: '/dashboard',
-            label: 'Student Dashboard',
-            icon: LayoutDashboard,
-          },
-          {
-            path: '/complaints/new',
-            label: 'New Complaint',
-            icon: PlusCircle,
-          },
-          {
-            path: '/complaints',
-            label: 'My Complaints',
-            icon: FileText,
-          },
-          {
-            path: '/track',
-            label: 'Track Ticket',
-            icon: Search,
-          },
-        ];
-    }
-  };
+const ROLE_META = {
+  [ROLES.STUDENT]: { label: 'Student Portal', icon: GraduationCap, tone: 'info' },
+  [ROLES.STAFF]: { label: 'Staff Workspace', icon: Wrench, tone: 'warning' },
+  [ROLES.ADMIN]: { label: 'Admin Console', icon: ShieldAlert, tone: 'success' },
+};
 
-  const navItems = getNavItems();
+export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleCollapse }) {
+  const { pathname } = useLocation();
+  const { role, currentOrg } = useAuth();
 
-  const getRoleHeader = () => {
-    switch (role) {
-      case ROLES.ADMIN:
-        return {
-          title: 'ADMIN CONSOLE',
-          icon: ShieldAlert,
-          className: 'role-header-admin',
-        };
-      case ROLES.STAFF:
-        return {
-          title: 'STAFF WORKSPACE',
-          icon: Wrench,
-          className: 'role-header-staff',
-        };
-      case ROLES.STUDENT:
-      default:
-        return {
-          title: 'STUDENT PORTAL',
-          icon: GraduationCap,
-          className: 'role-header-student',
-        };
-    }
-  };
+  const navItems = NAV_CONFIG[role] || NAV_CONFIG[ROLES.STUDENT];
+  const meta = ROLE_META[role] || ROLE_META[ROLES.STUDENT];
+  const RoleIcon = meta.icon;
 
-  const roleHeader = getRoleHeader();
-  const HeaderIcon = roleHeader.icon;
+  const isItemActive = (item) =>
+    item.match === 'exact' ? pathname === item.path : pathname.startsWith(item.path);
 
   return (
     <>
-      {/* Overlay backdrop for mobile view */}
       {isMobileOpen && (
-        <div
-          className="sidebar-mobile-backdrop"
-          onClick={onCloseMobile}
-          aria-hidden="true"
-        />
+        <div className="sx-sidebar-backdrop" onClick={onCloseMobile} aria-hidden="true" />
       )}
 
       <aside
-        className={`app-sidebar ${isCollapsed ? 'collapsed' : ''} ${
-          isMobileOpen ? 'mobile-open' : ''
+        className={`sx-sidebar ${isCollapsed ? 'is-collapsed' : ''} ${
+          isMobileOpen ? 'is-mobile-open' : ''
         }`}
       >
-        {/* Sidebar Header & Toggle */}
-        <div className="sidebar-header">
-          {!isCollapsed && (
-            <div className={`sidebar-role-tag ${roleHeader.className}`}>
-              <HeaderIcon size={14} />
-              <span>{roleHeader.title}</span>
-            </div>
-          )}
+        {/* Role / workspace identity */}
+        <div className="sx-sidebar-head">
+          <div className={`sx-role-card tone-${meta.tone}`}>
+            <span className="sx-role-icon">
+              <RoleIcon size={15} />
+            </span>
+            {!isCollapsed && (
+              <span className="sx-role-text">
+                <span className="sx-role-title">{meta.label}</span>
+                <span className="sx-role-org">{currentOrg?.name || 'ResolveX'}</span>
+              </span>
+            )}
+          </div>
+
           <button
             type="button"
-            className="sidebar-collapse-btn"
+            className="sx-collapse-btn"
             onClick={onToggleCollapse}
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="sidebar-nav">
-          <div className="nav-section-title">
-            {!isCollapsed ? 'NAVIGATION' : '•••'}
-          </div>
-          <ul className="nav-list">
+        {/* Navigation */}
+        <nav className="sx-sidebar-nav" aria-label="Primary">
+          {!isCollapsed && <p className="sx-nav-caption">Menu</p>}
+          <ul className="sx-nav-list">
             {navItems.map((item) => {
               const Icon = item.icon;
+              const active = isItemActive(item);
               return (
-                <li key={item.path} className="nav-item">
-                  <NavLink
+                <li key={item.path}>
+                  <Link
                     to={item.path}
                     onClick={onCloseMobile}
-                    className={({ isActive }) =>
-                      `nav-link ${isActive ? 'active' : ''}`
-                    }
+                    className={`sx-nav-item ${active ? 'is-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
                     title={isCollapsed ? item.label : undefined}
                   >
-                    <div className="nav-link-icon">
-                      <Icon size={18} />
-                    </div>
-                    {!isCollapsed && (
-                      <span className="nav-link-label">{item.label}</span>
-                    )}
-                    {!isCollapsed && item.badge && (
-                      <span className="nav-link-badge">{item.badge}</span>
-                    )}
-                  </NavLink>
+                    <Icon size={17} />
+                    {!isCollapsed && <span className="sx-nav-label">{item.label}</span>}
+                  </Link>
                 </li>
               );
             })}
           </ul>
         </nav>
 
-        {/* Sidebar Footer - Back to Landing Page */}
-        <div className="sidebar-footer">
+        {/* Footer */}
+        <div className="sx-sidebar-foot">
           <Link
             to="/landing"
-            className="nav-link back-landing-link"
             onClick={onCloseMobile}
-            title={isCollapsed ? 'Back to Landing Page' : undefined}
+            className="sx-nav-item sx-nav-home"
+            title={isCollapsed ? 'Back to Home' : undefined}
           >
-            <div className="nav-link-icon">
-              <ArrowLeft size={18} />
-            </div>
-            {!isCollapsed && (
-              <span className="nav-link-label">Back to Landing Page</span>
-            )}
+            <ArrowLeft size={17} />
+            {!isCollapsed && <span className="sx-nav-label">Back to Home</span>}
           </Link>
         </div>
       </aside>

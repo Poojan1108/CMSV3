@@ -2483,6 +2483,127 @@ body {
   backdrop-filter: blur(8px);
 }
 
+.auth-select-input {
+  width: 100%;
+  background-color: var(--bg-card-inner);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px 12px 44px !important;
+  font-size: 13.5px;
+  color: var(--text-white);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.25s var(--easing);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.auth-select-input:focus {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+  background-color: var(--bg-surface);
+}
+
+.auth-select-input option {
+  background-color: #0f172a;
+  color: #ffffff;
+  padding: 8px;
+}
+
+.auth-error-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.auth-error-alert .error-icon {
+  flex-shrink: 0;
+  color: #ef4444;
+}
+
+.auth-success-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #86efac;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.auth-success-alert .success-icon {
+  flex-shrink: 0;
+  color: #22c55e;
+}
+
+.forgot-pwd-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--primary-light);
+  text-align: right;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  align-self: flex-end;
+}
+
+.forgot-pwd-link-btn:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.auth-card-sublinks {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.auth-sublink-btn {
+  background: none;
+  border: none;
+  color: var(--text-gray);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.auth-sublink-btn strong {
+  color: var(--primary-light);
+}
+
+.auth-sublink-btn:hover strong {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .badge-icon {
   color: var(--primary-light);
 }

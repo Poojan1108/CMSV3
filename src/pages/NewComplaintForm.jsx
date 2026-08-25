@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   PlusCircle,
   Shield,
@@ -11,75 +11,28 @@ import {
   X,
   CheckCircle2,
   HelpCircle,
-  Sparkles,
-  ArrowRight,
-  UserCheck,
-  Lock,
-  Calendar,
-  MessageSquare,
   ArrowLeft,
   Trash2,
-  FileCheck
+  FileCheck,
+  Lock,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
-import { PRIORITIES, PRIORITY_LABELS } from '../utils/constants';
+import { PRIORITIES } from '../utils/constants';
+import { getSubCategories, KB_ARTICLES, getQuickLocations, ACCESS_TIME_SLOTS, CONTACT_METHODS } from '../data/taxonomy';
+import { Breadcrumb, PageHeader } from '../components/ui';
 
-// Comprehensive Sub-Categories dictionary mapped to category names across templates
-const SUB_CATEGORIES_MAP = {
-  'Hostel & Mess': ['Plumbing & Restroom', 'Electrical & Lighting', 'Room Furniture & Lock', 'Mess Food Quality', 'Cleanliness & Pest Control'],
-  'Academics': ['Lab Equipment Repair', 'Classroom Projector / Board', 'Course Material Access', 'Schedule & Timetable'],
-  'IT & Wifi': ['Wi-Fi Disconnection', 'Slow Speed', 'Portal Login Issue', 'IP Configuration', 'Lab Hardware Failure'],
-  'Sanitation': ['Trash Accumulation', 'Washroom Hygiene', 'Corridor Sweeping', 'Pest Control Disinfection'],
-  'Library': ['Quiet Zone Noise', 'E-Resource Access', 'Book Return System', 'Study Desk Sockets'],
-  'Campus Security': ['CCTV Footage Request', 'Visitor Pass Issue', 'Lost & Found', 'Gate Clearance'],
-  'Plumbing': ['Pipe Leakage', 'Tap Repair', 'Drainage Clog', 'Water Pressure', 'Flush Tank Fault'],
-  'Electrical': ['Power Outage', 'Switchboard Repair', 'Light/Fan Fitting', 'Short Circuit Hazard'],
-  'Elevator': ['Elevator Stuck', 'Button Unresponsive', 'Noisy Operation', 'Door Sensor Defect'],
-  'Security': ['CCTV Access', 'Visitor Access', 'Parking Violation', 'Noise Nuisance'],
-  'Waste Management': ['Garbage Overflow', 'Recycling Bin Full', 'Organic Waste Disposal'],
-  'Clubhouse & Gym': ['Equipment Maintenance', 'Pool Hygiene', 'Booking Conflict', 'Air Conditioning'],
-  'IT Infrastructure': ['Network Outage', 'VPN Access', 'Server Connection', 'VoIP Phone Line'],
-  'HR Services': ['Payroll / Payslip Query', 'Leave Portal Error', 'ID Card / Badge', 'Policy Clarification'],
-  'Facilities & AC': ['AC Cooling Failure', 'Room Temperature', 'Door / Window Lock', 'Wall / Paint Repair'],
-  'Workstation Hardware': ['Monitor Display Fault', 'Keyboard & Mouse', 'Docking Hub / Cables', 'Laptop Power Adapter'],
-  'Cafeteria': ['Food Quality / Taste', 'Hygiene & Cleanliness', 'Billing / POS Issue', 'Vending Machine'],
-  'General Maintenance': ['Furniture Repair', 'Structural Repair', 'Lighting Issue', 'Odour / Cleaning'],
-  'IT Support': ['Software Installation', 'Password Reset', 'Peripheral Setup', 'Network Speed'],
-  'Administrative': ['Document Verification', 'Fee Receipt Issue', 'Official Letter Request'],
-  'Facility Management': ['HVAC & Cooling', 'Janitorial Services', 'Key & Locksmith', 'Parking Access'],
-  'General': ['General Query', 'Feedback & Suggestion', 'Policy Inquiry', 'Other Issue'],
-  'Other': ['Miscellaneous Requirement', 'Unlisted Complaint']
-};
+const TITLE_MAX_LENGTH = 120;
+const DESCRIPTION_MIN_LENGTH = 20;
+const MAX_FILE_SIZE_MB = 5;
 
-// Knowledge base articles for solution deflection
-const KB_ARTICLES = [
-  {
-    keywords: ['wifi', 'wi-fi', 'internet', 'network', 'connect', 'latency', 'disconnect'],
-    title: 'Self-Help: Resolving Campus Wi-Fi & SSID Disconnections',
-    solution: 'Try forgetting "Campus_Student_5G" on your device, clearing saved credentials, and re-authenticating. If in a lab, verify if neighbor desks are connected.',
-  },
-  {
-    keywords: ['water', 'pipe', 'leak', 'sink', 'plumb', 'tap', 'restroom', 'drain'],
-    title: 'Emergency Checklist: Pipe Leakage & Stopcock Location',
-    solution: 'In case of active pipe leakage, shut off the main brass stopcock located directly under the sink counter to prevent floor damage while maintenance arrives.',
-  },
-  {
-    keywords: ['ac', 'cooling', 'air condition', 'hvac', 'warm air', 'temperature', 'fan'],
-    title: 'Quick Check: HVAC Controller & Thermostat Mode',
-    solution: 'Ensure the AC remote control mode is set to "Cool" (snowflake icon) with fan speed set to "Auto" or "High" and setpoint set between 20°C - 22°C.',
-  },
-  {
-    keywords: ['food', 'canteen', 'mess', 'lunch', 'snack', 'meal', 'catering'],
-    title: 'Food Committee Feedback Protocol',
-    solution: 'For urgent meal quality issues, notify the shift mess manager on-duty immediately so raw batch samples can be impounded for testing.',
-  },
-  {
-    keywords: ['password', 'login', 'portal', 'account', 'auth'],
-    title: 'Account & Credentials Self-Service Reset',
-    solution: 'You can reset your single sign-on password using the Self-Service IAM Portal without waiting for manual IT queue processing.',
-  }
+const PRIORITY_OPTIONS = [
+  { key: PRIORITIES.LOW, label: 'Low', sla: '72 hrs', dot: 'var(--app-text-muted)' },
+  { key: PRIORITIES.MEDIUM, label: 'Medium', sla: '48 hrs', dot: 'var(--app-info)' },
+  { key: PRIORITIES.HIGH, label: 'High', sla: '24 hrs', dot: 'var(--app-warning)' },
+  { key: PRIORITIES.URGENT, label: 'Urgent', sla: '4 hrs', dot: 'var(--app-danger)' },
 ];
 
 export default function NewComplaintForm() {
@@ -87,151 +40,129 @@ export default function NewComplaintForm() {
   const { user, currentOrg, categories, locationLabel, orgKey } = useAuth();
   const { showToast } = useToast();
 
-  // Form State
+  // Form state
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(categories[0] || 'General');
-  const [subCategory, setSubCategory] = useState(() => {
-    const list = SUB_CATEGORIES_MAP[categories[0]] || ['General Issue'];
-    return list[0];
-  });
+  const [subCategory, setSubCategory] = useState(() => getSubCategories(categories[0])[0]);
   const [location, setLocation] = useState('');
   const [priority, setPriority] = useState(PRIORITIES.MEDIUM);
   const [urgencyJustification, setUrgencyJustification] = useState('');
   const [description, setDescription] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [accessDate, setAccessDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [timeSlot, setTimeSlot] = useState('Morning (8 AM - 12 PM)');
-  const [contactMethod, setContactMethod] = useState('In-App Notification');
+  const [timeSlot, setTimeSlot] = useState(ACCESS_TIME_SLOTS[0]);
+  const [contactMethod, setContactMethod] = useState(CONTACT_METHODS[0].id);
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deflectionDismissed, setDeflectionDismissed] = useState(false);
 
-  // Dynamic sub-category list when category changes
-  const availableSubCategories = useMemo(() => {
-    return SUB_CATEGORIES_MAP[category] || ['General Issue', 'Equipment Repair', 'Operational Delay', 'Other'];
-  }, [category]);
+  const availableSubCategories = useMemo(() => getSubCategories(category), [category]);
 
-  const handleCategoryChange = (newCat) => {
-    setCategory(newCat);
-    const subList = SUB_CATEGORIES_MAP[newCat] || ['General Issue', 'Equipment Repair', 'Operational Delay', 'Other'];
-    setSubCategory(subList[0]);
+  const handleCategoryChange = (newCategory) => {
+    setCategory(newCategory);
+    setSubCategory(getSubCategories(newCategory)[0]);
   };
 
-  // Knowledge base solution deflection match
+  // Knowledge-base deflection match
   const matchedKbArticle = useMemo(() => {
     if (deflectionDismissed || !title || title.trim().length < 4) return null;
     const lowerTitle = title.toLowerCase();
     return KB_ARTICLES.find((art) => art.keywords.some((kw) => lowerTitle.includes(kw))) || null;
   }, [title, deflectionDismissed]);
 
-  // Handle simulated file upload
+  const quickPills = useMemo(() => getQuickLocations(orgKey), [orgKey]);
+
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const newAttachments = [];
+    const maxSizeBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
+    const accepted = [];
+
     files.forEach((file) => {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast(`File "${file.name}" exceeds maximum allowed size of 5MB`, 'warning');
+      if (file.size > maxSizeBytes) {
+        showToast(`"${file.name}" exceeds the ${MAX_FILE_SIZE_MB}MB limit`, 'warning');
         return;
       }
-      newAttachments.push({
+      accepted.push({
         id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
+        size: `${(file.size / 1024).toFixed(1)} KB`,
         type: file.type,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
       });
     });
 
-    setAttachments((prev) => [...prev, ...newAttachments]);
-    if (newAttachments.length > 0) {
-      showToast(`Attached ${newAttachments.length} file(s)`, 'info');
+    if (accepted.length) {
+      setAttachments((prev) => [...prev, ...accepted]);
+      showToast(`Attached ${accepted.length} file${accepted.length > 1 ? 's' : ''}`, 'info');
     }
+    e.target.value = '';
   };
 
   const removeAttachment = (id) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
-    showToast('Attachment removed', 'info');
   };
 
-  // Quick location pill selection presets
-  const getQuickLocationPills = () => {
-    if (orgKey === 'COLLEGE') {
-      return ['Block B - Room 304', 'CS Dept Lab 3', 'Central Library Reading Room', 'Main Canteen Foyer'];
-    }
-    if (orgKey === 'SOCIETY') {
-      return ['Tower A - Flat 402', 'Clubhouse Gym', 'Main Entrance Gate', 'Underground Parking B2'];
-    }
-    if (orgKey === 'CORPORATE') {
-      return ['Floor 4 - Desk 412', 'Conference Room B', 'Main Executive Cafeteria', 'IT Server Hub'];
-    }
-    return ['Building A - Floor 1', 'Main Reception', 'Outer Courtyard', 'Facility Store'];
-  };
-
-  const quickPills = getQuickLocationPills();
-
-  // Form submission handler
   const handleSubmit = (e) => {
     e.preventDefault();
 
     if (!title.trim()) {
-      showToast('Please enter a complaint title / summary.', 'error');
+      showToast('Please enter a complaint summary.', 'error');
       return;
     }
-
-    if (description.trim().length < 20) {
-      showToast('Detailed description must be at least 20 characters long.', 'error');
+    if (description.trim().length < DESCRIPTION_MIN_LENGTH) {
+      showToast(`Description must be at least ${DESCRIPTION_MIN_LENGTH} characters.`, 'error');
       return;
     }
-
     if (!location.trim()) {
-      showToast(`Please specify the ${locationLabel}.`, 'error');
+      showToast(`Please specify the ${locationLabel?.toLowerCase() || 'location'}.`, 'error');
       return;
     }
-
     if (priority === PRIORITIES.URGENT && !urgencyJustification.trim()) {
-      showToast('Please provide a justification for selecting Urgent priority.', 'error');
+      showToast('Please justify why this issue is urgent.', 'error');
       return;
     }
 
     setIsSubmitting(true);
 
+    // Simulated network latency for realistic submit feedback
     setTimeout(() => {
       try {
-        const createdComplaint = complaintService.create({
+        const reporterProfile = isAnonymous
+          ? {
+              id: user?.id,
+              name: 'Anonymous',
+              email: null,
+              rollNo: null,
+            }
+          : {
+              id: user?.id,
+              name: user?.name || 'User',
+              email: user?.email || null,
+              rollNo: user?.rollNo || null,
+            };
+
+        const created = complaintService.create({
           title: title.trim(),
           description: description.trim(),
           category,
           subCategory,
           location: location.trim(),
           priority,
-          urgencyJustification: priority === PRIORITIES.URGENT ? urgencyJustification.trim() : null,
+          urgencyJustification:
+            priority === PRIORITIES.URGENT ? urgencyJustification.trim() : null,
           isAnonymous,
           accessDate,
           timeSlot,
           contactMethod,
           attachmentsCount: attachments.length,
           attachmentNames: attachments.map((a) => a.name),
-          student: isAnonymous
-            ? {
-                id: user?.id || 'usr_student_1',
-                name: 'Anonymous Student',
-                email: 'confidential@campus.edu',
-                rollNo: 'CONFIDENTIAL',
-                room: location.trim(),
-              }
-            : {
-                id: user?.id || 'usr_student_1',
-                name: user?.name || 'Alex Chen',
-                email: user?.email || 'alex.chen@campus.edu',
-                rollNo: user?.rollNo || 'CS-2024-042',
-                room: location.trim(),
-              },
+          student: { ...reporterProfile, room: location.trim() },
           currentOrg: orgKey,
         });
 
-        showToast(`Complaint ticket ${createdComplaint.id} submitted successfully!`, 'success');
+        showToast(`Ticket ${created.id} submitted successfully`, 'success');
         navigate('/complaints');
       } catch (err) {
         console.error(err);
@@ -239,122 +170,115 @@ export default function NewComplaintForm() {
       } finally {
         setIsSubmitting(false);
       }
-    }, 600);
+    }, 500);
   };
 
   return (
-    <div className="new-complaint-page">
-      {/* Page Header */}
-      <div className="page-header-container">
-        <div>
-          <div className="page-breadcrumb">
-            <Link to="/complaints" className="breadcrumb-link">
-              <ArrowLeft size={16} />
-              <span>Back to My Complaints</span>
-            </Link>
-          </div>
-          <h1 className="page-title-gradient">Lodge New Complaint</h1>
-          <p className="page-subtitle">
-            Submit a formal service ticket for {currentOrg?.name || 'your organization'}. All requests are triaged under SLA guidelines.
-          </p>
-        </div>
+    <div className="page-stack">
+      <PageHeader
+        breadcrumb={
+          <Breadcrumb to="/complaints" onNavigate={() => navigate('/complaints')}>
+            <ArrowLeft size={15} />
+            Back to My Complaints
+          </Breadcrumb>
+        }
+        eyebrow={currentOrg?.name}
+        icon={<Shield size={12} />}
+        title="Lodge New Complaint"
+        description={`Submit a formal service ticket to ${currentOrg?.name || 'your organization'}. Requests are triaged under SLA guidelines.`}
+      />
 
-        <div className="org-context-badge">
-          <Shield size={16} className="text-indigo-400" />
-          <span>Org: <strong>{currentOrg?.name}</strong></span>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="complaint-form-card">
-        
-        {/* SECTION 1: Title & Deflection */}
-        <div className="form-section">
+      <form onSubmit={handleSubmit} className="card card-pad" style={{ padding: 24 }}>
+        {/* 1. Summary */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <FileText size={18} className="heading-icon" />
-            1. Title & Short Summary
+            <span className="step-num">1</span>
+            <FileText size={16} />
+            Summary
           </h2>
 
           <div className="form-group">
             <label htmlFor="complaint-title" className="form-label">
-              Short Summary / Problem Title <span className="text-red-400">*</span>
+              Short summary<span className="required-mark">*</span>
             </label>
             <input
               id="complaint-title"
               type="text"
               className="form-input"
-              placeholder="e.g., Water leakage in Block B Room 304 restroom pipe"
+              placeholder="e.g. Water leakage under the sink in Block B 304"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
                 setDeflectionDismissed(false);
               }}
-              maxLength={120}
+              maxLength={TITLE_MAX_LENGTH}
               required
             />
-            <div className="form-help-text flex-between">
-              <span>Be concise and clear. Mention specific defect or symptom.</span>
-              <span>{title.length} / 120</span>
+            <div className="form-help">
+              <span>Be concise — mention the specific defect or symptom.</span>
+              <span className={`char-counter ${title.length >= TITLE_MAX_LENGTH ? 'invalid' : ''}`}>
+                {title.length}/{TITLE_MAX_LENGTH}
+              </span>
             </div>
           </div>
 
-          {/* Knowledge Base Solution Deflection Card */}
           {matchedKbArticle && (
-            <div className="kb-deflection-card">
-              <div className="kb-deflection-header">
-                <div className="kb-title-group">
-                  <Sparkles size={18} className="kb-sparkle-icon" />
-                  <h4>Suggested Self-Help Solution</h4>
-                </div>
+            <div className="kb-card">
+              <div className="kb-head">
+                <span className="kb-tag">
+                  <CheckCircle2 size={14} />
+                  Suggested self-help
+                </span>
                 <button
                   type="button"
-                  className="kb-dismiss-btn"
+                  className="icon-btn"
                   onClick={() => setDeflectionDismissed(true)}
-                  title="Dismiss suggestion"
+                  aria-label="Dismiss suggestion"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </div>
 
-              <h5 className="kb-article-title">{matchedKbArticle.title}</h5>
-              <p className="kb-article-solution">{matchedKbArticle.solution}</p>
+              <h3 className="kb-article-title">{matchedKbArticle.title}</h3>
+              <p className="kb-article-body">{matchedKbArticle.solution}</p>
 
               <div className="kb-actions">
                 <button
                   type="button"
-                  className="btn btn-emerald btn-sm"
+                  className="btn btn-sm btn-secondary"
                   onClick={() => {
-                    showToast('Glad this self-help guide resolved your issue!', 'success');
+                    showToast('Glad this guide resolved your issue.', 'success');
                     setTitle('');
                     setDescription('');
                     setDeflectionDismissed(true);
                   }}
                 >
-                  <CheckCircle2 size={16} />
-                  This Solved My Issue (Cancel Ticket)
+                  This solved my issue
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-sm btn-ghost"
                   onClick={() => setDeflectionDismissed(true)}
                 >
-                  No, Continue Filing Ticket
+                  Continue filing ticket
                 </button>
               </div>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* SECTION 2: Category & Sub-Category */}
-        <div className="form-section">
+        {/* 2. Category */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <HelpCircle size={18} className="heading-icon" />
-            2. Category & Sub-Category
+            <span className="step-num">2</span>
+            <HelpCircle size={16} />
+            Category
           </h2>
 
           <div className="form-grid-2">
             <div className="form-group">
               <label htmlFor="category-select" className="form-label">
-                Department / Category <span className="text-red-400">*</span>
+                Department / Category<span className="required-mark">*</span>
               </label>
               <select
                 id="category-select"
@@ -372,7 +296,7 @@ export default function NewComplaintForm() {
 
             <div className="form-group">
               <label htmlFor="subcategory-select" className="form-label">
-                Specific Sub-Category <span className="text-red-400">*</span>
+                Sub-category<span className="required-mark">*</span>
               </label>
               <select
                 id="subcategory-select"
@@ -388,218 +312,187 @@ export default function NewComplaintForm() {
               </select>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 3: Location Field & Quick Pills */}
-        <div className="form-section">
+        {/* 3. Location */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <MapPin size={18} className="heading-icon" />
-            3. Specific Location
+            <span className="step-num">3</span>
+            <MapPin size={16} />
+            Location
           </h2>
 
           <div className="form-group">
             <label htmlFor="location-input" className="form-label">
-              {locationLabel} <span className="text-red-400">*</span>
+              {locationLabel || 'Location'}
+              <span className="required-mark">*</span>
             </label>
             <input
               id="location-input"
               type="text"
               className="form-input"
-              placeholder={`e.g., ${quickPills[0] || 'Block B - Room 304'}`}
+              placeholder={`e.g. ${quickPills[0]}`}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               required
             />
 
-            {/* Quick Pills */}
-            <div className="quick-pills-container">
-              <span className="pills-label">Quick Select:</span>
+            <div className="quick-pills">
+              <span className="pills-caption">Quick select:</span>
               {quickPills.map((pill) => (
                 <button
                   key={pill}
                   type="button"
-                  className={`location-pill ${location === pill ? 'active' : ''}`}
+                  className={`choice-pill ${location === pill ? 'is-active' : ''}`}
                   onClick={() => setLocation(pill)}
                 >
-                  <MapPin size={12} />
+                  <MapPin size={11} />
                   {pill}
                 </button>
               ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 4: Priority Level Selector */}
-        <div className="form-section">
+        {/* 4. Priority */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <AlertTriangle size={18} className="heading-icon" />
-            4. Priority Level
+            <span className="step-num">4</span>
+            <AlertTriangle size={16} />
+            Priority
           </h2>
 
-          <div className="priority-cards-grid">
-            <label className={`priority-card priority-low ${priority === PRIORITIES.LOW ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="priority"
-                value={PRIORITIES.LOW}
-                checked={priority === PRIORITIES.LOW}
-                onChange={() => setPriority(PRIORITIES.LOW)}
-                className="sr-only"
-              />
-              <div className="priority-card-header">
-                <span className="priority-badge-dot bg-slate-400" />
-                <span className="priority-name">Low</span>
-              </div>
-              <p className="priority-desc">Minor inconvenience; routine resolution (SLA: 72 hrs)</p>
-            </label>
-
-            <label className={`priority-card priority-medium ${priority === PRIORITIES.MEDIUM ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="priority"
-                value={PRIORITIES.MEDIUM}
-                checked={priority === PRIORITIES.MEDIUM}
-                onChange={() => setPriority(PRIORITIES.MEDIUM)}
-                className="sr-only"
-              />
-              <div className="priority-card-header">
-                <span className="priority-badge-dot bg-sky-400" />
-                <span className="priority-name">Medium</span>
-              </div>
-              <p className="priority-desc">Standard issue; normal triage queue (SLA: 48 hrs)</p>
-            </label>
-
-            <label className={`priority-card priority-high ${priority === PRIORITIES.HIGH ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="priority"
-                value={PRIORITIES.HIGH}
-                checked={priority === PRIORITIES.HIGH}
-                onChange={() => setPriority(PRIORITIES.HIGH)}
-                className="sr-only"
-              />
-              <div className="priority-card-header">
-                <span className="priority-badge-dot bg-orange-400" />
-                <span className="priority-name">High</span>
-              </div>
-              <p className="priority-desc">Significant impact on daily routine (SLA: 24 hrs)</p>
-            </label>
-
-            <label className={`priority-card priority-urgent ${priority === PRIORITIES.URGENT ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="priority"
-                value={PRIORITIES.URGENT}
-                checked={priority === PRIORITIES.URGENT}
-                onChange={() => setPriority(PRIORITIES.URGENT)}
-                className="sr-only"
-              />
-              <div className="priority-card-header">
-                <span className="priority-badge-dot bg-rose-500 animate-pulse" />
-                <span className="priority-name">Urgent</span>
-              </div>
-              <p className="priority-desc">Immediate safety or water hazard (SLA: 4 hrs)</p>
-            </label>
+          <div className="priority-grid" role="radiogroup" aria-label="Priority level">
+            {PRIORITY_OPTIONS.map((option) => (
+              <label
+                key={option.key}
+                className={`priority-option ${priority === option.key ? 'is-selected' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="priority"
+                  value={option.key}
+                  checked={priority === option.key}
+                  onChange={() => setPriority(option.key)}
+                  className="sr-only"
+                />
+                <span className="priority-option-head">
+                  <span className="priority-dot" style={{ background: option.dot }} />
+                  <span className="priority-name">{option.label}</span>
+                </span>
+                <span className="priority-sla">Target resolution within {option.sla}</span>
+              </label>
+            ))}
           </div>
 
-          {/* Conditional Urgency Justification Textarea */}
           {priority === PRIORITIES.URGENT && (
-            <div className="urgency-justification-box">
-              <label htmlFor="urgency-justification" className="form-label text-rose-400 font-semibold">
-                Urgency Justification <span className="text-red-400">*</span>
-              </label>
-              <p className="form-help-text">
-                Explain why immediate emergency dispatch is required (e.g. electrical sparking, active pipe burst, safety risk).
-              </p>
-              <textarea
-                id="urgency-justification"
-                className="form-textarea border-rose-500/40"
-                rows={3}
-                placeholder="Describe why this issue requires 4-hour immediate escalation..."
-                value={urgencyJustification}
-                onChange={(e) => setUrgencyJustification(e.target.value)}
-                required
-              />
+            <div className="callout callout-danger" style={{ flexDirection: 'column' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <AlertTriangle size={16} />
+                <div style={{ flex: 1 }}>
+                  <span className="callout-title">Urgency justification required</span>
+                  <div className="form-group" style={{ marginTop: 8 }}>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      placeholder="Explain why immediate dispatch is required (safety risk, active leak, sparking…)"
+                      value={urgencyJustification}
+                      onChange={(e) => setUrgencyJustification(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* SECTION 5: Detailed Description Textarea */}
-        <div className="form-section">
+        {/* 5. Description */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <FileText size={18} className="heading-icon" />
-            5. Detailed Description
+            <span className="step-num">5</span>
+            <FileText size={16} />
+            Description
           </h2>
 
           <div className="form-group">
             <label htmlFor="description-textarea" className="form-label">
-              Full Description & Context <span className="text-red-400">*</span>
+              Full description<span className="required-mark">*</span>
             </label>
             <textarea
               id="description-textarea"
               className="form-textarea"
               rows={5}
-              placeholder="Provide complete steps to reproduce, duration of issue, or specific equipment IDs involved..."
+              placeholder="Steps to reproduce, how long the issue has persisted, equipment IDs involved…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
             />
-            <div className="form-help-text flex-between">
-              <span>Minimum 20 characters required.</span>
-              <span className={`char-counter ${description.length >= 20 ? 'valid' : 'invalid'}`}>
-                {description.length >= 20 ? <CheckCircle2 size={14} className="inline-icon" /> : null}
-                {description.length} / 20 min characters
+            <div className="form-help">
+              <span>Minimum {DESCRIPTION_MIN_LENGTH} characters.</span>
+              <span
+                className={`char-counter ${
+                  description.length >= DESCRIPTION_MIN_LENGTH ? 'valid' : 'invalid'
+                }`}
+              >
+                {description.length >= DESCRIPTION_MIN_LENGTH && <CheckCircle2 size={13} />}
+                {description.length}/{DESCRIPTION_MIN_LENGTH} min
               </span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 6: Anonymity & Privacy Toggle */}
-        <div className="form-section">
+        {/* 6. Privacy */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <Lock size={18} className="heading-icon" />
-            6. Privacy & Confidentiality
+            <span className="step-num">6</span>
+            <Lock size={16} />
+            Privacy
           </h2>
 
-          <div className="anonymity-toggle-card">
-            <div className="toggle-info">
-              <div className="toggle-title">Submit Complaint Anonymously</div>
+          <div className="toggle-card">
+            <div>
+              <div className="toggle-title">Submit anonymously</div>
               <div className="toggle-subtitle">
-                Hide your personal identity from staff and department handling queues.
+                Hide your identity from staff and department queues handling this ticket.
               </div>
             </div>
-
             <label className="switch">
               <input
                 type="checkbox"
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
               />
-              <span className="slider round" />
+              <span className="switch-track" />
+              <span className="switch-thumb" />
+              <span className="sr-only">Submit anonymously</span>
             </label>
           </div>
 
           {isAnonymous && (
-            <div className="privacy-disclosure-badge">
-              <Shield size={18} className="privacy-badge-icon" />
+            <div className="callout callout-warning">
+              <Shield size={16} />
               <div>
-                <strong>🔒 Confidential Filing Active:</strong> Your name ({user?.name || 'Alex Chen'}) and personal contact details will be redacted on staff dispatch screens. Only system compliance administrators can access identity audit logs if mandatory.
+                <span className="callout-title">Confidential filing active</span>
+                Your name and contact details will be redacted on staff screens. Only compliance
+                administrators can access identity audit logs when legally required.
               </div>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* SECTION 7: Preferred Access Time Slot */}
-        <div className="form-section">
+        {/* 7. Access slot */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <Clock size={18} className="heading-icon" />
-            7. Preferred Inspection Access Time Slot
+            <span className="step-num">7</span>
+            <Clock size={16} />
+            Inspection Access
           </h2>
 
           <div className="form-grid-2">
             <div className="form-group">
               <label htmlFor="access-date" className="form-label">
-                Preferred Inspection Date
+                Preferred date
               </label>
               <input
                 id="access-date"
@@ -612,96 +505,89 @@ export default function NewComplaintForm() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Time Window Slot</label>
-              <div className="slot-pills-grid">
-                {['Morning (8 AM - 12 PM)', 'Afternoon (12 PM - 4 PM)', 'Evening (4 PM - 8 PM)'].map((slot) => (
+              <span className="form-label">Preferred time window</span>
+              <div className="quick-pills">
+                {ACCESS_TIME_SLOTS.map((slot) => (
                   <button
                     key={slot}
                     type="button"
-                    className={`slot-pill ${timeSlot === slot ? 'active' : ''}`}
+                    className={`choice-pill ${timeSlot === slot ? 'is-active' : ''}`}
                     onClick={() => setTimeSlot(slot)}
                   >
-                    <Clock size={14} />
-                    <span>{slot}</span>
+                    <Clock size={11} />
+                    {slot}
                   </button>
                 ))}
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 8: File Upload Dropzone */}
-        <div className="form-section">
+        {/* 8. Attachments */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <Upload size={18} className="heading-icon" />
-            8. File & Evidence Attachments
+            <span className="step-num">8</span>
+            <Upload size={16} />
+            Attachments
           </h2>
 
-          <div className="upload-dropzone">
+          <div className="dropzone">
             <input
               type="file"
-              id="file-upload-input"
               multiple
               accept="image/*,.pdf,.doc,.docx"
-              className="dropzone-file-input"
               onChange={handleFileUpload}
+              aria-label="Upload files"
             />
-            <label htmlFor="file-upload-input" className="dropzone-label">
-              <Upload size={32} className="dropzone-icon" />
-              <div className="dropzone-title">Click or Drag & Drop Photos / Documents</div>
-              <div className="dropzone-subtitle">Supports JPG, PNG, PDF, DOC (Max 5MB per file)</div>
-            </label>
+            <Upload size={22} className="tone-accent" />
+            <div className="dropzone-title">Click to upload photos or documents</div>
+            <div className="dropzone-subtitle">
+              JPG, PNG, PDF, DOC — max {MAX_FILE_SIZE_MB}MB per file
+            </div>
           </div>
 
-          {/* Attachment Previews */}
           {attachments.length > 0 && (
-            <div className="attachments-list">
-              <h5 className="attachments-title">Attached Evidence ({attachments.length}):</h5>
-              <div className="attachments-grid">
-                {attachments.map((file) => (
-                  <div key={file.id} className="attachment-item-card">
-                    {file.previewUrl ? (
-                      <img src={file.previewUrl} alt={file.name} className="attachment-thumb" />
-                    ) : (
-                      <div className="attachment-icon-fallback">
-                        <FileCheck size={20} />
-                      </div>
-                    )}
-                    <div className="attachment-meta">
-                      <span className="attachment-filename">{file.name}</span>
-                      <span className="attachment-size">{file.size}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="attachment-delete-btn"
-                      onClick={() => removeAttachment(file.id)}
-                      title="Remove file"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <div className="attachments-grid">
+              {attachments.map((file) => (
+                <div key={file.id} className="attachment-item">
+                  {file.previewUrl ? (
+                    <img src={file.previewUrl} alt="" className="attachment-thumb" />
+                  ) : (
+                    <span className="attachment-fallback">
+                      <FileCheck size={17} />
+                    </span>
+                  )}
+                  <span className="attachment-meta">
+                    <span className="attachment-name">{file.name}</span>
+                    <span className="attachment-size">{file.size}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="attachment-remove"
+                    onClick={() => removeAttachment(file.id)}
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* SECTION 9: Preferred Contact Method */}
-        <div className="form-section">
+        {/* 9. Contact */}
+        <section className="form-section">
           <h2 className="section-heading">
-            <MessageSquare size={18} className="heading-icon" />
-            9. Preferred Contact Method
+            <span className="step-num">9</span>
+            <MessageSquare size={16} />
+            Contact Preference
           </h2>
 
-          <div className="contact-methods-grid">
-            {[
-              { id: 'In-App Notification', label: 'In-App Notification', desc: 'Real-time portal updates & live tracker pushes' },
-              { id: 'Email Notification', label: 'Email Digest', desc: 'Status milestones sent to registered email' },
-              { id: 'Phone Call / SMS', label: 'Phone Call / SMS', desc: 'Direct call from assigned technician before arrival' }
-            ].map((method) => (
+          <div className="contact-grid" role="radiogroup" aria-label="Preferred contact method">
+            {CONTACT_METHODS.map((method) => (
               <label
                 key={method.id}
-                className={`contact-method-card ${contactMethod === method.id ? 'selected' : ''}`}
+                className={`contact-option ${contactMethod === method.id ? 'is-selected' : ''}`}
               >
                 <input
                   type="radio"
@@ -711,15 +597,15 @@ export default function NewComplaintForm() {
                   onChange={() => setContactMethod(method.id)}
                   className="sr-only"
                 />
-                <div className="method-name">{method.label}</div>
-                <div className="method-desc">{method.desc}</div>
+                <div className="contact-option-name">{method.label}</div>
+                <div className="contact-option-desc">{method.desc}</div>
               </label>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Form Actions Footer */}
-        <div className="form-footer-actions">
+        {/* Footer */}
+        <div className="form-footer">
           <button
             type="button"
             className="btn btn-secondary"
@@ -728,25 +614,20 @@ export default function NewComplaintForm() {
           >
             Cancel
           </button>
-
-          <button
-            type="submit"
-            className="btn btn-primary btn-submit-lg"
-            disabled={isSubmitting}
-          >
+          <button type="submit" className="btn btn-primary btn-lg" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
-                <span className="spinner" /> Submitting Ticket...
+                <span className="spinner" />
+                Submitting…
               </>
             ) : (
               <>
-                <PlusCircle size={18} />
-                Submit Complaint Ticket
+                <PlusCircle size={16} />
+                Submit Complaint
               </>
             )}
           </button>
         </div>
-
       </form>
     </div>
   );

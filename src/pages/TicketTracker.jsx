@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search,
   ArrowLeft,
@@ -10,43 +10,55 @@ import {
   User,
   Wrench,
   MapPin,
-  Tag,
   Send,
   Lock,
   Calendar,
   MessageSquare,
   Copy,
   Check,
-  Building,
   ShieldCheck,
-  Share2,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
-import { STATUSES, PRIORITIES, STATUS_LABELS, PRIORITY_LABELS, ROLES } from '../utils/constants';
-import { formatDate, formatRelativeTime, getStatusBadgeColor, getPriorityBadgeColor } from '../utils/formatters';
+import { STATUSES, PRIORITIES, ROLES } from '../utils/constants';
+import { formatDate, formatRelativeTime } from '../utils/formatters';
+import {
+  StatusBadge,
+  PriorityBadge,
+  TicketId,
+  EmptyState,
+} from '../components/ui';
+import Modal from '../components/ui/Modal';
+import { ACCESS_TIME_SLOTS, CONTACT_METHODS } from '../data/taxonomy';
 
-// Define the 6 canonical timeline stages
+/** Canonical resolution timeline stages. */
 const TIMELINE_STAGES = [
-  { key: 'submitted', label: 'Submitted', desc: 'Ticket registered in system' },
-  { key: 'under_review', label: 'Under Review', desc: 'Triage & verification by admin' },
-  { key: 'assigned', label: 'Assigned', desc: 'Staff / Department handler assigned' },
-  { key: 'in_progress', label: 'In Progress', desc: 'Active repair & resolution in progress' },
-  { key: 'pending_confirmation', label: 'Pending Confirmation', desc: 'Staff resolved issue; awaiting user sign-off' },
-  { key: 'resolved', label: 'Resolved & Closed', desc: 'Resolution confirmed by user & ticket closed' }
+  { key: 'submitted', label: 'Submitted', desc: 'Ticket registered in the system.' },
+  { key: 'under_review', label: 'Under Review', desc: 'Triage and verification by admin.' },
+  { key: 'assigned', label: 'Assigned', desc: 'A staff handler was assigned.' },
+  { key: 'in_progress', label: 'In Progress', desc: 'Active repair and resolution underway.' },
+  {
+    key: 'pending_confirmation',
+    label: 'Pending Confirmation',
+    desc: 'Staff resolved the issue; awaiting your sign-off.',
+  },
+  {
+    key: 'resolved',
+    label: 'Resolved & Closed',
+    desc: 'Resolution confirmed and ticket closed.',
+  },
 ];
 
 export default function TicketTracker() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { user, orgKey, currentOrg } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
 
   const ticketIdParam = searchParams.get('id') || '';
 
-  // Local State
+  // Local state
   const [lookupId, setLookupId] = useState(ticketIdParam);
   const [complaint, setComplaint] = useState(null);
   const [newCommentText, setNewCommentText] = useState('');
@@ -54,28 +66,20 @@ export default function TicketTracker() {
   const [copiedId, setCopiedId] = useState(false);
   const [userComplaintsList, setUserComplaintsList] = useState([]);
 
-  // Resolution confirmation states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmFeedbackText, setConfirmFeedbackText] = useState('');
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenReasonText, setReopenReasonText] = useState('');
 
-  // Fetch ticket details when query param changes
   useEffect(() => {
-    // Load recent user tickets for quick switcher dropdown
     try {
-      const myTickets = complaintService.getAll({
-        studentId: user?.id || 'usr_student_1',
-      });
+      const myTickets = complaintService.getAll({ studentId: user?.id });
       setUserComplaintsList(myTickets);
 
-      // If ID param is specified, get complaint
       if (ticketIdParam) {
-        const found = complaintService.getById(ticketIdParam);
-        setComplaint(found);
+        setComplaint(complaintService.getById(ticketIdParam));
         setLookupId(ticketIdParam);
       } else if (myTickets.length > 0) {
-        // Default to first ticket if none specified
         setComplaint(myTickets[0]);
         setLookupId(myTickets[0].id);
         setSearchParams({ id: myTickets[0].id }, { replace: true });
@@ -85,7 +89,7 @@ export default function TicketTracker() {
     } catch (err) {
       console.error('Error fetching ticket tracker data:', err);
     }
-  }, [ticketIdParam, user]);
+  }, [ticketIdParam, user, setSearchParams]);
 
   const handleLookupSubmit = (e) => {
     e.preventDefault();
@@ -96,7 +100,7 @@ export default function TicketTracker() {
       setSearchParams({ id: found.id });
       showToast(`Loaded ticket ${found.id}`, 'info');
     } else {
-      showToast(`Ticket ID "${lookupId}" not found. Please check ticket ID.`, 'error');
+      showToast(`Ticket "${lookupId}" not found. Please check the ID.`, 'error');
     }
   };
 
@@ -104,24 +108,26 @@ export default function TicketTracker() {
     if (!complaint?.id) return;
     navigator.clipboard.writeText(complaint.id);
     setCopiedId(true);
-    showToast('Ticket ID copied to clipboard!', 'success');
+    showToast('Ticket ID copied to clipboard', 'success');
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // Handle User Confirming Ticket Resolution
+  const actorProfile =
+    user || { name: 'Guest', role: ROLES.STUDENT, id: null };
+
   const handleConfirmResolution = () => {
     if (!complaint) return;
     try {
       const updated = complaintService.confirmResolution(
         complaint.id,
-        user || { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' },
+        actorProfile,
         confirmFeedbackText.trim()
       );
       if (updated) {
         setComplaint(updated);
         setShowConfirmModal(false);
         setConfirmFeedbackText('');
-        showToast('Ticket confirmed and officially closed as Resolved!', 'success');
+        showToast('Ticket confirmed and closed as Resolved', 'success');
       }
     } catch (err) {
       console.error('Error confirming resolution:', err);
@@ -129,70 +135,61 @@ export default function TicketTracker() {
     }
   };
 
-  // Handle User Rejecting Resolution (Reopening Ticket)
   const handleRejectResolution = () => {
     if (!complaint) return;
     try {
       const updated = complaintService.rejectResolution(
         complaint.id,
-        user || { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' },
+        actorProfile,
         reopenReasonText.trim()
       );
       if (updated) {
         setComplaint(updated);
         setShowReopenModal(false);
         setReopenReasonText('');
-        showToast('Ticket reopened! Returned to staff for further action.', 'info');
+        showToast('Ticket reopened and returned to staff', 'info');
       }
     } catch (err) {
-      console.error('Error rejecting resolution:', err);
+      console.error('Error reopening ticket:', err);
       showToast('Failed to reopen ticket', 'error');
     }
   };
 
-  // Determine timeline stage indices based on complaint status
+  // Map complaint status to timeline stage index
   const currentStageIndex = useMemo(() => {
     if (!complaint) return 0;
-
     switch (complaint.status) {
       case STATUSES.RESOLVED:
-        return 5; // Step 6: Resolved & Closed
+        return 5;
       case STATUSES.PENDING_CONFIRMATION:
-        return 4; // Step 5: Pending Confirmation
+        return 4;
       case STATUSES.IN_PROGRESS:
-        return 3; // Step 4: In Progress
+        return 3;
       case STATUSES.PENDING:
       default:
-        if (complaint.assignedTo) {
-          return 2; // Step 3: Assigned
-        }
-        if (complaint.statusHistory && complaint.statusHistory.length > 1) {
-          return 1; // Step 2: Under Review
-        }
-        return 0; // Step 1: Submitted
+        if (complaint.assignedTo) return 2;
+        if (complaint.statusHistory?.length > 1) return 1;
+        return 0;
     }
   }, [complaint]);
 
-  // Handle adding comment
   const handleAddComment = (e) => {
     e.preventDefault();
     if (!newCommentText.trim() || !complaint) return;
 
     setIsPostingComment(true);
-
     setTimeout(() => {
       try {
-        const updatedComplaint = complaintService.addComment(
+        const updated = complaintService.addComment(
           complaint.id,
-          user || { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' },
+          actorProfile,
           newCommentText.trim(),
           false
         );
-
-        if (updatedComplaint) {
-          setComplaint({ ...updatedComplaint });
+        if (updated) {
+          setComplaint({ ...updated });
           setNewCommentText('');
-          showToast('Comment added successfully!', 'success');
+          showToast('Comment posted', 'success');
         }
       } catch (err) {
         console.error('Failed to post comment:', err);
@@ -200,319 +197,258 @@ export default function TicketTracker() {
       } finally {
         setIsPostingComment(false);
       }
-    }, 400);
+    }, 350);
   };
 
-  // Filter public comments (hide internal staff notes for student view)
-  const publicComments = useMemo(() => {
-    if (!complaint?.comments) return [];
-    return complaint.comments.filter((c) => !c.isInternal);
-  }, [complaint]);
+  const publicComments = useMemo(
+    () => (complaint?.comments || []).filter((c) => !c.isInternal),
+    [complaint]
+  );
 
   return (
-    <div className="ticket-tracker-page">
-      {/* Page Navigation & Ticket Lookup Header */}
-      <div className="tracker-top-bar">
-        <div className="breadcrumb-nav">
-          <Link to="/complaints" className="breadcrumb-link">
-            <ArrowLeft size={16} />
-            <span>Back to My Complaints</span>
-          </Link>
-        </div>
+    <div className="page-stack">
+      {/* Top bar */}
+      <div className="toolbar-row">
+        <Link to="/complaints" className="breadcrumb-link">
+          <ArrowLeft size={15} />
+          Back to My Complaints
+        </Link>
 
-        {/* Ticket ID Lookup Form */}
-        <form onSubmit={handleLookupSubmit} className="tracker-search-form">
-          <div className="tracker-search-input-wrapper">
-            <Search size={16} className="search-icon" />
+        <div className="toolbar-spacer" />
+
+        <form onSubmit={handleLookupSubmit} className="toolbar-row">
+          <div className="search-field" style={{ maxWidth: 260 }}>
+            <Search size={14} />
             <input
               type="text"
-              className="tracker-search-input"
-              placeholder="Enter Ticket ID (e.g. CMS-2026-1001)..."
+              placeholder="Enter Ticket ID…"
               value={lookupId}
               onChange={(e) => setLookupId(e.target.value)}
+              aria-label="Ticket ID"
             />
           </div>
 
-          <button type="submit" className="btn btn-secondary btn-sm">
-            Lookup Ticket
-          </button>
-
           {userComplaintsList.length > 0 && (
             <select
-              className="tracker-select-ticket"
               value={complaint?.id || ''}
-              onChange={(e) => {
-                const selId = e.target.value;
-                if (selId) {
-                  setSearchParams({ id: selId });
-                }
-              }}
+              onChange={(e) => e.target.value && setSearchParams({ id: e.target.value })}
+              aria-label="Select one of my tickets"
             >
-              <option value="" disabled>Select from My Tickets</option>
+              <option value="" disabled>
+                My tickets…
+              </option>
               {userComplaintsList.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.id} - {t.title.substring(0, 30)}...
+                  {t.id} — {t.title.substring(0, 32)}
                 </option>
               ))}
             </select>
           )}
+
+          <button type="submit" className="btn btn-secondary btn-sm">
+            Lookup
+          </button>
         </form>
       </div>
 
       {!complaint ? (
-        <div className="empty-state-card mt-8">
-          <AlertCircle size={48} className="text-amber-400" />
-          <h3 className="empty-title">Ticket Not Found</h3>
-          <p className="empty-description">
-            No complaint ticket matched the ID "{lookupId}". Please check your ticket ID or pick a complaint from your list.
-          </p>
+        <EmptyState
+          icon={AlertCircle}
+          title="Ticket not found"
+          description={`No complaint matched "${lookupId}". Check the ID or pick a ticket from your list.`}
+        >
           <Link to="/complaints" className="btn btn-primary">
             View All My Complaints
           </Link>
-        </div>
+        </EmptyState>
       ) : (
-        <div className="tracker-main-layout">
-          
-          {/* LEFT COLUMN: Timeline & Ticket Details */}
-          <div className="tracker-left-col">
-            
-            {/* Header Ticket Information Card */}
-            <div className="tracker-ticket-header-card">
-              <div className="ticket-header-top">
-                <div className="ticket-id-copy-group">
-                  <span className="tracker-ticket-id">{complaint.id}</span>
-                  <button
-                    type="button"
-                    className="btn-copy-id"
-                    onClick={handleCopyId}
-                    title="Copy Ticket ID"
-                  >
-                    {copiedId ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    <span>{copiedId ? 'Copied!' : 'Copy ID'}</span>
+        <div className="detail-layout">
+          {/* LEFT: details, timeline, discussion */}
+          <div className="detail-main">
+            {/* Header card */}
+            <section className="card card-pad">
+              <div className="detail-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <TicketId id={complaint.id} />
+                  <button type="button" className="copy-btn" onClick={handleCopyId}>
+                    {copiedId ? <Check size={12} /> : <Copy size={12} />}
+                    {copiedId ? 'Copied' : 'Copy ID'}
                   </button>
                 </div>
-
-                <div className="ticket-badges-group">
-                  {/* Status Badge */}
-                  {(() => {
-                    const st = getStatusBadgeColor(complaint.status);
-                    return (
-                      <span className={`status-badge-chip ${st.bg} ${st.text} ${st.border}`}>
-                        <span className={`status-chip-dot ${st.dot}`} />
-                        {STATUS_LABELS[complaint.status] || complaint.status}
-                      </span>
-                    );
-                  })()}
-
-                  {/* Priority Badge */}
-                  {(() => {
-                    const pr = getPriorityBadgeColor(complaint.priority);
-                    return (
-                      <span className={`priority-badge-chip ${pr.bg} ${pr.text} ${pr.border}`}>
-                        {PRIORITY_LABELS[complaint.priority] || complaint.priority}
-                      </span>
-                    );
-                  })()}
+                <div className="ticket-card-badges">
+                  <PriorityBadge priority={complaint.priority} />
+                  <StatusBadge status={complaint.status} />
                 </div>
               </div>
 
-              <h1 className="tracker-ticket-title">{complaint.title}</h1>
+              <h1 className="detail-title" style={{ margin: '12px 0 6px' }}>
+                {complaint.title}
+              </h1>
+              <p className="detail-desc">{complaint.description}</p>
 
-              <p className="tracker-ticket-desc">{complaint.description}</p>
-
-              {/* Urgency Justification callout if urgent */}
               {complaint.priority === PRIORITIES.URGENT && complaint.urgencyJustification && (
-                <div className="urgency-callout-box">
-                  <AlertTriangle size={16} className="text-rose-400 flex-shrink-0" />
+                <div className="callout callout-danger" style={{ marginTop: 14 }}>
+                  <AlertTriangle size={15} />
                   <div>
-                    <strong>Urgency Justification:</strong> {complaint.urgencyJustification}
+                    <span className="callout-title">Urgency justification</span>
+                    {complaint.urgencyJustification}
                   </div>
                 </div>
               )}
 
-              {/* Details grid */}
-              <div className="tracker-meta-grid">
-                <div className="meta-card">
-                  <span className="meta-card-label">Category & Sub</span>
-                  <span className="meta-card-value">{complaint.category} {complaint.subCategory ? `• ${complaint.subCategory}` : ''}</span>
+              <div className="meta-grid" style={{ marginTop: 16 }}>
+                <div>
+                  <span className="meta-cell-label">Category</span>
+                  <span className="meta-cell-value">
+                    {complaint.category}
+                    {complaint.subCategory ? ` • ${complaint.subCategory}` : ''}
+                  </span>
                 </div>
-
-                <div className="meta-card">
-                  <span className="meta-card-label">Location</span>
-                  <span className="meta-card-value flex-align">
-                    <MapPin size={14} className="text-indigo-400 mr-1" />
+                <div>
+                  <span className="meta-cell-label">Location</span>
+                  <span className="meta-cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <MapPin size={13} className="tone-accent" />
                     {complaint.location}
                   </span>
                 </div>
-
-                <div className="meta-card">
-                  <span className="meta-card-label">Date Submitted</span>
-                  <span className="meta-card-value">{formatDate(complaint.createdAt)}</span>
+                <div>
+                  <span className="meta-cell-label">Date Submitted</span>
+                  <span className="meta-cell-value">{formatDate(complaint.createdAt)}</span>
                 </div>
-
-                <div className="meta-card">
-                  <span className="meta-card-label">Reporter</span>
-                  <span className="meta-card-value flex-align">
+                <div>
+                  <span className="meta-cell-label">Reporter</span>
+                  <span className="meta-cell-value">
                     {complaint.isAnonymous ? (
-                      <span className="text-amber-400 flex-align">
-                        <Lock size={13} className="mr-1" /> Anonymous
+                      <span className="anon-chip">
+                        <Lock size={12} /> Anonymous
                       </span>
                     ) : (
-                      <span>{complaint.student?.name || 'Alex Chen'}</span>
+                      complaint.student?.name || user?.name || 'You'
                     )}
                   </span>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Interactive Resolution Confirmation Panel */}
+            {/* Resolution confirmation panel */}
             {complaint.status === STATUSES.PENDING_CONFIRMATION && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(56, 189, 248, 0.08))',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  marginBottom: '24px',
-                  boxShadow: '0 8px 32px rgba(16, 185, 129, 0.1)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <div
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: 'rgba(16, 185, 129, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#34d399',
-                    }}
-                  >
-                    <CheckCircle2 size={24} />
-                  </div>
+              <section className="resolution-panel">
+                <div className="resolution-panel-head">
+                  <span className="resolution-panel-icon">
+                    <CheckCircle2 size={19} />
+                  </span>
                   <div>
-                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>
-                      Action Required: Confirm Issue Resolution
-                    </h3>
-                    <p style={{ fontSize: '13px', color: '#9ca3af', margin: '2px 0 0 0' }}>
-                      Staff marked your problem as fixed. Please verify and confirm so the ticket can be officially closed.
+                    <h3 className="resolution-panel-title">Action required: confirm resolution</h3>
+                    <p className="resolution-panel-sub">
+                      Staff marked your issue as fixed. Verify the work to officially close this
+                      ticket.
                     </p>
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    background: 'rgba(17, 24, 39, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    margin: '16px 0',
-                  }}
-                >
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', marginBottom: '4px' }}>
-                    RESOLUTION SUMMARY BY {complaint.resolutionDetails?.staffName?.toUpperCase() || 'STAFF'}:
+                <div className="resolution-summary">
+                  <div className="resolution-summary-label">
+                    RESOLUTION SUMMARY —{' '}
+                    {(complaint.resolutionDetails?.staffName || 'STAFF').toUpperCase()}
                   </div>
-                  <p style={{ fontSize: '14px', color: '#e5e7eb', margin: 0, fontStyle: 'italic' }}>
-                    "{complaint.resolutionDetails?.notes || 'Staff marked this ticket as resolved. Please confirm.'}"
+                  <p className="resolution-summary-text">
+                    “{complaint.resolutionDetails?.notes || 'Staff marked this ticket as resolved.'}”
                   </p>
                   {complaint.resolutionDetails?.proposedAt && (
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
+                    <div className="resolution-summary-date">
                       Proposed on {formatDate(complaint.resolutionDetails.proposedAt)}
                     </div>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div className="resolution-actions">
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={() => setShowConfirmModal(true)}
-                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
                   >
-                    <CheckCircle2 size={16} />
-                    <span>Confirm & Close Ticket</span>
+                    <CheckCircle2 size={15} />
+                    Confirm &amp; Close
                   </button>
-
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-danger-outline"
                     onClick={() => setShowReopenModal(true)}
-                    style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#f87171' }}
                   >
-                    <AlertTriangle size={16} />
-                    <span>Issue Not Solved (Reopen)</span>
+                    <AlertTriangle size={15} />
+                    Issue Not Solved
                   </button>
                 </div>
-              </div>
+              </section>
             )}
 
-            {/* Step-by-Step Progress Timeline */}
-            <div className="timeline-tracker-card">
-              <h2 className="card-section-title">
-                <Clock size={18} className="title-icon" />
-                Live Resolution Timeline
+            {/* Timeline stepper */}
+            <section className="card card-pad">
+              <h2 className="card-title" style={{ marginBottom: 18 }}>
+                Resolution Timeline
               </h2>
 
-              <div className="timeline-stepper-container">
+              <div className="stepper">
                 {TIMELINE_STAGES.map((stage, idx) => {
                   const isCompleted = idx < currentStageIndex;
                   const isCurrent = idx === currentStageIndex;
-                  const isPending = idx > currentStageIndex;
 
-                  // Find log entries matching stage
                   const matchingHistory = (complaint.statusHistory || []).filter((h) => {
-                    if (stage.key === 'submitted') return h.status === STATUSES.PENDING && idx === 0;
-                    if (stage.key === 'under_review') return h.note?.toLowerCase().includes('review') || h.note?.toLowerCase().includes('triage');
-                    if (stage.key === 'assigned') return h.note?.toLowerCase().includes('assign') || complaint.assignedTo;
-                    if (stage.key === 'in_progress') return h.status === STATUSES.IN_PROGRESS;
-                    if (stage.key === 'resolved') return h.status === STATUSES.RESOLVED;
-                    return false;
+                    switch (stage.key) {
+                      case 'submitted':
+                        return h.status === STATUSES.PENDING && idx === 0;
+                      case 'under_review':
+                        return (
+                          h.note?.toLowerCase().includes('review') ||
+                          h.note?.toLowerCase().includes('triage')
+                        );
+                      case 'assigned':
+                        return h.note?.toLowerCase().includes('assign') || complaint.assignedTo;
+                      case 'in_progress':
+                        return h.status === STATUSES.IN_PROGRESS;
+                      case 'resolved':
+                        return h.status === STATUSES.RESOLVED;
+                      default:
+                        return false;
+                    }
                   });
 
                   return (
-                    <div
-                      key={stage.key}
-                      className={`timeline-step-row ${
-                        isCompleted ? 'step-completed' : isCurrent ? 'step-current' : 'step-pending'
-                      }`}
-                    >
-                      {/* Step Node Icon & Line */}
-                      <div className="step-node-col">
-                        <div className="step-node-circle">
+                    <div key={stage.key} className="step-row">
+                      <div className="step-rail">
+                        <div className={`step-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                           {isCompleted ? (
-                            <CheckCircle2 size={20} className="node-icon completed" />
+                            <CheckCircle2 size={16} />
                           ) : isCurrent ? (
-                            <div className="current-pulse-ring">
-                              <span className="pulse-dot" />
-                            </div>
+                            <span className="step-node-inner" />
                           ) : (
-                            <span className="pending-node-number">{idx + 1}</span>
+                            idx + 1
                           )}
                         </div>
                         {idx < TIMELINE_STAGES.length - 1 && (
-                          <div className={`step-connecting-line ${isCompleted ? 'line-completed' : ''}`} />
+                          <div className={`step-line ${isCompleted ? 'completed' : ''}`} />
                         )}
                       </div>
 
-                      {/* Step Details */}
-                      <div className="step-content-col">
-                        <div className="step-header">
-                          <h4 className="step-title">{stage.label}</h4>
-                          {isCurrent && <span className="current-stage-tag">ACTIVE STAGE</span>}
-                          {isCompleted && <span className="completed-stage-tag">COMPLETED</span>}
+                      <div className="step-body">
+                        <div className="step-head">
+                          <h4 className={`step-title ${!isCompleted && !isCurrent ? 'is-muted' : ''}`}>
+                            {stage.label}
+                          </h4>
+                          {isCurrent && <span className="stage-chip current">ACTIVE</span>}
+                          {isCompleted && <span className="stage-chip done">DONE</span>}
                         </div>
                         <p className="step-desc">{stage.desc}</p>
 
-                        {/* Audit Log entries for this step */}
                         {matchingHistory.length > 0 && (
-                          <div className="step-history-notes">
+                          <div className="history-notes">
                             {matchingHistory.map((h, hIdx) => (
-                              <div key={hIdx} className="history-note-item">
-                                <span className="history-by">{h.updatedBy}:</span>
-                                <span className="history-text">{h.note}</span>
-                                <span className="history-time">{formatRelativeTime(h.timestamp)}</span>
+                              <div key={hIdx} className="history-note">
+                                <span className="history-author">{h.updatedBy}</span>
+                                <span>{h.note}</span>
+                                <span className="history-time">
+                                  {formatRelativeTime(h.timestamp)}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -522,50 +458,39 @@ export default function TicketTracker() {
                   );
                 })}
               </div>
-            </div>
+            </section>
 
-            {/* Discussion & Comment Thread */}
-            <div className="comments-thread-card">
-              <h2 className="card-section-title">
-                <MessageSquare size={18} className="title-icon" />
-                Ticket Discussion & Updates ({publicComments.length})
+            {/* Discussion */}
+            <section className="card card-pad">
+              <h2 className="card-title" style={{ marginBottom: 14 }}>
+                Discussion ({publicComments.length})
               </h2>
 
-              <div className="comments-stream">
+              <div className="comments-list">
                 {publicComments.length === 0 ? (
-                  <div className="no-comments-prompt">
-                    <p>No comments posted yet. Use the message box below to post additional information or questions for the handler.</p>
+                  <div className="no-comments">
+                    No comments yet. Post updates or questions for the handler below.
                   </div>
                 ) : (
                   publicComments.map((comment) => {
-                    const isStaff = comment.senderRole === ROLES.STAFF || comment.senderRole === ROLES.ADMIN;
+                    const isStaff =
+                      comment.senderRole === ROLES.STAFF || comment.senderRole === ROLES.ADMIN;
                     return (
-                      <div
-                        key={comment.id}
-                        className={`comment-bubble-item ${isStaff ? 'staff-comment' : 'user-comment'}`}
-                      >
-                        <div className="comment-avatar-box">
-                          {isStaff ? (
-                            <div className="avatar-staff">
-                              <Wrench size={16} />
-                            </div>
-                          ) : (
-                            <div className="avatar-user">
-                              <User size={16} />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="comment-body-wrapper">
-                          <div className="comment-meta-header">
+                      <div key={comment.id} className="comment-row">
+                        <span className={`comment-avatar ${isStaff ? 'staff' : 'user'}`}>
+                          {isStaff ? <Wrench size={14} /> : <User size={14} />}
+                        </span>
+                        <div className="comment-bubble">
+                          <div className="comment-meta">
                             <span className="comment-author">{comment.senderName}</span>
-                            <span className={`role-tag-pill ${isStaff ? 'tag-staff' : 'tag-student'}`}>
-                              {comment.senderRole?.toUpperCase() || 'USER'}
+                            <span className="comment-role">
+                              {(comment.senderRole || 'user').toUpperCase()}
                             </span>
-                            <span className="comment-timestamp">{formatRelativeTime(comment.timestamp)}</span>
+                            <span className="comment-time">
+                              {formatRelativeTime(comment.timestamp)}
+                            </span>
                           </div>
-
-                          <div className="comment-text-content">{comment.text}</div>
+                          <p className="comment-text">{comment.text}</p>
                         </div>
                       </div>
                     );
@@ -573,66 +498,57 @@ export default function TicketTracker() {
                 )}
               </div>
 
-              {/* Add Comment Input Form */}
-              <form onSubmit={handleAddComment} className="add-comment-form">
+              <form onSubmit={handleAddComment} className="comment-form">
                 <textarea
-                  className="comment-input-textarea"
+                  className="form-textarea"
                   rows={3}
-                  placeholder="Type an update or comment for the technician..."
+                  placeholder="Write an update for the assigned handler…"
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
+                  aria-label="Add a comment"
                 />
-
-                <div className="comment-form-actions">
-                  <span className="comment-help-text">
-                    💬 Replies are visible to assigned department handlers.
+                <div className="comment-form-foot">
+                  <span className="comment-hint">
+                    <MessageSquare size={13} />
+                    Visible to assigned department handlers.
                   </span>
-
                   <button
                     type="submit"
                     className="btn btn-primary btn-sm"
                     disabled={isPostingComment || !newCommentText.trim()}
                   >
-                    {isPostingComment ? (
-                      <span className="spinner" />
-                    ) : (
-                      <>
-                        <Send size={15} />
-                        <span>Post Comment</span>
-                      </>
-                    )}
+                    {isPostingComment ? <span className="spinner" /> : <Send size={14} />}
+                    Post Comment
                   </button>
                 </div>
               </form>
-            </div>
-
+            </section>
           </div>
 
-          {/* RIGHT COLUMN: Handler & Metadata Panel */}
-          <div className="tracker-right-col">
-            
-            {/* Handler Assignment Card */}
-            <div className="tracker-side-card">
+          {/* RIGHT: side cards */}
+          <aside className="detail-side">
+            <div className="side-card">
               <h3 className="side-card-title">
-                <Wrench size={16} className="text-indigo-400" />
-                Assigned Service Handler
+                <Wrench size={15} />
+                Assigned Handler
               </h3>
 
               {complaint.assignedTo ? (
-                <div className="handler-profile-box">
-                  <div className="handler-avatar-large">
-                    <User size={24} className="text-emerald-400" />
-                  </div>
-                  <div className="handler-details">
-                    <h4 className="handler-name">{complaint.assignedTo.name}</h4>
-                    <p className="handler-dept">{complaint.assignedTo.department || 'Department Specialist'}</p>
-                    <span className="handler-status-tag text-emerald-400">● Active Handler</span>
+                <div className="handler-box">
+                  <span className="handler-avatar">
+                    <User size={18} />
+                  </span>
+                  <div>
+                    <div className="handler-name">{complaint.assignedTo.name}</div>
+                    <div className="handler-dept">
+                      {complaint.assignedTo.department || 'Department Specialist'}
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="unassigned-box">
-                  <Clock size={24} className="text-amber-400 mb-2" />
-                  <h4 className="unassigned-title">Pending Staff Assignment</h4>
+                  <Clock size={20} className="tone-warning" />
+                  <div className="unassigned-title">Awaiting assignment</div>
                   <p className="unassigned-desc">
                     Your request is in the department queue. A specialist will be assigned shortly.
                   </p>
@@ -640,129 +556,67 @@ export default function TicketTracker() {
               )}
             </div>
 
-            {/* Access & Contact Preferences */}
-            <div className="tracker-side-card">
+            <div className="side-card">
               <h3 className="side-card-title">
-                <Calendar size={16} className="text-indigo-400" />
-                Preferences & Access Slot
+                <Calendar size={15} />
+                Preferences
               </h3>
-
-              <div className="side-detail-row">
-                <span className="detail-label">Access Date:</span>
-                <span className="detail-value">{complaint.accessDate || 'Flexible'}</span>
+              <div className="kv-row">
+                <span className="kv-label">Access date</span>
+                <span className="kv-value">{complaint.accessDate || 'Flexible'}</span>
               </div>
-
-              <div className="side-detail-row">
-                <span className="detail-label">Time Window:</span>
-                <span className="detail-value">{complaint.timeSlot || 'Morning (8 AM - 12 PM)'}</span>
+              <div className="kv-row">
+                <span className="kv-label">Time window</span>
+                <span className="kv-value">
+                  {complaint.timeSlot || ACCESS_TIME_SLOTS[0]}
+                </span>
               </div>
-
-              <div className="side-detail-row">
-                <span className="detail-label">Preferred Contact:</span>
-                <span className="detail-value">{complaint.contactMethod || 'In-App Notification'}</span>
+              <div className="kv-row">
+                <span className="kv-label">Contact via</span>
+                <span className="kv-value">
+                  {complaint.contactMethod || CONTACT_METHODS[0].id}
+                </span>
               </div>
             </div>
 
-            {/* Quick Actions Card */}
-            <div className="tracker-side-card">
+            <div className="side-card">
               <h3 className="side-card-title">
-                <ShieldCheck size={16} className="text-indigo-400" />
-                Support & Actions
+                <ShieldCheck size={15} />
+                Actions
               </h3>
-
-              <div className="quick-actions-stack">
-                <button
-                  type="button"
-                  className="btn btn-secondary w-full"
-                  onClick={handleCopyId}
-                >
-                  <Share2 size={16} />
-                  <span>Share / Copy Ticket ID</span>
+              <div className="actions-stack">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCopyId}>
+                  {copiedId ? <Check size={14} /> : <Copy size={14} />}
+                  Share / Copy ID
                 </button>
-
                 <button
                   type="button"
-                  className="btn btn-secondary w-full"
+                  className="btn btn-secondary btn-sm"
                   onClick={() => {
                     const updated = complaintService.getById(complaint.id);
-                    if (updated) setComplaint({ ...updated });
-                    showToast('Refreshed ticket status', 'info');
+                    if (updated) {
+                      setComplaint({ ...updated });
+                      showToast('Ticket status refreshed', 'info');
+                    }
                   }}
                 >
-                  <RefreshCw size={16} />
-                  <span>Refresh Ticket Status</span>
+                  <RefreshCw size={14} />
+                  Refresh Status
                 </button>
               </div>
             </div>
-
-          </div>
-
+          </aside>
         </div>
       )}
 
-      {/* MODAL: Confirm Resolution */}
-      {showConfirmModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              background: '#111827',
-              border: '1px solid rgba(16, 185, 129, 0.4)',
-              borderRadius: '20px',
-              padding: '28px',
-              maxWidth: '480px',
-              width: '100%',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                <CheckCircle2 size={24} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>Confirm Ticket Resolution</h3>
-                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0 0' }}>Ticket {complaint?.id}</p>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '16px' }}>
-              By confirming, you verify that the staff member's work has satisfactorily solved your complaint. The ticket status will be changed to <strong>Resolved (Closed)</strong>.
-            </p>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#9ca3af', marginBottom: '6px' }}>
-                Feedback or Rating Note (Optional):
-              </label>
-              <textarea
-                style={{
-                  width: '100%',
-                  background: 'rgba(31, 41, 55, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  padding: '12px',
-                  color: '#f9fafb',
-                  fontSize: '14px',
-                  outline: 'none',
-                }}
-                rows={3}
-                placeholder="e.g. Work was completed quickly and desk is in perfect condition. Thank you!"
-                value={confirmFeedbackText}
-                onChange={(e) => setConfirmFeedbackText(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+      {/* Confirm-resolution modal */}
+      {showConfirmModal && complaint && (
+        <Modal
+          title="Confirm Ticket Resolution"
+          subtitle={complaint.id}
+          onClose={() => setShowConfirmModal(false)}
+          footer={
+            <>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -770,82 +624,40 @@ export default function TicketTracker() {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleConfirmResolution}
-                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
-              >
-                Confirm & Close Ticket
+              <button type="button" className="btn btn-primary" onClick={handleConfirmResolution}>
+                <CheckCircle2 size={15} />
+                Confirm &amp; Close
               </button>
-            </div>
+            </>
+          }
+        >
+          <p className="detail-desc" style={{ margin: 0 }}>
+            By confirming you verify that the completed work has resolved your complaint. The
+            ticket will move to <strong>Resolved</strong> and can no longer be updated.
+          </p>
+          <div className="form-group">
+            <label htmlFor="confirm-feedback" className="field-label">
+              Feedback (optional)
+            </label>
+            <textarea
+              id="confirm-feedback"
+              rows={3}
+              placeholder="e.g. Work was completed quickly and everything works."
+              value={confirmFeedbackText}
+              onChange={(e) => setConfirmFeedbackText(e.target.value)}
+            />
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* MODAL: Reopen Ticket */}
-      {showReopenModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              background: '#111827',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              borderRadius: '20px',
-              padding: '28px',
-              maxWidth: '480px',
-              width: '100%',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
-                <AlertTriangle size={24} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', margin: 0 }}>Reopen Complaint Ticket</h3>
-                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0 0' }}>Ticket {complaint?.id}</p>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '16px' }}>
-              If your problem is not resolved yet, please explain what still needs attention so staff can inspect it further.
-            </p>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#9ca3af', marginBottom: '6px' }}>
-                Reason / Details (Required):
-              </label>
-              <textarea
-                style={{
-                  width: '100%',
-                  background: 'rgba(31, 41, 55, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  padding: '12px',
-                  color: '#f9fafb',
-                  fontSize: '14px',
-                  outline: 'none',
-                }}
-                rows={3}
-                placeholder="e.g. The leak started spattering again after 10 minutes..."
-                value={reopenReasonText}
-                onChange={(e) => setReopenReasonText(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+      {/* Reopen modal */}
+      {showReopenModal && complaint && (
+        <Modal
+          title="Reopen Complaint"
+          subtitle={complaint.id}
+          onClose={() => setShowReopenModal(false)}
+          footer={
+            <>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -855,15 +667,31 @@ export default function TicketTracker() {
               </button>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-danger"
                 onClick={handleRejectResolution}
-                style={{ background: '#ef4444', color: '#ffffff', borderColor: '#dc2626' }}
+                disabled={!reopenReasonText.trim()}
               >
                 Reopen Ticket
               </button>
-            </div>
+            </>
+          }
+        >
+          <p className="detail-desc" style={{ margin: 0 }}>
+            Explain what still needs attention so staff can inspect it again.
+          </p>
+          <div className="form-group">
+            <label htmlFor="reopen-reason" className="field-label">
+              Reason<span className="required-mark">*</span>
+            </label>
+            <textarea
+              id="reopen-reason"
+              rows={3}
+              placeholder="e.g. The leak started again after ten minutes…"
+              value={reopenReasonText}
+              onChange={(e) => setReopenReasonText(e.target.value)}
+            />
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

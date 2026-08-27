@@ -301,13 +301,32 @@ export const complaintService = {
   },
 
   /**
-   * Find complaint by unique ID.
+   * Find complaint by unique ID with robust, forgiving sanitization (Postel's Law).
+   * Supports:
+   * - Case-insensitive matching ('cms-2026-1001' matches 'CMS-2026-1001')
+   * - Stripping hash/special symbols ('#CMS-2026-1001')
+   * - Numeric suffix lookup ('1001' or '2026-1001')
    * @param {string} id
    * @returns {Object|null}
    */
   getById: (id) => {
+    if (!id || typeof id !== 'string') return null;
+    const cleanId = id.trim().replace(/^[#\s]+/, '').toLowerCase();
+    if (!cleanId) return null;
+
     const list = getRawComplaints();
-    return list.find((item) => item.id === id) || null;
+    
+    // 1. Direct exact or case-insensitive match
+    const exact = list.find((item) => item.id.toLowerCase() === cleanId);
+    if (exact) return exact;
+
+    // 2. Suffix / numeric ID matching (e.g. '1001' or '2026-1001' matching 'CMS-2026-1001')
+    const suffixMatch = list.find((item) => {
+      const itemId = item.id.toLowerCase();
+      return itemId.endsWith(cleanId) || itemId.endsWith(`-${cleanId}`);
+    });
+    
+    return suffixMatch || null;
   },
 
   /**

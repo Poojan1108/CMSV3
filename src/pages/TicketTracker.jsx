@@ -77,8 +77,9 @@ export default function TicketTracker() {
       setUserComplaintsList(myTickets);
 
       if (ticketIdParam) {
-        setComplaint(complaintService.getById(ticketIdParam));
-        setLookupId(ticketIdParam);
+        const found = complaintService.getById(ticketIdParam);
+        setComplaint(found);
+        setLookupId(found ? found.id : ticketIdParam);
       } else if (myTickets.length > 0) {
         setComplaint(myTickets[0]);
         setLookupId(myTickets[0].id);
@@ -97,6 +98,7 @@ export default function TicketTracker() {
     const found = complaintService.getById(lookupId.trim());
     if (found) {
       setComplaint(found);
+      setLookupId(found.id);
       setSearchParams({ id: found.id });
       showToast(`Loaded ticket ${found.id}`, 'info');
     } else {

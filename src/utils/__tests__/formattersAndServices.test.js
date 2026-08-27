@@ -421,7 +421,7 @@ describe('7. Complaint Service: getStats()', () => {
     complaintService.resetToSeedData();
 
     const stats = complaintService.getStats();
-    expect(stats.total).toBe(5);
+    expect(stats.total).toBe(6);
     expect(stats.pending).toBe(2);
     expect(stats.inProgress).toBe(1);
     expect(stats.resolved).toBe(1);
@@ -440,7 +440,7 @@ describe('7. Complaint Service: getStats()', () => {
     });
 
     const updatedStats = complaintService.getStats();
-    expect(updatedStats.total).toBe(6);
+    expect(updatedStats.total).toBe(7);
     expect(updatedStats.pending).toBe(3);
     expect(updatedStats.urgent).toBe(2);
   });
@@ -725,11 +725,11 @@ describe('10. Admin Functionality: resetToSeedData()', () => {
     const result = complaintService.resetToSeedData();
 
     expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(5);
+    expect(result.length).toBe(6);
     expect(result[0].id).toBe('CMS-2026-1001');
 
     const storedComplaints = JSON.parse(localStorage.getItem('cms_complaints_v1'));
-    expect(storedComplaints.length).toBe(5);
+    expect(storedComplaints.length).toBe(6);
     expect(storedComplaints[0].id).toBe('CMS-2026-1001');
 
     const counter = localStorage.getItem('cms_complaint_counter_v1');
@@ -744,14 +744,14 @@ describe('10. Admin Functionality: resetToSeedData()', () => {
     complaintService.updateStatus('CMS-2026-1001', STATUSES.RESOLVED, 'Admin');
 
     const beforeReset = complaintService.getAll();
-    expect(beforeReset.length).toBe(6);
+    expect(beforeReset.length).toBe(7);
 
     // Perform Reset
     const afterReset = complaintService.resetToSeedData();
-    expect(afterReset.length).toBe(5);
+    expect(afterReset.length).toBe(6);
 
     const reFetched = complaintService.getAll();
-    expect(reFetched.length).toBe(5);
+    expect(reFetched.length).toBe(6);
     expect(reFetched.find((c) => c.title === 'Temporary Ticket')).toBeFalsy();
     // CMS-2026-1001 status in seed data is IN_PROGRESS
     expect(reFetched.find((c) => c.id === 'CMS-2026-1001').status).toBe(STATUSES.IN_PROGRESS);
@@ -762,10 +762,10 @@ describe('10. Admin Functionality: resetToSeedData()', () => {
     localStorage.setItem('cms_complaint_counter_v1', '9999');
 
     const result = complaintService.resetToSeedData();
-    expect(result.length).toBe(5);
+    expect(result.length).toBe(6);
 
     const stored = JSON.parse(localStorage.getItem('cms_complaints_v1'));
-    expect(stored.length).toBe(5);
+    expect(stored.length).toBe(6);
     expect(localStorage.getItem('cms_complaint_counter_v1')).toBe('1005');
   });
 
@@ -864,10 +864,48 @@ describe('11. Admin Functionality: CSV Export String Generation', () => {
     const csvOutput = complaintService.exportToCSV();
 
     const lines = csvOutput.split('\n');
-    expect(lines.length).toBe(6); // 1 header + 5 seed complaints
+    expect(lines.length).toBe(7); // 1 header + 6 seed complaints
     expect(lines[0]).toContain('Ticket ID');
     expect(lines[1]).toContain('CMS-2026-1001');
     expect(lines[5]).toContain('CMS-2026-1005');
+  });
+});
+
+describe('Postel’s Law & Jakob’s Law - Ticket ID Sanitization (getById)', () => {
+  test('finds complaint with exact ID', () => {
+    complaintService.resetToSeedData();
+    const found = complaintService.getById('CMS-2026-1001');
+    expect(found).toBeTruthy();
+    expect(found.id).toBe('CMS-2026-1001');
+  });
+
+  test('finds complaint with lowercase ID', () => {
+    complaintService.resetToSeedData();
+    const found = complaintService.getById('cms-2026-1001');
+    expect(found).toBeTruthy();
+    expect(found.id).toBe('CMS-2026-1001');
+  });
+
+  test('finds complaint with leading hash symbol and whitespace', () => {
+    complaintService.resetToSeedData();
+    const found = complaintService.getById('  #CMS-2026-1002  ');
+    expect(found).toBeTruthy();
+    expect(found.id).toBe('CMS-2026-1002');
+  });
+
+  test('finds complaint with numeric suffix lookup (e.g. 1003)', () => {
+    complaintService.resetToSeedData();
+    const found = complaintService.getById('1003');
+    expect(found).toBeTruthy();
+    expect(found.id).toBe('CMS-2026-1003');
+  });
+
+  test('returns null for empty or non-existent ID gracefully', () => {
+    complaintService.resetToSeedData();
+    expect(complaintService.getById('')).toBe(null);
+    expect(complaintService.getById('   ')).toBe(null);
+    expect(complaintService.getById('NON-EXISTENT-9999')).toBe(null);
+    expect(complaintService.getById(null)).toBe(null);
   });
 });
 

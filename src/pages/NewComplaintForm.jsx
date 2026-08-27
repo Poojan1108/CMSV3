@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusCircle,
@@ -16,6 +16,8 @@ import {
   FileCheck,
   Lock,
   MessageSquare,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -27,6 +29,7 @@ import { Breadcrumb, PageHeader } from '../components/ui';
 const TITLE_MAX_LENGTH = 120;
 const DESCRIPTION_MIN_LENGTH = 20;
 const MAX_FILE_SIZE_MB = 5;
+const DRAFT_STORAGE_KEY = 'cms_complaint_draft_v1';
 
 const PRIORITY_OPTIONS = [
   { key: PRIORITIES.LOW, label: 'Low', sla: '72 hrs', dot: 'var(--app-text-muted)' },
@@ -55,6 +58,72 @@ export default function NewComplaintForm() {
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deflectionDismissed, setDeflectionDismissed] = useState(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
+  // Restore draft on initial mount (Parkinson's Law: Prevent re-entering data)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.title) setTitle(draft.title);
+        if (draft.description) setDescription(draft.description);
+        if (draft.location) setLocation(draft.location);
+        if (draft.category && categories.includes(draft.category)) {
+          setCategory(draft.category);
+          if (draft.subCategory) setSubCategory(draft.subCategory);
+        }
+        if (draft.priority) setPriority(draft.priority);
+        if (draft.isAnonymous !== undefined) setIsAnonymous(draft.isAnonymous);
+        setHasRestoredDraft(true);
+        showToast('Restored your previous draft.', 'info');
+      }
+    } catch (err) {
+      console.warn('Could not restore draft:', err);
+    }
+  }, []);
+
+  // Auto-save draft on user edits
+  useEffect(() => {
+    try {
+      if (title.trim() || description.trim() || location.trim()) {
+        const draftPayload = {
+          title,
+          description,
+          location,
+          category,
+          subCategory,
+          priority,
+          isAnonymous,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+      }
+    } catch (err) {
+      console.warn('Could not save draft:', err);
+    }
+  }, [title, description, location, category, subCategory, priority, isAnonymous]);
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (e) {}
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setTitle('');
+    setDescription('');
+    setLocation('');
+    setCategory(categories[0] || 'General');
+    setSubCategory(getSubCategories(categories[0])[0]);
+    setPriority(PRIORITIES.MEDIUM);
+    setUrgencyJustification('');
+    setIsAnonymous(false);
+    setAttachments([]);
+    setHasRestoredDraft(false);
+    showToast('Draft discarded.', 'info');
+  };
 
   const availableSubCategories = useMemo(() => getSubCategories(category), [category]);
 
@@ -69,6 +138,35 @@ export default function NewComplaintForm() {
     const lowerTitle = title.toLowerCase();
     return KB_ARTICLES.find((art) => art.keywords.some((kw) => lowerTitle.includes(kw))) || null;
   }, [title, deflectionDismissed]);
+
+  // Smart category suggestion based on title/description context (Tesler's Law)
+  const suggestedCategory = useMemo(() => {
+    if (!title || title.trim().length < 3) return null;
+    const lower = `${title} ${description}`.toLowerCase();
+
+    if (/wifi|internet|network|portal|login|laptop|server|lan|vpn|software|email|printer|system/i.test(lower)) {
+      return categories.find((c) => /it|wifi|network|software|tech/i.test(c)) || null;
+    }
+    if (/water|leak|pipe|tap|flush|drain|restroom|toilet|sink|washroom|plumber/i.test(lower)) {
+      return categories.find((c) => /hostel|sanitation|maintenance|plumbing/i.test(c)) || null;
+    }
+    if (/ac|cooling|fan|light|power|switch|fuse|electricity|wiring|generator|heater/i.test(lower)) {
+      return categories.find((c) => /electrical|maintenance|facility/i.test(c)) || null;
+    }
+    if (/food|mess|canteen|meal|snack|cook|kitchen|hygiene|taste|samosa|cater/i.test(lower)) {
+      return categories.find((c) => /canteen|mess|food|dining/i.test(c)) || null;
+    }
+    if (/garbage|trash|clean|dust|pest|insect|smell|bin|dirty/i.test(lower)) {
+      return categories.find((c) => /sanitation|clean|housekeeping/i.test(c)) || null;
+    }
+    if (/desk|chair|table|bed|door|lock|window|cupboard|furniture|wardrobe/i.test(lower)) {
+      return categories.find((c) => /hostel|maintenance|furniture/i.test(c)) || null;
+    }
+    if (/grade|exam|course|professor|faculty|lecture|attendance|marks|scholarship/i.test(lower)) {
+      return categories.find((c) => /academic|course|faculty/i.test(c)) || null;
+    }
+    return null;
+  }, [title, description, categories]);
 
   const quickPills = useMemo(() => getQuickLocations(orgKey), [orgKey]);
 
@@ -162,6 +260,7 @@ export default function NewComplaintForm() {
           currentOrg: orgKey,
         });
 
+        clearDraft();
         showToast(`Ticket ${created.id} submitted successfully`, 'success');
         navigate('/complaints');
       } catch (err) {
@@ -312,6 +411,23 @@ export default function NewComplaintForm() {
               </select>
             </div>
           </div>
+
+          {suggestedCategory && suggestedCategory !== category && (
+            <button
+              type="button"
+              className="smart-suggestion-pill"
+              onClick={() => {
+                handleCategoryChange(suggestedCategory);
+                showToast(`Auto-selected category: ${suggestedCategory}`, 'info');
+              }}
+              title={`Click to auto-switch category to ${suggestedCategory}`}
+            >
+              <Sparkles size={14} className="sparkle-icon" />
+              <span>
+                Detected department: <strong>{suggestedCategory}</strong> — Tap to apply
+              </span>
+            </button>
+          )}
         </section>
 
         {/* 3. Location */}
@@ -606,6 +722,18 @@ export default function NewComplaintForm() {
 
         {/* Footer */}
         <div className="form-footer">
+          {(title.trim() || description.trim() || location.trim() || hasRestoredDraft) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleDiscardDraft}
+              disabled={isSubmitting}
+              title="Clear all saved draft fields"
+            >
+              <RotateCcw size={14} />
+              Discard Draft
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"

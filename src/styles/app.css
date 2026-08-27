@@ -605,12 +605,17 @@ button.app-shell-metric-active,
   color: var(--app-text-muted);
   cursor: pointer;
   padding: 4px;
+  min-width: 32px;
+  min-height: 32px;
   display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--app-radius-sm);
 }
 
 .app-shell .search-clear:hover {
   color: var(--app-text);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .app-shell .filter-label {
@@ -1265,6 +1270,36 @@ button.app-shell-metric-active,
   pointer-events: none;
 }
 
+.app-shell .smart-suggestion-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--app-accent-subtle, rgba(99, 102, 241, 0.12));
+  border: 1px solid var(--app-accent-border, rgba(99, 102, 241, 0.35));
+  color: var(--app-accent-text, #c7d2fe);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--app-radius-md, 8px);
+  cursor: pointer;
+  margin-top: 10px;
+  transition: all 0.15s ease;
+  width: fit-content;
+}
+
+.app-shell .smart-suggestion-pill:hover {
+  background: var(--app-accent, #6366f1);
+  color: #ffffff;
+  border-color: var(--app-accent, #6366f1);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+}
+
+.app-shell .smart-suggestion-pill .sparkle-icon {
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
 .app-shell .switch input:checked ~ .switch-track {
   background: var(--app-accent);
 }
@@ -1378,9 +1413,13 @@ button.app-shell-metric-active,
   border: none;
   color: var(--app-text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: var(--app-radius-sm);
   display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -1508,14 +1547,15 @@ button.app-shell-metric-active,
 .app-shell .copy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
+  gap: 6px;
+  padding: 5px 11px;
+  min-height: 32px;
   border-radius: var(--app-radius-sm);
   background: var(--app-raised);
   border: 1px solid var(--app-border);
   color: var(--app-text-secondary);
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -2014,6 +2054,7 @@ button.app-shell-metric-active,
 
 .app-shell table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -2404,8 +2445,12 @@ button.app-shell-metric-active,
   color: var(--app-text-secondary, #9aa3b2);
   cursor: pointer;
   padding: 6px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: var(--app-radius, 8px);
   display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -2663,12 +2708,16 @@ body .toast-icon.error { color: #e05d6f; }
   }
 
   .modal-backdrop {
-    padding: 12px;
+    padding: 0;
     align-items: flex-end;
   }
 
   .modal-card {
+    width: 100%;
+    max-width: 100% !important;
     max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
   }
 }
 
@@ -2709,8 +2758,10 @@ body .toast-icon.error { color: #e05d6f; }
   background: transparent;
   border: 1px solid var(--app-border);
   color: var(--app-text);
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
   border-radius: var(--app-radius);
   cursor: pointer;
   align-items: center;
@@ -3351,6 +3402,13 @@ body .toast-icon.error { color: #e05d6f; }
 
   .app-shell .role-switcher-btn {
     padding: 6px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell .app-main-content,
+  .app-shell .app-main-content.sidebar-collapsed {
+    padding: 14px 10px;
   }
 }
 

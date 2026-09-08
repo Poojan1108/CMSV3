@@ -53,8 +53,9 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
   const { pathname } = useLocation();
   const { role, currentOrg } = useAuth();
 
-  const navItems = NAV_CONFIG[role] || NAV_CONFIG[ROLES.STUDENT];
-  const meta = ROLE_META[role] || ROLE_META[ROLES.STUDENT];
+  const userRole = (role || ROLES.STUDENT).toLowerCase();
+  const navItems = NAV_CONFIG[userRole] || NAV_CONFIG[ROLES.STUDENT];
+  const meta = ROLE_META[userRole] || ROLE_META[ROLES.STUDENT];
   const RoleIcon = meta.icon;
 
   const isItemActive = (item) => {

@@ -77,12 +77,15 @@ export default function TicketTracker() {
 
   useEffect(() => {
     try {
-      const myTickets = complaintService.getAll({ studentId: user?.id });
+      let myTickets = complaintService.getAll({ studentId: user?.id });
+      if (!myTickets || myTickets.length === 0) {
+        myTickets = complaintService.getAll();
+      }
       setUserComplaintsList(myTickets);
 
       if (ticketIdParam) {
         const found = complaintService.getById(ticketIdParam);
-        setComplaint(found);
+        setComplaint(found || myTickets[0] || null);
         setLookupId(found ? found.id : ticketIdParam);
       } else if (myTickets.length > 0) {
         setComplaint(myTickets[0]);

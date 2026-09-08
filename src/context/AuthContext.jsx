@@ -152,14 +152,30 @@ export const AuthProvider = ({ children }) => {
         console.info('[Auth] Server API offline or unreachable, using local session:', apiErr.message);
       }
 
+      // Check if email matches any pre-seeded demo mock user
+      const matchedMock = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
+
       if (!loggedInUser) {
-        loggedInUser = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) || {
+        loggedInUser = matchedMock || {
           id: `usr_${Date.now()}`,
           name: email.split('@')[0],
           email,
           role: ROLES.STUDENT,
           orgKey: currentOrgKey,
         };
+      } else if (matchedMock) {
+        // Harmonize with mock user profile if logging in with demo account
+        loggedInUser = {
+          ...matchedMock,
+          ...loggedInUser,
+          id: matchedMock.id,
+          role: matchedMock.role,
+        };
+      }
+
+      // Normalize role to lowercase
+      if (loggedInUser.role) {
+        loggedInUser.role = String(loggedInUser.role).toLowerCase();
       }
 
       // Auto-activate user's bound organization
@@ -273,13 +289,15 @@ export const AuthProvider = ({ children }) => {
 
   const activeOrg = orgTemplates[currentOrgKey] || ORG_TEMPLATES[currentOrgKey] || resolveOrg(currentOrgKey);
 
+  const normalizedRole = (currentUser?.role || ROLES.STUDENT).toLowerCase();
+
   const value = {
-    user: currentUser,
-    currentUser,
-    role: currentUser?.role || ROLES.STUDENT,
-    isStudent: currentUser?.role === ROLES.STUDENT,
-    isStaff: currentUser?.role === ROLES.STAFF,
-    isAdmin: currentUser?.role === ROLES.ADMIN,
+    user: currentUser ? { ...currentUser, role: normalizedRole } : null,
+    currentUser: currentUser ? { ...currentUser, role: normalizedRole } : null,
+    role: normalizedRole,
+    isStudent: normalizedRole === ROLES.STUDENT,
+    isStaff: normalizedRole === ROLES.STAFF,
+    isAdmin: normalizedRole === ROLES.ADMIN,
     loading,
     authError,
     login,

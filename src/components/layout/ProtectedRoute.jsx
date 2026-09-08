@@ -13,12 +13,15 @@ export default function ProtectedRoute({ allowedRoles = [], children }) {
   }
 
   // If specific roles are required and user does not have permission
-  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+  const userRole = (role || user?.role || ROLES.STUDENT).toLowerCase();
+  const normalizedAllowed = allowedRoles.map((r) => String(r).toLowerCase());
+
+  if (normalizedAllowed.length > 0 && !normalizedAllowed.includes(userRole)) {
     // Determine default redirect path based on active user role
     const defaultRedirect =
-      role === ROLES.ADMIN
+      userRole === ROLES.ADMIN
         ? '/admin/dashboard'
-        : role === ROLES.STAFF
+        : userRole === ROLES.STAFF
         ? '/staff/queue'
         : '/dashboard';
 

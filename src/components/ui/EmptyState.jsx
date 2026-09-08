@@ -4,10 +4,10 @@ import React from 'react';
 export default function EmptyState({ icon: Icon, title, description, children }) {
   return (
     <div className="empty-state">
-      {Icon && <Icon size={36} />}
+      {Icon && <Icon size={36} className="empty-icon" />}
       <h3 className="empty-title">{title}</h3>
       {description && <p className="empty-desc">{description}</p>}
-      {children && <div className="page-actions" style={{ justifyContent: 'center' }}>{children}</div>}
+      {children && <div className="empty-actions">{children}</div>}
     </div>
   );
 }

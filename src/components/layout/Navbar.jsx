@@ -104,53 +104,16 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
       </div>
 
       <div className="header-right">
-        {/* Organization template switcher */}
-        <div className="role-switcher-container" ref={orgRef}>
-          <button
-            type="button"
-            className="role-switcher-btn"
-            onClick={() => toggleMenu('org')}
-            aria-expanded={openMenu === 'org'}
-            title="Switch organization template"
-          >
-            {getOrgIcon(orgKey)}
-            <span className="org-switcher-label">
-              Org: <strong>{currentOrg?.type || orgKey}</strong>
-            </span>
-            <ChevronDown size={13} className={`chevron-icon ${openMenu === 'org' ? 'open' : ''}`} />
-          </button>
-
-          {openMenu === 'org' && (
-            <div className="role-dropdown-menu" style={{ width: 300 }}>
-              <div className="dropdown-header">
-                <span className="dropdown-title">Organization Templates</span>
-                <span className="dropdown-subtitle">Adapts categories and terminology</span>
-              </div>
-              <div className="role-options-list">
-                {Object.keys(orgTemplates).map((key) => {
-                  const item = orgTemplates[key];
-                  const isSelected = orgKey === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`role-option-item ${isSelected ? 'is-active' : ''}`}
-                      onClick={() => handleOrgSelect(key)}
-                    >
-                      <span className="role-option-icon bg-tone-neutral">{getOrgIcon(key)}</span>
-                      <span className="role-option-text">
-                        <span className="role-name">{item.name}</span>
-                        <span className="role-desc">
-                          {item.type} • {item.userTerm} • {item.categories.length} categories
-                        </span>
-                      </span>
-                      {isSelected && <UserCheck size={15} className="active-check" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        {/* Organization Indicator Badge */}
+        <div
+          className="role-switcher-btn"
+          style={{ cursor: 'default' }}
+          title={`Organization: ${currentOrg?.name || 'ResolveX'} (${currentOrg?.type || 'Standard'})`}
+        >
+          {getOrgIcon(orgKey)}
+          <span className="org-switcher-label">
+            <strong>{currentOrg?.name || 'ResolveX'}</strong>
+          </span>
         </div>
 
         {/* Authenticated User Profile & Role Indicator */}
@@ -160,22 +123,13 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
             className="user-profile-card"
             onClick={() => toggleMenu('profile')}
             aria-expanded={openMenu === 'profile'}
+            title={`Signed in as ${user?.name || user?.email} (${getRoleLabel(role)})`}
           >
-            <span className="avatar-wrapper">
-              {user?.avatar ? (
-                <img src={user.avatar} alt="" className="user-avatar-img" />
-              ) : (
-                <span className="user-avatar-fallback">{user?.name?.charAt(0) || 'U'}</span>
-              )}
-              <span className={`status-indicator status-${role}`} />
+            <span className={`profile-role-badge role-${role}`}>
+              {getRoleLabel(role)}
             </span>
-            <span className="user-info-text">
-              <span className="user-name">{user?.name || 'User'}</span>
-              <span className="user-subtext">
-                <span className={`role-pill role-pill-${role}`}>
-                  {getRoleIcon(role)} {getRoleLabel(role)}
-                </span>
-              </span>
+            <span className="profile-user-name">
+              {user?.name || user?.email?.split('@')[0] || 'User'}
             </span>
             <ChevronDown
               size={13}

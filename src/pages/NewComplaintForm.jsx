@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
+import { uploadComplaintAttachment } from '../services/supabaseClient';
 import { PRIORITIES } from '../utils/constants';
 import { getSubCategories, KB_ARTICLES, getQuickLocations, ACCESS_TIME_SLOTS, CONTACT_METHODS } from '../data/taxonomy';
 import { Breadcrumb, PageHeader } from '../components/ui';
@@ -33,7 +34,7 @@ const DRAFT_STORAGE_KEY = 'cms_complaint_draft_v1';
 
 const PRIORITY_OPTIONS = [
   { key: PRIORITIES.LOW, label: 'Low', sla: '72 hrs', dot: 'var(--app-text-muted)' },
-  { key: PRIORITIES.MEDIUM, label: 'Medium', sla: '48 hrs', dot: 'var(--app-info)' },
+  { key: PRIORITIES.MEDIUM, label: 'Medium', sla: '48 hrs', dot: 'var(--app-text-secondary)' },
   { key: PRIORITIES.HIGH, label: 'High', sla: '24 hrs', dot: 'var(--app-warning)' },
   { key: PRIORITIES.URGENT, label: 'Urgent', sla: '4 hrs', dot: 'var(--app-danger)' },
 ];
@@ -56,6 +57,7 @@ export default function NewComplaintForm() {
   const [timeSlot, setTimeSlot] = useState(ACCESS_TIME_SLOTS[0]);
   const [contactMethod, setContactMethod] = useState(CONTACT_METHODS[0].id);
   const [attachments, setAttachments] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deflectionDismissed, setDeflectionDismissed] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
@@ -170,8 +172,8 @@ export default function NewComplaintForm() {
 
   const quickPills = useMemo(() => getQuickLocations(orgKey), [orgKey]);
 
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files || []);
+  const processFiles = (fileList) => {
+    const files = Array.from(fileList || []);
     if (!files.length) return;
 
     const maxSizeBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -186,7 +188,9 @@ export default function NewComplaintForm() {
         id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
+        rawSize: file.size,
         type: file.type,
+        file,
         previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
       });
     });
@@ -195,6 +199,10 @@ export default function NewComplaintForm() {
       setAttachments((prev) => [...prev, ...accepted]);
       showToast(`Attached ${accepted.length} file${accepted.length > 1 ? 's' : ''}`, 'info');
     }
+  };
+
+  const handleFileUpload = (e) => {
+    processFiles(e.target.files);
     e.target.value = '';
   };
 
@@ -202,7 +210,7 @@ export default function NewComplaintForm() {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!title.trim()) {
@@ -224,52 +232,73 @@ export default function NewComplaintForm() {
 
     setIsSubmitting(true);
 
-    // Simulated network latency for realistic submit feedback
-    setTimeout(() => {
-      try {
-        const reporterProfile = isAnonymous
-          ? {
-              id: user?.id,
-              name: 'Anonymous',
-              email: null,
-              rollNo: null,
-            }
-          : {
-              id: user?.id,
-              name: user?.name || 'User',
-              email: user?.email || null,
-              rollNo: user?.rollNo || null,
+    try {
+      // 1. Upload files to Supabase Storage (or high-speed Data URL fallback)
+      const uploadedAttachments = await Promise.all(
+        attachments.map(async (item) => {
+          if (item.file) {
+            const uploadRes = await uploadComplaintAttachment(item.file, 'draft');
+            return {
+              id: uploadRes.id,
+              name: uploadRes.name,
+              size: item.size,
+              type: uploadRes.type,
+              url: uploadRes.url,
             };
+          }
+          return {
+            id: item.id,
+            name: item.name,
+            size: item.size,
+            type: item.type,
+            url: item.previewUrl || '',
+          };
+        })
+      );
 
-        const created = complaintService.create({
-          title: title.trim(),
-          description: description.trim(),
-          category,
-          subCategory,
-          location: location.trim(),
-          priority,
-          urgencyJustification:
-            priority === PRIORITIES.URGENT ? urgencyJustification.trim() : null,
-          isAnonymous,
-          accessDate,
-          timeSlot,
-          contactMethod,
-          attachmentsCount: attachments.length,
-          attachmentNames: attachments.map((a) => a.name),
-          student: { ...reporterProfile, room: location.trim() },
-          currentOrg: orgKey,
-        });
+      const reporterProfile = isAnonymous
+        ? {
+            id: user?.id,
+            name: 'Anonymous',
+            email: null,
+            rollNo: null,
+          }
+        : {
+            id: user?.id,
+            name: user?.name || 'User',
+            email: user?.email || null,
+            rollNo: user?.rollNo || null,
+          };
 
-        clearDraft();
-        showToast(`Ticket ${created.id} submitted successfully`, 'success');
-        navigate('/complaints');
-      } catch (err) {
-        console.error(err);
-        showToast('Failed to submit complaint. Please try again.', 'error');
-      } finally {
-        setIsSubmitting(false);
-      }
-    }, 500);
+      const created = complaintService.create({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        subCategory,
+        location: location.trim(),
+        priority,
+        urgencyJustification:
+          priority === PRIORITIES.URGENT ? urgencyJustification.trim() : null,
+        isAnonymous,
+        accessDate,
+        timeSlot,
+        contactMethod,
+        attachmentsCount: uploadedAttachments.length,
+        attachmentNames: uploadedAttachments.map((a) => a.name),
+        attachments: uploadedAttachments,
+        student: { ...reporterProfile, room: location.trim() },
+        currentOrg: orgKey,
+      });
+
+      clearDraft();
+      showToast(`Ticket ${created.id} submitted successfully`, 'success');
+      navigate('/complaints');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to submit complaint. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -287,14 +316,13 @@ export default function NewComplaintForm() {
         description={`Submit a formal service ticket to ${currentOrg?.name || 'your organization'}. Requests are triaged under SLA guidelines.`}
       />
 
-      <form onSubmit={handleSubmit} className="card card-pad" style={{ padding: 24 }}>
-        {/* 1. Summary */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">1</span>
-            <FileText size={16} />
-            Summary
-          </h2>
+      <form onSubmit={handleSubmit} className="form-stack">
+        {/* Cluster 1: The Issue & Location (Core Identification) */}
+        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
+            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>1</span>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>The Issue & Location</h2>
+          </div>
 
           <div className="form-group">
             <label htmlFor="complaint-title" className="form-label">
@@ -314,19 +342,36 @@ export default function NewComplaintForm() {
               required
             />
             <div className="form-help">
-              <span>Be concise — mention the specific defect or symptom.</span>
+              <span>Be concise — mention the specific defect or room.</span>
               <span className={`char-counter ${title.length >= TITLE_MAX_LENGTH ? 'invalid' : ''}`}>
                 {title.length}/{TITLE_MAX_LENGTH}
               </span>
             </div>
           </div>
 
+          {suggestedCategory && suggestedCategory !== category && (
+            <button
+              type="button"
+              className="smart-suggestion-pill"
+              onClick={() => {
+                handleCategoryChange(suggestedCategory);
+                showToast(`Auto-selected department: ${suggestedCategory}`, 'info');
+              }}
+              title={`Click to auto-switch category to ${suggestedCategory}`}
+            >
+              <Sparkles size={14} className="sparkle-icon" />
+              <span>
+                Detected department: <strong>{suggestedCategory}</strong> — Tap to apply
+              </span>
+            </button>
+          )}
+
           {matchedKbArticle && (
             <div className="kb-card">
               <div className="kb-head">
                 <span className="kb-tag">
                   <CheckCircle2 size={14} />
-                  Suggested self-help
+                  Suggested self-help guide
                 </span>
                 <button
                   type="button"
@@ -364,15 +409,6 @@ export default function NewComplaintForm() {
               </div>
             </div>
           )}
-        </section>
-
-        {/* 2. Category */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">2</span>
-            <HelpCircle size={16} />
-            Category
-          </h2>
 
           <div className="form-grid-2">
             <div className="form-group">
@@ -412,42 +448,15 @@ export default function NewComplaintForm() {
             </div>
           </div>
 
-          {suggestedCategory && suggestedCategory !== category && (
-            <button
-              type="button"
-              className="smart-suggestion-pill"
-              onClick={() => {
-                handleCategoryChange(suggestedCategory);
-                showToast(`Auto-selected category: ${suggestedCategory}`, 'info');
-              }}
-              title={`Click to auto-switch category to ${suggestedCategory}`}
-            >
-              <Sparkles size={14} className="sparkle-icon" />
-              <span>
-                Detected department: <strong>{suggestedCategory}</strong> — Tap to apply
-              </span>
-            </button>
-          )}
-        </section>
-
-        {/* 3. Location */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">3</span>
-            <MapPin size={16} />
-            Location
-          </h2>
-
           <div className="form-group">
             <label htmlFor="location-input" className="form-label">
-              {locationLabel || 'Location'}
-              <span className="required-mark">*</span>
+              {locationLabel || 'Location / Room'}<span className="required-mark">*</span>
             </label>
             <input
               id="location-input"
               type="text"
               className="form-input"
-              placeholder={`e.g. ${quickPills[0]}`}
+              placeholder={`e.g. ${quickPills[0] || 'Room 304'}`}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               required
@@ -468,68 +477,14 @@ export default function NewComplaintForm() {
               ))}
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* 4. Priority */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">4</span>
-            <AlertTriangle size={16} />
-            Priority
-          </h2>
-
-          <div className="priority-grid" role="radiogroup" aria-label="Priority level">
-            {PRIORITY_OPTIONS.map((option) => (
-              <label
-                key={option.key}
-                className={`priority-option ${priority === option.key ? 'is-selected' : ''}`}
-              >
-                <input
-                  type="radio"
-                  name="priority"
-                  value={option.key}
-                  checked={priority === option.key}
-                  onChange={() => setPriority(option.key)}
-                  className="sr-only"
-                />
-                <span className="priority-option-head">
-                  <span className="priority-dot" style={{ background: option.dot }} />
-                  <span className="priority-name">{option.label}</span>
-                </span>
-                <span className="priority-sla">Target resolution within {option.sla}</span>
-              </label>
-            ))}
+        {/* Cluster 2: Details & Evidence */}
+        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
+            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>2</span>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Details & Evidence</h2>
           </div>
-
-          {priority === PRIORITIES.URGENT && (
-            <div className="callout callout-danger" style={{ flexDirection: 'column' }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <AlertTriangle size={16} />
-                <div style={{ flex: 1 }}>
-                  <span className="callout-title">Urgency justification required</span>
-                  <div className="form-group" style={{ marginTop: 8 }}>
-                    <textarea
-                      className="form-textarea"
-                      rows={3}
-                      placeholder="Explain why immediate dispatch is required (safety risk, active leak, sparking…)"
-                      value={urgencyJustification}
-                      onChange={(e) => setUrgencyJustification(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* 5. Description */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">5</span>
-            <FileText size={16} />
-            Description
-          </h2>
 
           <div className="form-group">
             <label htmlFor="description-textarea" className="form-label">
@@ -538,7 +493,7 @@ export default function NewComplaintForm() {
             <textarea
               id="description-textarea"
               className="form-textarea"
-              rows={5}
+              rows={4}
               placeholder="Steps to reproduce, how long the issue has persisted, equipment IDs involved…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -556,59 +511,161 @@ export default function NewComplaintForm() {
               </span>
             </div>
           </div>
-        </section>
 
-        {/* 6. Privacy */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">6</span>
-            <Lock size={16} />
-            Privacy
-          </h2>
-
-          <div className="toggle-card">
-            <div>
-              <div className="toggle-title">Submit anonymously</div>
-              <div className="toggle-subtitle">
-                Hide your identity from staff and department queues handling this ticket.
-              </div>
+          <div className="form-group">
+            <label className="form-label">Priority Level & SLA Target</label>
+            <div className="priority-grid" role="radiogroup" aria-label="Priority level">
+              {PRIORITY_OPTIONS.map((option) => (
+                <label
+                  key={option.key}
+                  className={`priority-option ${priority === option.key ? 'is-selected' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="priority"
+                    value={option.key}
+                    checked={priority === option.key}
+                    onChange={() => setPriority(option.key)}
+                    className="sr-only"
+                  />
+                  <span className="priority-option-head">
+                    <span className="priority-dot" style={{ background: option.dot }} />
+                    <span className="priority-name">{option.label}</span>
+                  </span>
+                  <span className="priority-sla">Target resolution: {option.sla}</span>
+                </label>
+              ))}
             </div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={isAnonymous}
-                onChange={(e) => setIsAnonymous(e.target.checked)}
-              />
-              <span className="switch-track" />
-              <span className="switch-thumb" />
-              <span className="sr-only">Submit anonymously</span>
-            </label>
+
+            {priority === PRIORITIES.URGENT && (
+              <div className="callout callout-danger" style={{ flexDirection: 'column', marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <AlertTriangle size={16} />
+                  <div style={{ flex: 1 }}>
+                    <span className="callout-title">Urgency justification required</span>
+                    <div className="form-group" style={{ marginTop: 8 }}>
+                      <textarea
+                        className="form-textarea"
+                        rows={2}
+                        placeholder="Explain why immediate dispatch is required (active leak, safety hazard, power failure…)"
+                        value={urgencyJustification}
+                        onChange={(e) => setUrgencyJustification(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {isAnonymous && (
-            <div className="callout callout-warning">
-              <Shield size={16} />
-              <div>
-                <span className="callout-title">Confidential filing active</span>
-                Your name and contact details will be redacted on staff screens. Only compliance
-                administrators can access identity audit logs when legally required.
+          <div className="form-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Supporting Media & Photos (Optional)</label>
+              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>JPG, PNG, WebP up to {MAX_FILE_SIZE_MB}MB</span>
+            </div>
+            <div
+              className={`dropzone ${isDragging ? 'dropzone-active' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer?.files?.length) {
+                  processFiles(e.dataTransfer.files);
+                }
+              }}
+              style={
+                isDragging
+                  ? { borderColor: 'var(--app-accent)', background: 'var(--app-card-bg-subtle)' }
+                  : {}
+              }
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx"
+                onChange={handleFileUpload}
+                aria-label="Upload files"
+              />
+              <Upload size={22} className="tone-accent" />
+              <div className="dropzone-title">
+                {isDragging ? 'Drop images here to attach' : 'Click to browse or drag & drop photos here'}
+              </div>
+              <div className="dropzone-subtitle">
+                Attach clear photo evidence of physical damage, leaks, or maintenance faults
               </div>
             </div>
-          )}
-        </section>
 
-        {/* 7. Access slot */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">7</span>
-            <Clock size={16} />
-            Inspection Access
-          </h2>
+            {attachments.length > 0 && (
+              <div className="attachments-grid" style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                {attachments.map((file) => (
+                  <div
+                    key={file.id}
+                    className="attachment-item"
+                    style={{
+                      border: '1px solid var(--app-border-soft)',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: 'var(--app-card-bg)',
+                    }}
+                  >
+                    {file.previewUrl ? (
+                      <img
+                        src={file.previewUrl}
+                        alt=""
+                        className="attachment-thumb"
+                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--app-border-soft)' }}
+                      />
+                    ) : (
+                      <span className="attachment-fallback" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--app-card-bg-subtle)', borderRadius: 8 }}>
+                        <FileCheck size={18} />
+                      </span>
+                    )}
+                    <span className="attachment-meta" style={{ flex: 1, minWidth: 0 }}>
+                      <span className="attachment-name" style={{ fontWeight: 600, fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {file.name}
+                      </span>
+                      <span className="attachment-size" style={{ fontSize: 11, color: 'var(--app-text-muted)' }}>
+                        {file.size} {file.previewUrl ? '• Photo' : ''}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-icon btn-sm"
+                      onClick={() => removeAttachment(file.id)}
+                      aria-label={`Remove ${file.name}`}
+                      style={{ color: 'var(--app-danger)', padding: 6 }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Cluster 3: Access Window & Privacy Preferences */}
+        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
+            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>3</span>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Access Window & Privacy</h2>
+          </div>
 
           <div className="form-grid-2">
             <div className="form-group">
               <label htmlFor="access-date" className="form-label">
-                Preferred date
+                Preferred inspection date
               </label>
               <input
                 id="access-date"
@@ -621,7 +678,7 @@ export default function NewComplaintForm() {
             </div>
 
             <div className="form-group">
-              <span className="form-label">Preferred time window</span>
+              <span className="form-label">Preferred inspection window</span>
               <div className="quick-pills">
                 {ACCESS_TIME_SLOTS.map((slot) => (
                   <button
@@ -637,91 +694,29 @@ export default function NewComplaintForm() {
               </div>
             </div>
           </div>
-        </section>
 
-        {/* 8. Attachments */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">8</span>
-            <Upload size={16} />
-            Attachments
-          </h2>
-
-          <div className="dropzone">
-            <input
-              type="file"
-              multiple
-              accept="image/*,.pdf,.doc,.docx"
-              onChange={handleFileUpload}
-              aria-label="Upload files"
-            />
-            <Upload size={22} className="tone-accent" />
-            <div className="dropzone-title">Click to upload photos or documents</div>
-            <div className="dropzone-subtitle">
-              JPG, PNG, PDF, DOC — max {MAX_FILE_SIZE_MB}MB per file
+          <div className="toggle-card" style={{ marginTop: 4 }}>
+            <div>
+              <div className="toggle-title">Submit anonymously</div>
+              <div className="toggle-subtitle">
+                Hide your name from department technicians handling this ticket.
+              </div>
             </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+              />
+              <span className="switch-track" />
+              <span className="switch-thumb" />
+              <span className="sr-only">Submit anonymously</span>
+            </label>
           </div>
+        </div>
 
-          {attachments.length > 0 && (
-            <div className="attachments-grid">
-              {attachments.map((file) => (
-                <div key={file.id} className="attachment-item">
-                  {file.previewUrl ? (
-                    <img src={file.previewUrl} alt="" className="attachment-thumb" />
-                  ) : (
-                    <span className="attachment-fallback">
-                      <FileCheck size={17} />
-                    </span>
-                  )}
-                  <span className="attachment-meta">
-                    <span className="attachment-name">{file.name}</span>
-                    <span className="attachment-size">{file.size}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="attachment-remove"
-                    onClick={() => removeAttachment(file.id)}
-                    aria-label={`Remove ${file.name}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* 9. Contact */}
-        <section className="form-section">
-          <h2 className="section-heading">
-            <span className="step-num">9</span>
-            <MessageSquare size={16} />
-            Contact Preference
-          </h2>
-
-          <div className="contact-grid" role="radiogroup" aria-label="Preferred contact method">
-            {CONTACT_METHODS.map((method) => (
-              <label
-                key={method.id}
-                className={`contact-option ${contactMethod === method.id ? 'is-selected' : ''}`}
-              >
-                <input
-                  type="radio"
-                  name="contactMethod"
-                  value={method.id}
-                  checked={contactMethod === method.id}
-                  onChange={() => setContactMethod(method.id)}
-                  className="sr-only"
-                />
-                <div className="contact-option-name">{method.label}</div>
-                <div className="contact-option-desc">{method.desc}</div>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        {/* Footer */}
-        <div className="form-footer">
+        {/* Action Footer */}
+        <div className="form-footer" style={{ marginTop: 8 }}>
           {(title.trim() || description.trim() || location.trim() || hasRestoredDraft) && (
             <button
               type="button"

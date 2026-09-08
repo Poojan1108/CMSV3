@@ -1,5 +1,11 @@
 import { INITIAL_COMPLAINTS } from '../data/mockData.js';
 import { generateComplaintsCSV } from '../utils/formatters.js';
+import { ticketApi } from './api.js';
+import {
+  supabase,
+  isSupabaseConfigured,
+  initRealtimeSubscription,
+} from './supabaseClient.js';
 import {
   STATUSES,
   PRIORITIES,
@@ -10,10 +16,116 @@ import {
   getRoleTerm,
   resolveOrg,
 } from '../utils/constants.js';
-import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 
 const STORAGE_KEY = 'cms_complaints_v1';
 const ID_COUNTER_KEY = 'cms_complaint_counter_v1';
+const LIVE_DATA_EVENT = 'cms:live_data_changed';
+const LIVE_CHANNEL_NAME = 'cms_live_realtime_broadcast';
+
+let broadcastChannel = null;
+if (typeof window !== 'undefined' && typeof window.BroadcastChannel === 'function') {
+  try {
+    broadcastChannel = new BroadcastChannel(LIVE_CHANNEL_NAME);
+  } catch (e) {
+    console.warn('[Realtime BroadcastChannel] Restricted or unsupported:', e);
+  }
+}
+
+/**
+ * Dispatches a live update notification to all active components and tabs.
+ */
+function notifyLiveChange(detail = {}) {
+  if (typeof window === 'undefined') return;
+
+  // 1. Same-window / React tree custom event (0ms instantaneous reflection)
+  try {
+    window.dispatchEvent(new CustomEvent(LIVE_DATA_EVENT, { detail }));
+  } catch (e) {
+    console.error('Failed to dispatch live update event:', e);
+  }
+
+  // 2. Cross-tab BroadcastChannel
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ type: LIVE_DATA_EVENT, ...detail });
+    } catch (e) {
+      console.warn('BroadcastChannel postMessage failed:', e);
+    }
+  }
+}
+
+/**
+ * Background upsert of complaint record into Supabase
+ */
+async function syncComplaintToSupabase(complaint) {
+  if (!isSupabaseConfigured || !supabase || !complaint) return;
+  try {
+    const payload = {
+      id: complaint.id,
+      title: complaint.title,
+      description: complaint.description,
+      category: complaint.category,
+      priority: complaint.priority,
+      status: complaint.status,
+      location: complaint.location || '',
+      created_at: complaint.createdAt,
+      updated_at: complaint.updatedAt || new Date().toISOString(),
+      resolved_at: complaint.resolvedAt || null,
+      student_id: complaint.student?.id || 'anonymous',
+      student_name: complaint.student?.name || 'Anonymous',
+      student_email: complaint.student?.email || '',
+      student_meta: complaint.student || {},
+      assigned_to: complaint.assignedTo || null,
+      resolution_details: complaint.resolutionDetails || null,
+    };
+    await supabase.from('complaints').upsert([payload], { onConflict: 'id' });
+  } catch (err) {
+    console.warn('[Supabase Sync Complaint Error]:', err);
+  }
+}
+
+/**
+ * Background insert of status transition history into Supabase
+ */
+async function recordStatusHistoryToSupabase(complaintId, status, updatedBy, note = '') {
+  if (!isSupabaseConfigured || !supabase || !complaintId) return;
+  try {
+    await supabase.from('complaint_history').insert([
+      {
+        complaint_id: complaintId,
+        status,
+        updated_by: updatedBy || 'System',
+        note: note || `Status changed to ${status}`,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('[Supabase History Insert Error]:', err);
+  }
+}
+
+/**
+ * Background insert of comment record into Supabase
+ */
+async function recordCommentToSupabase(complaintId, comment) {
+  if (!isSupabaseConfigured || !supabase || !complaintId || !comment) return;
+  try {
+    await supabase.from('complaint_comments').insert([
+      {
+        id: comment.id,
+        complaint_id: complaintId,
+        sender_id: comment.senderId || '',
+        sender_name: comment.senderName || 'Anonymous',
+        sender_role: comment.senderRole || 'user',
+        text: comment.text,
+        is_internal: Boolean(comment.isInternal),
+        created_at: comment.timestamp || new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('[Supabase Comment Insert Error]:', err);
+  }
+}
 
 /**
  * Initializes localStorage with seed complaints if empty.
@@ -67,139 +179,18 @@ const getNextId = () => {
   return `CMS-${year}-${currentCounter}`;
 };
 
-/**
- * Helper to asynchronously sync a complaint to Supabase
- */
-async function syncComplaintToSupabase(complaint) {
-  if (!isSupabaseConfigured || !supabase || !complaint) return;
-  try {
-    const complaintRecord = {
-      id: complaint.id,
-      title: complaint.title,
-      description: complaint.description,
-      category: complaint.category,
-      priority: complaint.priority || PRIORITIES.MEDIUM,
-      status: complaint.status || STATUSES.PENDING,
-      location: complaint.location || '',
-      org_key: complaint.org || complaint.currentOrg || 'COLLEGE',
-      student_id: complaint.student?.id || 'usr_unknown',
-      student_name: complaint.student?.name || 'Anonymous',
-      student_email: complaint.student?.email || '',
-      student_meta: complaint.student || null,
-      assigned_to: complaint.assignedTo || null,
-      resolution_details: complaint.resolutionDetails || null,
-      created_at: complaint.createdAt,
-      updated_at: complaint.updatedAt,
-      resolved_at: complaint.resolvedAt || null,
-    };
-
-    const { error: upsertErr } = await supabase
-      .from('complaints')
-      .upsert(complaintRecord, { onConflict: 'id' });
-
-    if (upsertErr) {
-      console.warn('[Supabase Complaints Upsert Warning]:', upsertErr.message);
-    }
-  } catch (err) {
-    console.warn('[Supabase Sync Error]:', err);
-  }
-}
-
-/**
- * Helper to record a status change history row in Supabase
- */
-async function recordStatusHistoryToSupabase(complaintId, status, updatedBy, note) {
-  if (!isSupabaseConfigured || !supabase || !complaintId) return;
-  try {
-    await supabase.from('complaint_history').insert([
-      {
-        complaint_id: complaintId,
-        status,
-        updated_by: typeof updatedBy === 'object' ? updatedBy.name : updatedBy,
-        note: note || `Status changed to ${status}`,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-  } catch (err) {
-    console.warn('[Supabase History Insert Error]:', err);
-  }
-}
-
-/**
- * Helper to insert comment record into Supabase
- */
-async function recordCommentToSupabase(complaintId, comment) {
-  if (!isSupabaseConfigured || !supabase || !complaintId || !comment) return;
-  try {
-    await supabase.from('complaint_comments').insert([
-      {
-        id: comment.id,
-        complaint_id: complaintId,
-        sender_id: comment.senderId || '',
-        sender_name: comment.senderName,
-        sender_role: comment.senderRole,
-        text: comment.text,
-        is_internal: Boolean(comment.isInternal),
-        created_at: comment.timestamp || new Date().toISOString(),
-      },
-    ]);
-  } catch (err) {
-    console.warn('[Supabase Comment Insert Error]:', err);
-  }
-}
-
-export const complaintService = {
-  /**
-   * Helper methods to dynamically resolve organization template attributes
-   */
-  getCategories: (org = 'COLLEGE') => getOrgCategories(org),
-  getLocationLabel: (org = 'COLLEGE') => getOrgLocationLabel(org),
-  getUserLabel: (org = 'COLLEGE') => getOrgUserLabel(org),
-  getRoleTerm: (role, org = 'COLLEGE') => getRoleTerm(role, org),
-  resolveOrg: (org = 'COLLEGE') => resolveOrg(org),
-
-  /**
-   * Sync complaints from Supabase into local storage cache
-   */
-  syncFromSupabase: async () => {
-    if (!isSupabaseConfigured || !supabase) return getRawComplaints();
+// Wire Supabase Realtime WebSocket listener for remote multi-device mutations
+if (typeof window !== 'undefined') {
+  initRealtimeSubscription((payload) => {
     try {
-      const { data: dbComplaints, error } = await supabase
-        .from('complaints')
-        .select('*')
-        .order('created_at', { ascending: false });
+      if (payload.type === 'complaint') {
+        const row = payload.new;
+        if (!row || !row.id) return;
 
-      if (error || !dbComplaints || dbComplaints.length === 0) {
-        return getRawComplaints();
-      }
+        const list = getRawComplaints();
+        const index = list.findIndex((c) => c.id === row.id);
 
-      // Fetch comments & history for richer cache
-      const { data: dbComments } = await supabase.from('complaint_comments').select('*');
-      const { data: dbHistory } = await supabase.from('complaint_history').select('*');
-
-      const mappedList = dbComplaints.map((row) => {
-        const comments = (dbComments || [])
-          .filter((c) => c.complaint_id === row.id)
-          .map((c) => ({
-            id: c.id,
-            senderId: c.sender_id,
-            senderName: c.sender_name,
-            senderRole: c.sender_role,
-            text: c.text,
-            isInternal: c.is_internal,
-            timestamp: c.created_at,
-          }));
-
-        const statusHistory = (dbHistory || [])
-          .filter((h) => h.complaint_id === row.id)
-          .map((h) => ({
-            status: h.status,
-            updatedBy: h.updated_by,
-            note: h.note,
-            timestamp: h.created_at,
-          }));
-
-        return {
+        const mappedComplaint = {
           id: row.id,
           title: row.title,
           description: row.description,
@@ -217,24 +208,196 @@ export const complaintService = {
           },
           assignedTo: row.assigned_to || null,
           resolutionDetails: row.resolution_details || null,
-          statusHistory: statusHistory.length > 0 ? statusHistory : [
-            {
-              status: row.status,
-              updatedBy: row.student_name || 'User',
-              note: 'Complaint registered.',
-              timestamp: row.created_at,
-            },
-          ],
-          comments,
+          statusHistory: index !== -1 ? (list[index].statusHistory || []) : [],
+          comments: index !== -1 ? (list[index].comments || []) : [],
         };
-      });
 
-      saveComplaints(mappedList);
-      return mappedList;
+        if (index === -1) {
+          list.unshift(mappedComplaint);
+        } else {
+          list[index] = { ...list[index], ...mappedComplaint };
+        }
+        saveComplaints(list);
+        notifyLiveChange({ type: 'remote_complaint', id: row.id, complaint: mappedComplaint });
+      } else if (payload.type === 'comment') {
+        const commentRow = payload.new;
+        if (!commentRow || !commentRow.complaint_id) return;
+
+        const list = getRawComplaints();
+        const index = list.findIndex((c) => c.id === commentRow.complaint_id);
+        if (index !== -1) {
+          const complaint = list[index];
+          if (!complaint.comments) complaint.comments = [];
+
+          const alreadyExists = complaint.comments.some((c) => c.id === commentRow.id);
+          if (!alreadyExists) {
+            complaint.comments.push({
+              id: commentRow.id,
+              senderId: commentRow.sender_id,
+              senderName: commentRow.sender_name,
+              senderRole: commentRow.sender_role,
+              text: commentRow.text,
+              isInternal: commentRow.is_internal,
+              timestamp: commentRow.created_at,
+            });
+            complaint.updatedAt = commentRow.created_at;
+            list[index] = complaint;
+            saveComplaints(list);
+            notifyLiveChange({
+              type: 'remote_comment',
+              id: commentRow.complaint_id,
+              complaint,
+            });
+          }
+        }
+      }
     } catch (err) {
-      console.warn('[Supabase syncFromSupabase Error]:', err);
-      return getRawComplaints();
+      console.warn('[Supabase Realtime Live Error]:', err);
     }
+  });
+}
+
+export const complaintService = {
+  /**
+   * Helper methods to dynamically resolve organization template attributes
+   */
+  getCategories: (org = 'COLLEGE') => getOrgCategories(org),
+  getLocationLabel: (org = 'COLLEGE') => getOrgLocationLabel(org),
+  getUserLabel: (org = 'COLLEGE') => getOrgUserLabel(org),
+  getRoleTerm: (role, org = 'COLLEGE') => getRoleTerm(role, org),
+  resolveOrg: (org = 'COLLEGE') => resolveOrg(org),
+
+  /**
+   * Subscribe to real-time live updates (both local actions, cross-tab, and Supabase WebSocket).
+   * Calls callback with event details on any change without requiring page reload.
+   * @param {Function} callback
+   * @returns {Function} Unsubscribe cleanup function
+   */
+  subscribeToLiveUpdates: (callback) => {
+    if (typeof window === 'undefined' || typeof callback !== 'function') {
+      return () => {};
+    }
+
+    // 1. Same-window custom event handler (0ms instantaneous reflection)
+    const handleLocalEvent = (e) => {
+      callback(e.detail || {});
+    };
+    window.addEventListener(LIVE_DATA_EVENT, handleLocalEvent);
+
+    // 2. Cross-tab BroadcastChannel handler
+    const handleBroadcastMessage = (event) => {
+      if (event.data && event.data.type === LIVE_DATA_EVENT) {
+        callback(event.data);
+      }
+    };
+    if (broadcastChannel) {
+      broadcastChannel.addEventListener('message', handleBroadcastMessage);
+    }
+
+    // 3. Fallback cross-tab storage event
+    const handleStorageEvent = (event) => {
+      if (event.key === STORAGE_KEY) {
+        callback({ type: 'storage_sync' });
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    return () => {
+      window.removeEventListener(LIVE_DATA_EVENT, handleLocalEvent);
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcastMessage);
+      }
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  },
+
+  /**
+   * Sync complaints from Supabase into local storage cache
+   */
+  syncFromSupabase: async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: dbComplaints, error } = await supabase
+          .from('complaints')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && dbComplaints && dbComplaints.length > 0) {
+          const { data: dbComments } = await supabase.from('complaint_comments').select('*');
+          const { data: dbHistory } = await supabase.from('complaint_history').select('*');
+
+          const mappedList = dbComplaints.map((row) => {
+            const comments = (dbComments || [])
+              .filter((c) => c.complaint_id === row.id)
+              .map((c) => ({
+                id: c.id,
+                senderId: c.sender_id,
+                senderName: c.sender_name,
+                senderRole: c.sender_role,
+                text: c.text,
+                isInternal: c.is_internal,
+                timestamp: c.created_at,
+              }));
+
+            const statusHistory = (dbHistory || [])
+              .filter((h) => h.complaint_id === row.id)
+              .map((h) => ({
+                status: h.status,
+                updatedBy: h.updated_by,
+                note: h.note,
+                timestamp: h.created_at,
+              }));
+
+            return {
+              id: row.id,
+              title: row.title,
+              description: row.description,
+              category: row.category,
+              priority: row.priority,
+              status: row.status,
+              location: row.location,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              resolvedAt: row.resolved_at,
+              student: row.student_meta || {
+                id: row.student_id,
+                name: row.student_name,
+                email: row.student_email,
+              },
+              assignedTo: row.assigned_to || null,
+              resolutionDetails: row.resolution_details || null,
+              statusHistory: statusHistory.length > 0 ? statusHistory : [
+                {
+                  status: row.status,
+                  updatedBy: row.student_name || 'User',
+                  note: 'Complaint registered.',
+                  timestamp: row.created_at,
+                },
+              ],
+              comments,
+            };
+          });
+
+          saveComplaints(mappedList);
+          notifyLiveChange({ type: 'sync_supabase', count: mappedList.length });
+          return mappedList;
+        }
+      } catch (err) {
+        console.warn('[Supabase Direct Sync Error]:', err);
+      }
+    }
+
+    try {
+      const res = await ticketApi.list();
+      if (res && res.tickets && Array.isArray(res.tickets) && res.tickets.length > 0) {
+        saveComplaints(res.tickets);
+        notifyLiveChange({ type: 'sync_api', count: res.tickets.length });
+        return res.tickets;
+      }
+    } catch {
+      // Remote API unreachable: serve local storage smoothly
+    }
+    return getRawComplaints();
   },
 
   /**
@@ -248,10 +411,17 @@ export const complaintService = {
     const { status, category, priority, search, studentId, assignedToId, org, currentOrg, sortBy = 'newest' } = filters;
 
     const activeOrg = currentOrg || org;
-    if (activeOrg && category === 'all_org') {
-      const allowedCategories = getOrgCategories(activeOrg);
-      list = list.filter((item) => allowedCategories.includes(item.category));
-    } else if (category && category !== 'all') {
+    if (activeOrg) {
+      const orgKeyStr = typeof activeOrg === 'object' ? (activeOrg.orgKey || activeOrg.key || activeOrg.type) : activeOrg;
+      if (orgKeyStr && orgKeyStr !== 'ALL') {
+        list = list.filter((item) => {
+          if (!item.org) return true;
+          return String(item.org).toUpperCase() === String(orgKeyStr).toUpperCase();
+        });
+      }
+    }
+
+    if (category && category !== 'all' && category !== 'all_org') {
       list = list.filter((item) => item.category === category);
     }
 
@@ -371,10 +541,12 @@ export const complaintService = {
         },
       ],
       comments: [],
+      attachments: data.attachments || [],
     };
 
     list.unshift(newComplaint);
     saveComplaints(list);
+    notifyLiveChange({ type: 'create', complaint: newComplaint, id: newId });
 
     // Sync to Supabase in background
     syncComplaintToSupabase(newComplaint);
@@ -384,6 +556,9 @@ export const complaintService = {
       data.student?.name || userLabel,
       'Complaint registered in system.'
     );
+
+    // Background sync to API backend
+    ticketApi.create(newComplaint).catch(() => {});
 
     return newComplaint;
   },
@@ -424,10 +599,14 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'status_change', id, status: newStatus, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordStatusHistoryToSupabase(id, newStatus, updaterName || 'System', note);
+
+    // Background sync to API backend
+    ticketApi.updateStatus(id, newStatus, note).catch(() => {});
 
     return complaint;
   },
@@ -474,10 +653,14 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'new_comment', id, comment: newComment, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordCommentToSupabase(id, newComment);
+
+    // Background sync to API backend
+    ticketApi.addComment(id, text, isInternal).catch(() => {});
 
     return complaint;
   },
@@ -532,8 +715,9 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'reassign', id, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordStatusHistoryToSupabase(id, complaint.status, reassignerName, note);
     recordCommentToSupabase(id, reassignmentComment);
@@ -582,8 +766,9 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'resolution_proposed', id, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordStatusHistoryToSupabase(
       id,
@@ -592,6 +777,9 @@ export const complaintService = {
       `Resolution proposed: ${resolutionNotes}`
     );
     recordCommentToSupabase(id, propComment);
+
+    // Background sync to API backend
+    ticketApi.proposeResolution(id, resolutionNotes).catch(() => {});
 
     return complaint;
   },
@@ -637,8 +825,9 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'resolution_confirmed', id, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordStatusHistoryToSupabase(
       id,
@@ -647,6 +836,9 @@ export const complaintService = {
       `Resolution confirmed: ${feedbackNote}`
     );
     recordCommentToSupabase(id, confComment);
+
+    // Background sync to API backend
+    ticketApi.confirmResolution(id, feedbackNote).catch(() => {});
 
     return complaint;
   },
@@ -691,8 +883,9 @@ export const complaintService = {
 
     list[index] = complaint;
     saveComplaints(list);
+    notifyLiveChange({ type: 'resolution_rejected', id, complaint });
 
-    // Sync to Supabase
+    // Sync to Supabase in background
     syncComplaintToSupabase(complaint);
     recordStatusHistoryToSupabase(
       id,
@@ -701,6 +894,9 @@ export const complaintService = {
       `Resolution rejected: ${rejectionReason}`
     );
     recordCommentToSupabase(id, rejComment);
+
+    // Background sync to API backend
+    ticketApi.rejectResolution(id, rejectionReason).catch(() => {});
 
     return complaint;
   },
@@ -711,6 +907,7 @@ export const complaintService = {
   resetToSeedData: () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_COMPLAINTS));
     localStorage.setItem(ID_COUNTER_KEY, '1005');
+    notifyLiveChange({ type: 'reset_seed', count: INITIAL_COMPLAINTS.length });
     return INITIAL_COMPLAINTS;
   },
 

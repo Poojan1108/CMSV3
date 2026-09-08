@@ -18,6 +18,9 @@ import {
   Check,
   ShieldCheck,
   RefreshCw,
+  Camera,
+  Maximize2,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -70,6 +73,7 @@ export default function TicketTracker() {
   const [confirmFeedbackText, setConfirmFeedbackText] = useState('');
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenReasonText, setReopenReasonText] = useState('');
+  const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
 
   useEffect(() => {
     try {
@@ -91,6 +95,30 @@ export default function TicketTracker() {
       console.error('Error fetching ticket tracker data:', err);
     }
   }, [ticketIdParam, user, setSearchParams]);
+
+  // Real-time live synchronization: reacts to new comments, status transitions, and Supabase WebSocket events
+  useEffect(() => {
+    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
+      try {
+        const myTickets = complaintService.getAll({ studentId: user?.id });
+        setUserComplaintsList(myTickets);
+
+        const currentTargetId = complaint?.id || ticketIdParam;
+        if (currentTargetId) {
+          const refreshed = complaintService.getById(currentTargetId);
+          if (refreshed) {
+            setComplaint(refreshed);
+          }
+        }
+      } catch (err) {
+        console.error('Error in TicketTracker live update listener:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [complaint?.id, ticketIdParam, user?.id]);
 
   const handleLookupSubmit = (e) => {
     e.preventDefault();
@@ -180,26 +208,24 @@ export default function TicketTracker() {
     if (!newCommentText.trim() || !complaint) return;
 
     setIsPostingComment(true);
-    setTimeout(() => {
-      try {
-        const updated = complaintService.addComment(
-          complaint.id,
-          actorProfile,
-          newCommentText.trim(),
-          false
-        );
-        if (updated) {
-          setComplaint({ ...updated });
-          setNewCommentText('');
-          showToast('Comment posted', 'success');
-        }
-      } catch (err) {
-        console.error('Failed to post comment:', err);
-        showToast('Failed to post comment. Please try again.', 'error');
-      } finally {
-        setIsPostingComment(false);
+    try {
+      const updated = complaintService.addComment(
+        complaint.id,
+        actorProfile,
+        newCommentText.trim(),
+        false
+      );
+      if (updated) {
+        setComplaint({ ...updated });
+        setNewCommentText('');
+        showToast('Comment posted', 'success');
       }
-    }, 350);
+    } catch (err) {
+      console.error('Failed to post comment:', err);
+      showToast('Failed to post comment. Please try again.', 'error');
+    } finally {
+      setIsPostingComment(false);
+    }
   };
 
   const publicComments = useMemo(
@@ -209,47 +235,34 @@ export default function TicketTracker() {
 
   return (
     <div className="page-stack">
-      {/* Top bar */}
-      <div className="toolbar-row">
-        <Link to="/complaints" className="breadcrumb-link">
-          <ArrowLeft size={15} />
-          Back to My Complaints
-        </Link>
-
-        <div className="toolbar-spacer" />
-
-        <form onSubmit={handleLookupSubmit} className="toolbar-row">
-          <div className="search-field" style={{ maxWidth: 260 }}>
-            <Search size={14} />
-            <input
-              type="text"
-              placeholder="Enter Ticket ID…"
-              value={lookupId}
-              onChange={(e) => setLookupId(e.target.value)}
-              aria-label="Ticket ID"
-            />
-          </div>
-
-          {userComplaintsList.length > 0 && (
-            <select
-              value={complaint?.id || ''}
-              onChange={(e) => e.target.value && setSearchParams({ id: e.target.value })}
-              aria-label="Select one of my tickets"
-            >
-              <option value="" disabled>
-                My tickets…
-              </option>
-              {userComplaintsList.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.id} — {t.title.substring(0, 32)}
-                </option>
-              ))}
-            </select>
+      {/* Master Ticket Bar */}
+      <div className="card card-pad master-ticket-bar" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Link to="/complaints" className="btn btn-ghost btn-sm" style={{ paddingLeft: 0 }}>
+            <ArrowLeft size={15} />
+            Back to Complaints
+          </Link>
+          <span style={{ color: 'var(--app-border-strong)' }}>|</span>
+          {complaint && (
+            <>
+              <TicketId id={complaint.id} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleCopyId} title="Copy ticket ID">
+                {copiedId ? <Check size={13} style={{ color: 'var(--app-success)' }} /> : <Copy size={13} />}
+                {copiedId ? 'Copied' : 'Copy'}
+              </button>
+            </>
           )}
+        </div>
 
-          <button type="submit" className="btn btn-secondary btn-sm">
-            Lookup
-          </button>
+        <form onSubmit={handleLookupSubmit} className="search-field tracker-jump-search" style={{ margin: 0 }}>
+          <Search size={14} />
+          <input
+            type="text"
+            placeholder="Jump to ID (e.g. #CMS-1001)…"
+            value={lookupId}
+            onChange={(e) => setLookupId(e.target.value)}
+            aria-label="Quick lookup ticket ID"
+          />
         </form>
       </div>
 
@@ -257,358 +270,364 @@ export default function TicketTracker() {
         <EmptyState
           icon={AlertCircle}
           title="Ticket not found"
-          description={`No complaint matched "${lookupId}". Check the ID or pick a ticket from your list.`}
+          description={`No complaint matched "${lookupId}". Check the ID or select one from your list.`}
         >
           <Link to="/complaints" className="btn btn-primary">
-            View All My Complaints
+            View All Complaints
           </Link>
         </EmptyState>
       ) : (
-        <div className="detail-layout">
-          {/* LEFT: details, timeline, discussion */}
-          <div className="detail-main">
-            {/* Header card */}
-            <section className="card card-pad">
-              <div className="detail-head">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <TicketId id={complaint.id} />
-                  <button type="button" className="copy-btn" onClick={handleCopyId}>
-                    {copiedId ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedId ? 'Copied' : 'Copy ID'}
-                  </button>
-                </div>
-                <div className="ticket-card-badges">
-                  <PriorityBadge priority={complaint.priority} />
-                  <StatusBadge status={complaint.status} />
+        <>
+          {/* Linear / Stripe-grade Milestone Stepper Rail */}
+          <div className="tracker-milestones-card">
+            <div className="tracker-milestones-header">
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--app-text-muted)' }}>
+                  Resolution Journey
+                </span>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--app-text)', marginTop: 2 }}>
+                  Stage {currentStageIndex + 1} of 6: <span style={{ color: 'var(--app-accent)' }}>{TIMELINE_STAGES[currentStageIndex]?.label}</span>
                 </div>
               </div>
 
-              <h1 className="detail-title" style={{ margin: '12px 0 6px' }}>
-                {complaint.title}
-              </h1>
-              <p className="detail-desc">{complaint.description}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--app-text-secondary)' }}>
+                  {Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}% Complete
+                </span>
+                <div style={{ width: 110 }} className="milestone-progress-bar-track">
+                  <div
+                    className="milestone-progress-bar-fill"
+                    style={{
+                      width: `${Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
 
-              {complaint.priority === PRIORITIES.URGENT && complaint.urgencyJustification && (
-                <div className="callout callout-danger" style={{ marginTop: 14 }}>
-                  <AlertTriangle size={15} />
-                  <div>
-                    <span className="callout-title">Urgency justification</span>
-                    {complaint.urgencyJustification}
+            <div className="milestone-stages-grid">
+              {TIMELINE_STAGES.map((stage, idx) => {
+                const isCompleted = idx < currentStageIndex;
+                const isCurrent = idx === currentStageIndex;
+                const isUpcoming = idx > currentStageIndex;
+
+                let stageDesc = stage.desc;
+                if (isCompleted) stageDesc = 'Completed';
+                if (isCurrent) stageDesc = 'Active Now';
+                if (isUpcoming) stageDesc = 'Upcoming';
+
+                return (
+                  <div
+                    key={stage.key}
+                    className={`milestone-stage-cell ${isCompleted ? 'is-completed' : ''} ${isCurrent ? 'is-current' : ''} ${isUpcoming ? 'is-upcoming' : ''}`}
+                  >
+                    <div className="milestone-node-badge">
+                      {isCompleted ? <Check size={14} /> : isCurrent ? <span style={{ width: 8, height: 8, borderRadius: 999, background: '#ffffff' }} /> : idx + 1}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, width: '100%' }}>
+                      <span className="milestone-title">{stage.label}</span>
+                      <span className="milestone-time-desc">{stageDesc}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2-Column Split Workspace */}
+          <div className="detail-layout tracker-detail-layout">
+            {/* LEFT COLUMN: Specifications & Evidence */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <section className="card card-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)' }}>
+                    Ticket Specifications
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <PriorityBadge priority={complaint.priority} />
+                    <StatusBadge status={complaint.status} />
                   </div>
                 </div>
+
+                <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>
+                  {complaint.title}
+                </h1>
+                <p style={{ fontSize: 13.5, color: 'var(--app-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  {complaint.description}
+                </p>
+
+                {complaint.priority === PRIORITIES.URGENT && complaint.urgencyJustification && (
+                  <div className="callout callout-danger" style={{ marginTop: 6 }}>
+                    <AlertTriangle size={15} />
+                    <div>
+                      <span className="callout-title">Urgency Justification</span>
+                      {complaint.urgencyJustification}
+                    </div>
+                  </div>
+                )}
+
+                <div className="meta-grid" style={{ marginTop: 8, borderTop: '1px solid var(--app-border-soft)', paddingTop: 12 }}>
+                  <div>
+                    <span className="meta-cell-label">Department</span>
+                    <span className="meta-cell-value">
+                      {complaint.category}
+                      {complaint.subCategory ? ` · ${complaint.subCategory}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="meta-cell-label">Location</span>
+                    <span className="meta-cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={13} className="tone-accent" />
+                      {complaint.location}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="meta-cell-label">Filed Date</span>
+                    <span className="meta-cell-value">{formatDate(complaint.createdAt)}</span>
+                  </div>
+                  <div>
+                    <span className="meta-cell-label">Reporter</span>
+                    <span className="meta-cell-value">
+                      {complaint.isAnonymous ? (
+                        <span className="anon-chip">
+                          <Lock size={12} /> Anonymous
+                        </span>
+                      ) : (
+                        complaint.student?.name || user?.name || 'You'
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* Attached Media & Photos Evidence */}
+              {complaint.attachments && complaint.attachments.length > 0 && (
+                <section className="card card-pad" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Camera size={14} className="tone-accent" />
+                      Attached Photos & Evidence ({complaint.attachments.length})
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--app-text-muted)' }}>Click photo to inspect</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: 10 }}>
+                    {complaint.attachments.map((att, idx) => (
+                      <div
+                        key={att.id || idx}
+                        onClick={() => setSelectedLightboxImage(att)}
+                        style={{
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          border: '1px solid var(--app-border-soft)',
+                          background: 'var(--app-card-bg-subtle)',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}
+                        className="photo-card-hover"
+                        title={`Click to view ${att.name || 'photo'}`}
+                      >
+                        {att.url ? (
+                          <div style={{ width: '100%', height: 100, position: 'relative', overflow: 'hidden' }}>
+                            <img
+                              src={att.url}
+                              alt={att.name || 'Attachment'}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 55%)',
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: 6,
+                                right: 6,
+                                background: 'rgba(0,0,0,0.7)',
+                                color: '#ffffff',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              <Maximize2 size={10} /> Zoom
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FileText size={26} className="tone-muted" />
+                          </div>
+                        )}
+                        <div style={{ padding: '6px 8px' }}>
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: 'var(--app-text)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {att.name || `Photo ${idx + 1}`}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--app-text-muted)' }}>
+                            {att.size || 'Photo Attachment'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               )}
 
-              <div className="meta-grid" style={{ marginTop: 16 }}>
-                <div>
-                  <span className="meta-cell-label">Category</span>
-                  <span className="meta-cell-value">
-                    {complaint.category}
-                    {complaint.subCategory ? ` • ${complaint.subCategory}` : ''}
-                  </span>
-                </div>
-                <div>
-                  <span className="meta-cell-label">Location</span>
-                  <span className="meta-cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <MapPin size={13} className="tone-accent" />
-                    {complaint.location}
-                  </span>
-                </div>
-                <div>
-                  <span className="meta-cell-label">Date Submitted</span>
-                  <span className="meta-cell-value">{formatDate(complaint.createdAt)}</span>
-                </div>
-                <div>
-                  <span className="meta-cell-label">Reporter</span>
-                  <span className="meta-cell-value">
-                    {complaint.isAnonymous ? (
-                      <span className="anon-chip">
-                        <Lock size={12} /> Anonymous
-                      </span>
-                    ) : (
-                      complaint.student?.name || user?.name || 'You'
-                    )}
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            {/* Resolution confirmation panel */}
-            {complaint.status === STATUSES.PENDING_CONFIRMATION && (
-              <section className="resolution-panel">
-                <div className="resolution-panel-head">
-                  <span className="resolution-panel-icon">
-                    <CheckCircle2 size={19} />
-                  </span>
-                  <div>
-                    <h3 className="resolution-panel-title">Action required: confirm resolution</h3>
-                    <p className="resolution-panel-sub">
-                      Staff marked your issue as fixed. Verify the work to officially close this
-                      ticket.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="resolution-summary">
-                  <div className="resolution-summary-label">
-                    RESOLUTION SUMMARY —{' '}
-                    {(complaint.resolutionDetails?.staffName || 'STAFF').toUpperCase()}
-                  </div>
-                  <p className="resolution-summary-text">
-                    “{complaint.resolutionDetails?.notes || 'Staff marked this ticket as resolved.'}”
-                  </p>
-                  {complaint.resolutionDetails?.proposedAt && (
-                    <div className="resolution-summary-date">
-                      Proposed on {formatDate(complaint.resolutionDetails.proposedAt)}
+              {/* Assigned Technician Card */}
+              <section className="card card-pad" style={{ padding: '16px 20px' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)' }}>
+                  Assigned Staff & SLA
+                </span>
+                {complaint.assignedTo ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--app-accent-subtle)', color: 'var(--app-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                      {complaint.assignedTo.name.charAt(0)}
                     </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text)' }}>
+                        {complaint.assignedTo.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                        {complaint.assignedTo.email || 'Campus Facilities Team'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--app-text-secondary)', marginTop: 8 }}>
+                    Awaiting staff triage assignment.
+                  </div>
+                )}
+              </section>
+
+              {/* Resolution Action Card if awaiting confirmation */}
+              {complaint.status === STATUSES.PENDING_CONFIRMATION && (
+                <section className="card card-pad" style={{ padding: '20px', border: '1px solid #86efac', background: '#ffffff', boxShadow: '0 1px 4px 0 rgba(22, 163, 74, 0.08)' }}>
+                  <div className="ticket-action-notice" style={{ marginBottom: 12 }}>
+                    <CheckCircle2 size={15} />
+                    <span>Staff marked this resolved — awaiting your confirmation</span>
+                  </div>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: '0 0 6px' }}>
+                    Work Completed — Verify Fix
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--app-text-secondary)', margin: '0 0 14px', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                    <strong>Staff resolution note:</strong> {complaint.resolutionDetails?.notes || 'Repairs completed.'}
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => setShowConfirmModal(true)}
+                    >
+                      <CheckCircle2 size={15} />
+                      Confirm Fix & Close
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowReopenModal(true)}
+                    >
+                      Dispute / Reopen
+                    </button>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            {/* RIGHT COLUMN: Live Discussion & Audit Feed */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <section className="card card-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', minHeight: 480 }}>
+                <div style={{ borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MessageSquare size={16} className="tone-accent" />
+                    <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>
+                      Discussion & Updates
+                    </h2>
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                    {complaint.comments?.length || 0} messages
+                  </span>
+                </div>
+
+                <div className="discussion-thread" style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {(!complaint.comments || complaint.comments.length === 0) ? (
+                    <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--app-text-muted)', fontSize: 13 }}>
+                      No messages yet. Post an update or question below.
+                    </div>
+                  ) : (
+                    complaint.comments.map((c) => {
+                      const isStaff = c.sender?.role === ROLES.STAFF || c.sender?.role === ROLES.ADMIN;
+                      const isMe = user?.id && c.sender?.id === user.id;
+                      const senderName = isMe
+                        ? `${user?.name || 'You'} (You)`
+                        : isStaff
+                        ? `${c.sender?.name || 'Staff Resolver'} (Staff)`
+                        : `${c.sender?.name || complaint.student?.name || 'Reporter'}`;
+
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            background: isStaff ? '#f5f5f4' : '#ffffff',
+                            border: `1px solid ${isStaff ? '#e7e5e4' : '#e7e5e4'}`,
+                            boxShadow: isStaff ? 'none' : '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                            maxWidth: '85%',
+                            alignSelf: isStaff ? 'flex-start' : 'flex-end',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
+                            <strong style={{ fontSize: 12.5, fontWeight: 600, color: '#18181b' }}>
+                              {senderName}
+                            </strong>
+                            <span style={{ fontSize: 11, color: '#78716c' }}>
+                              {formatRelativeTime(c.createdAt)}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 13, color: '#27272a', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {c.text}
+                          </p>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
 
-                <div className="resolution-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => setShowConfirmModal(true)}
-                  >
-                    <CheckCircle2 size={15} />
-                    Confirm &amp; Close
+                <form onSubmit={handleAddComment} style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--app-border-soft)', paddingTop: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Type a message or inquiry..."
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    style={{ flex: 1 }}
+                    disabled={isPostingComment}
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={isPostingComment || !newCommentText.trim()}>
+                    <Send size={14} />
+                    Send
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger-outline"
-                    onClick={() => setShowReopenModal(true)}
-                  >
-                    <AlertTriangle size={15} />
-                    Issue Not Solved
-                  </button>
-                </div>
+                </form>
               </section>
-            )}
-
-            {/* Timeline stepper */}
-            <section className="card card-pad">
-              <h2 className="card-title" style={{ marginBottom: 18 }}>
-                Resolution Timeline
-              </h2>
-
-              <div className="stepper">
-                {TIMELINE_STAGES.map((stage, idx) => {
-                  const isCompleted = idx < currentStageIndex;
-                  const isCurrent = idx === currentStageIndex;
-
-                  const matchingHistory = (complaint.statusHistory || []).filter((h) => {
-                    switch (stage.key) {
-                      case 'submitted':
-                        return h.status === STATUSES.PENDING && idx === 0;
-                      case 'under_review':
-                        return (
-                          h.note?.toLowerCase().includes('review') ||
-                          h.note?.toLowerCase().includes('triage')
-                        );
-                      case 'assigned':
-                        return h.note?.toLowerCase().includes('assign') || complaint.assignedTo;
-                      case 'in_progress':
-                        return h.status === STATUSES.IN_PROGRESS;
-                      case 'resolved':
-                        return h.status === STATUSES.RESOLVED;
-                      default:
-                        return false;
-                    }
-                  });
-
-                  return (
-                    <div key={stage.key} className="step-row">
-                      <div className="step-rail">
-                        <div className={`step-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
-                          {isCompleted ? (
-                            <CheckCircle2 size={16} />
-                          ) : isCurrent ? (
-                            <span className="step-node-inner" />
-                          ) : (
-                            idx + 1
-                          )}
-                        </div>
-                        {idx < TIMELINE_STAGES.length - 1 && (
-                          <div className={`step-line ${isCompleted ? 'completed' : ''}`} />
-                        )}
-                      </div>
-
-                      <div className="step-body">
-                        <div className="step-head">
-                          <h4 className={`step-title ${!isCompleted && !isCurrent ? 'is-muted' : ''}`}>
-                            {stage.label}
-                          </h4>
-                          {isCurrent && <span className="stage-chip current">ACTIVE</span>}
-                          {isCompleted && <span className="stage-chip done">DONE</span>}
-                        </div>
-                        <p className="step-desc">{stage.desc}</p>
-
-                        {matchingHistory.length > 0 && (
-                          <div className="history-notes">
-                            {matchingHistory.map((h, hIdx) => (
-                              <div key={hIdx} className="history-note">
-                                <span className="history-author">{h.updatedBy}</span>
-                                <span>{h.note}</span>
-                                <span className="history-time">
-                                  {formatRelativeTime(h.timestamp)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Discussion */}
-            <section className="card card-pad">
-              <h2 className="card-title" style={{ marginBottom: 14 }}>
-                Discussion ({publicComments.length})
-              </h2>
-
-              <div className="comments-list">
-                {publicComments.length === 0 ? (
-                  <div className="no-comments">
-                    No comments yet. Post updates or questions for the handler below.
-                  </div>
-                ) : (
-                  publicComments.map((comment) => {
-                    const isStaff =
-                      comment.senderRole === ROLES.STAFF || comment.senderRole === ROLES.ADMIN;
-                    return (
-                      <div key={comment.id} className="comment-row">
-                        <span className={`comment-avatar ${isStaff ? 'staff' : 'user'}`}>
-                          {isStaff ? <Wrench size={14} /> : <User size={14} />}
-                        </span>
-                        <div className="comment-bubble">
-                          <div className="comment-meta">
-                            <span className="comment-author">{comment.senderName}</span>
-                            <span className="comment-role">
-                              {(comment.senderRole || 'user').toUpperCase()}
-                            </span>
-                            <span className="comment-time">
-                              {formatRelativeTime(comment.timestamp)}
-                            </span>
-                          </div>
-                          <p className="comment-text">{comment.text}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              <form onSubmit={handleAddComment} className="comment-form">
-                <textarea
-                  className="form-textarea"
-                  rows={3}
-                  placeholder="Write an update for the assigned handler…"
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  aria-label="Add a comment"
-                />
-                <div className="comment-form-foot">
-                  <span className="comment-hint">
-                    <MessageSquare size={13} />
-                    Visible to assigned department handlers.
-                  </span>
-                  <button
-                    type="submit"
-                    className="btn btn-primary btn-sm"
-                    disabled={isPostingComment || !newCommentText.trim()}
-                  >
-                    {isPostingComment ? <span className="spinner" /> : <Send size={14} />}
-                    Post Comment
-                  </button>
-                </div>
-              </form>
-            </section>
+            </div>
           </div>
-
-          {/* RIGHT: side cards */}
-          <aside className="detail-side">
-            <div className="side-card">
-              <h3 className="side-card-title">
-                <Wrench size={15} />
-                Assigned Handler
-              </h3>
-
-              {complaint.assignedTo ? (
-                <div className="handler-box">
-                  <span className="handler-avatar">
-                    <User size={18} />
-                  </span>
-                  <div>
-                    <div className="handler-name">{complaint.assignedTo.name}</div>
-                    <div className="handler-dept">
-                      {complaint.assignedTo.department || 'Department Specialist'}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="unassigned-box">
-                  <Clock size={20} className="tone-warning" />
-                  <div className="unassigned-title">Awaiting assignment</div>
-                  <p className="unassigned-desc">
-                    Your request is in the department queue. A specialist will be assigned shortly.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="side-card">
-              <h3 className="side-card-title">
-                <Calendar size={15} />
-                Preferences
-              </h3>
-              <div className="kv-row">
-                <span className="kv-label">Access date</span>
-                <span className="kv-value">{complaint.accessDate || 'Flexible'}</span>
-              </div>
-              <div className="kv-row">
-                <span className="kv-label">Time window</span>
-                <span className="kv-value">
-                  {complaint.timeSlot || ACCESS_TIME_SLOTS[0]}
-                </span>
-              </div>
-              <div className="kv-row">
-                <span className="kv-label">Contact via</span>
-                <span className="kv-value">
-                  {complaint.contactMethod || CONTACT_METHODS[0].id}
-                </span>
-              </div>
-            </div>
-
-            <div className="side-card">
-              <h3 className="side-card-title">
-                <ShieldCheck size={15} />
-                Actions
-              </h3>
-              <div className="actions-stack">
-                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCopyId}>
-                  {copiedId ? <Check size={14} /> : <Copy size={14} />}
-                  Share / Copy ID
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    const updated = complaintService.getById(complaint.id);
-                    if (updated) {
-                      setComplaint({ ...updated });
-                      showToast('Ticket status refreshed', 'info');
-                    }
-                  }}
-                >
-                  <RefreshCw size={14} />
-                  Refresh Status
-                </button>
-              </div>
-            </div>
-          </aside>
-        </div>
+        </>
       )}
 
       {/* Confirm-resolution modal */}
@@ -692,6 +711,68 @@ export default function TicketTracker() {
               value={reopenReasonText}
               onChange={(e) => setReopenReasonText(e.target.value)}
             />
+          </div>
+        </Modal>
+      )}
+
+      {/* High-Resolution Photo Evidence Lightbox Modal */}
+      {selectedLightboxImage && (
+        <Modal
+          title={selectedLightboxImage.name || 'Inspection Photo Evidence'}
+          subtitle={selectedLightboxImage.size ? `Attached file size: ${selectedLightboxImage.size}` : 'Uploaded photo evidence'}
+          onClose={() => setSelectedLightboxImage(null)}
+          maxWidth={760}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                {complaint?.id} · {complaint?.category}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selectedLightboxImage.url && (
+                  <a
+                    href={selectedLightboxImage.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Open Full Resolution
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setSelectedLightboxImage(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              background: '#090d16',
+              borderRadius: 8,
+              overflow: 'hidden',
+              minHeight: 280,
+              maxHeight: 520,
+              padding: 8,
+            }}
+          >
+            {selectedLightboxImage.url ? (
+              <img
+                src={selectedLightboxImage.url}
+                alt={selectedLightboxImage.name || 'Inspection Photo'}
+                style={{ maxWidth: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 4 }}
+              />
+            ) : (
+              <div style={{ color: '#fff', padding: 40, textAlign: 'center' }}>
+                Preview image unavailable
+              </div>
+            )}
           </div>
         </Modal>
       )}

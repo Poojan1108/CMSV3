@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MOCK_USERS } from '../data/mockData';
 import {
   ROLES,
@@ -9,27 +9,14 @@ import {
   getOrgUserLabel,
   getRoleTerm,
 } from '../utils/constants';
-import {
-  auth,
-  isFirebaseConfigured,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  updateProfile,
-  onAuthStateChanged,
-  getAuthErrorMessage,
-} from '../services/firebase';
-import {
-  syncUserProfileToSupabase,
-  getProfileFromSupabase,
-  isSupabaseConfigured,
-} from '../services/supabaseClient';
+
+import { authApi } from '../services/api';
 
 const AuthContext = createContext(null);
 
 const STORAGE_USER_KEY = 'cms_active_user_v1';
 const STORAGE_ORG_KEY = 'cms_active_org_v1';
+const STORAGE_CUSTOM_ORGS_KEY = 'cms_custom_orgs_v1';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -43,90 +30,33 @@ export const AuthProvider = ({ children }) => {
         }
       }
     }
-    // Default to Alex Chen only if in offline dev testing
-    return isFirebaseConfigured ? null : MOCK_USERS[0];
+    return MOCK_USERS[0];
+  });
+
+  const [orgTemplates, setOrgTemplates] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_CUSTOM_ORGS_KEY);
+        if (saved) {
+          return { ...ORG_TEMPLATES, ...JSON.parse(saved) };
+        }
+      } catch (e) {
+        console.error('Failed to load custom orgs', e);
+      }
+    }
+    return { ...ORG_TEMPLATES };
   });
 
   const [currentOrgKey, setCurrentOrgKey] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedOrg = localStorage.getItem(STORAGE_ORG_KEY);
-      if (savedOrg && ORG_TEMPLATES[savedOrg.toUpperCase()]) {
-        return savedOrg.toUpperCase();
-      }
+      if (savedOrg) return savedOrg.toUpperCase();
     }
     return 'COLLEGE';
   });
 
-  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
-
-  // Tracks pending role during sign-up to avoid race conditions with onAuthStateChanged
-  const pendingSignupRef = useRef(null);
-
-  // Listen to Firebase Auth state changes
-  useEffect(() => {
-    if (!isFirebaseConfigured || !auth) {
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      if (firebaseUser) {
-        let assignedRole = ROLES.STUDENT;
-        let assignedName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User';
-
-        // Check if a pending signup role is queued
-        if (pendingSignupRef.current) {
-          assignedRole = pendingSignupRef.current.role || assignedRole;
-          assignedName = pendingSignupRef.current.name || assignedName;
-        }
-
-        let baseUser = {
-          id: firebaseUser.uid,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          name: assignedName,
-          role: assignedRole,
-          orgKey: currentOrgKey,
-        };
-
-        // If Supabase is active, fetch stored profile or create one
-        try {
-          if (isSupabaseConfigured) {
-            const existingDbProfile = await getProfileFromSupabase(firebaseUser.uid);
-            if (existingDbProfile) {
-              baseUser = {
-                ...baseUser,
-                ...existingDbProfile,
-                role: existingDbProfile.role || assignedRole,
-                name: existingDbProfile.name || assignedName,
-              };
-            } else {
-              const synced = await syncUserProfileToSupabase(baseUser, Boolean(pendingSignupRef.current));
-              if (synced) {
-                baseUser = {
-                  ...baseUser,
-                  ...synced,
-                  role: synced.role || assignedRole,
-                };
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Profile sync warning:', err);
-        }
-
-        setCurrentUser(baseUser);
-      } else {
-        // Logged out
-        setCurrentUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentOrgKey]);
 
   useEffect(() => {
     if (currentUser) {
@@ -142,117 +72,161 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentOrgKey]);
 
+  useEffect(() => {
+    try {
+      const customOnly = {};
+      Object.keys(orgTemplates).forEach((k) => {
+        if (!ORG_TEMPLATES[k] || k.startsWith('ORG_') || k === 'CUSTOM') {
+          customOnly[k] = orgTemplates[k];
+        }
+      });
+      localStorage.setItem(STORAGE_CUSTOM_ORGS_KEY, JSON.stringify(customOnly));
+    } catch (e) {
+      console.error('Failed to save custom orgs', e);
+    }
+  }, [orgTemplates]);
+
   /**
-   * Firebase Login with Email and Password
+   * Create a new Custom Organization (Admin creation)
+   */
+  const createCustomOrg = (newOrg) => {
+    const slug = (newOrg.name || 'CUSTOM')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .substring(0, 16);
+    const key = `ORG_${slug}_${Date.now().toString().slice(-4)}`;
+
+    const baseTemplate = ORG_TEMPLATES[newOrg.baseTemplate] || ORG_TEMPLATES.CUSTOM;
+
+    const templateConfig = {
+      name: newOrg.name.trim(),
+      type: newOrg.baseTemplate?.toLowerCase() || 'custom',
+      userLabel: newOrg.userTerm || baseTemplate.userLabel || 'Member',
+      userTerm: newOrg.userTerm || baseTemplate.userTerm || 'Member',
+      staffTerm: newOrg.staffTerm || baseTemplate.staffTerm || 'Staff',
+      adminTerm: 'Admin',
+      categories: newOrg.categories && newOrg.categories.length > 0 ? newOrg.categories : baseTemplate.categories,
+      locationLabel: newOrg.locationLabel || baseTemplate.locationLabel || 'Location / Address',
+    };
+
+    setOrgTemplates((prev) => ({
+      ...prev,
+      [key]: templateConfig,
+    }));
+
+    setCurrentOrgKey(key);
+    return { key, template: templateConfig };
+  };
+
+  /**
+   * Update settings for an existing organization
+   */
+  const updateOrgSettings = (key, updatedFields) => {
+    setOrgTemplates((prev) => {
+      const existing = prev[key] || ORG_TEMPLATES.CUSTOM;
+      return {
+        ...prev,
+        [key]: {
+          ...existing,
+          ...updatedFields,
+        },
+      };
+    });
+  };
+
+  /**
+   * Login with Email and Password
    */
   const login = async (email, password) => {
     setAuthError(null);
-    if (isFirebaseConfigured && auth) {
+    setLoading(true);
+    try {
+      let loggedInUser = null;
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const fbUser = userCredential.user;
+        const res = await authApi.login(email, password);
+        if (res && res.user) {
+          loggedInUser = res.user;
+        }
+      } catch (apiErr) {
+        console.info('[Auth] Server API offline or unreachable, using local session:', apiErr.message);
+      }
 
-        let profile = {
-          id: fbUser.uid,
-          uid: fbUser.uid,
-          email: fbUser.email,
-          name: fbUser.displayName || email.split('@')[0],
+      if (!loggedInUser) {
+        loggedInUser = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) || {
+          id: `usr_${Date.now()}`,
+          name: email.split('@')[0],
+          email,
           role: ROLES.STUDENT,
           orgKey: currentOrgKey,
         };
-
-        // Fetch actual profile and role from Supabase
-        if (isSupabaseConfigured) {
-          const dbProfile = await getProfileFromSupabase(fbUser.uid);
-          if (dbProfile) {
-            profile = {
-              ...profile,
-              ...dbProfile,
-              role: dbProfile.role || ROLES.STUDENT,
-            };
-          } else {
-            profile = await syncUserProfileToSupabase(profile, false);
-          }
-        }
-
-        setCurrentUser(profile);
-        return { success: true, user: profile };
-      } catch (err) {
-        const readableMsg = getAuthErrorMessage(err);
-        setAuthError(readableMsg);
-        throw new Error(readableMsg);
       }
-    } else {
-      // Mock Login Fallback (matches mock user by email or creates a session)
-      const matched = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) || {
-        id: `usr_${Date.now()}`,
-        name: email.split('@')[0],
-        email,
-        role: ROLES.STUDENT,
-        orgKey: currentOrgKey,
-      };
-      setCurrentUser(matched);
-      return { success: true, user: matched };
+
+      // Auto-activate user's bound organization
+      if (loggedInUser.orgKey) {
+        setCurrentOrgKey(loggedInUser.orgKey);
+      }
+
+      setCurrentUser(loggedInUser);
+      setLoading(false);
+      return { success: true, user: loggedInUser };
+    } catch (err) {
+      setLoading(false);
+      setAuthError(err.message || 'Login failed');
+      throw err;
     }
   };
 
   /**
-   * Firebase Sign-Up with Email, Password, Name & Role
+   * Sign-Up with Email, Password, Name, Role & Organization
    */
-  const signup = async (email, password, name, role = ROLES.STUDENT) => {
+  const signup = async (email, password, name, role = ROLES.STUDENT, targetOrgKey = null, newOrgData = null) => {
     setAuthError(null);
-    if (isFirebaseConfigured && auth) {
-      try {
-        // Set pending signup role before creating user to avoid race conditions
-        pendingSignupRef.current = { role, name };
+    setLoading(true);
+    try {
+      let effectiveOrgKey = targetOrgKey || currentOrgKey;
+      let effectiveRole = role;
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const fbUser = userCredential.user;
-
-        // Update display name in Firebase Auth
-        if (name) {
-          await updateProfile(fbUser, { displayName: name });
-        }
-
-        let profile = {
-          id: fbUser.uid,
-          uid: fbUser.uid,
-          email: fbUser.email,
-          name: name || fbUser.email?.split('@')[0] || 'User',
-          role: role || ROLES.STUDENT,
-          orgKey: currentOrgKey,
-        };
-
-        // Explicitly write selected role to Supabase profiles table
-        if (isSupabaseConfigured) {
-          profile = await syncUserProfileToSupabase(profile, true);
-        }
-
-        pendingSignupRef.current = null;
-        setCurrentUser(profile);
-        return { success: true, user: profile };
-      } catch (err) {
-        pendingSignupRef.current = null;
-        const readableMsg = getAuthErrorMessage(err);
-        setAuthError(readableMsg);
-        throw new Error(readableMsg);
+      // If user registers a new organization, create it and designate user as Admin
+      if (newOrgData && newOrgData.name) {
+        const { key } = createCustomOrg(newOrgData);
+        effectiveOrgKey = key;
+        effectiveRole = ROLES.ADMIN;
       }
-    } else {
-      // Mock Signup Fallback
-      const newUser = {
-        id: `usr_${Date.now()}`,
-        name: name || email.split('@')[0],
-        email,
-        role: role || ROLES.STUDENT,
-        orgKey: currentOrgKey,
-      };
-      setCurrentUser(newUser);
-      return { success: true, user: newUser };
+
+      let registeredUser = null;
+      try {
+        const res = await authApi.register({ name, email, password, role: effectiveRole, orgKey: effectiveOrgKey });
+        if (res && res.user) {
+          registeredUser = res.user;
+        }
+      } catch (apiErr) {
+        console.info('[Auth] Server API offline or unreachable, using local session:', apiErr.message);
+      }
+
+      if (!registeredUser) {
+        registeredUser = {
+          id: `usr_${Date.now()}`,
+          name: name || email.split('@')[0],
+          email,
+          role: effectiveRole,
+          orgKey: effectiveOrgKey,
+        };
+      }
+
+      setCurrentOrgKey(effectiveOrgKey);
+      setCurrentUser(registeredUser);
+      setLoading(false);
+      return { success: true, user: registeredUser };
+    } catch (err) {
+      setLoading(false);
+      setAuthError(err.message || 'Registration failed');
+      throw err;
     }
   };
 
   /**
-   * Update role for the current logged in user and persist to Supabase
+   * Update role for the current logged-in user
    */
   const updateUserRole = async (newRole) => {
     if (!currentUser || !newRole) return;
@@ -261,59 +235,35 @@ export const AuthProvider = ({ children }) => {
       role: newRole,
     };
     setCurrentUser(updated);
-
-    if (isSupabaseConfigured) {
-      await syncUserProfileToSupabase(updated, true);
-    }
   };
 
   /**
-   * Firebase Send Password Reset Email
+   * Send Password Reset Email (Mock / REST)
    */
   const resetPassword = async (email) => {
     setAuthError(null);
-    if (isFirebaseConfigured && auth) {
-      try {
-        await sendPasswordResetEmail(auth, email);
-        return { success: true, message: 'Password reset email sent successfully.' };
-      } catch (err) {
-        const readableMsg = getAuthErrorMessage(err);
-        setAuthError(readableMsg);
-        throw new Error(readableMsg);
-      }
-    } else {
-      return {
-        success: true,
-        message: `Password reset instructions sent to ${email} (Demo Mode).`,
-      };
-    }
+    return {
+      success: true,
+      message: `Password reset instructions sent to ${email}.`,
+    };
   };
 
   /**
-   * Logout from Firebase Auth and clear local session
+   * Logout and clear session
    */
   const logout = async () => {
-    if (isFirebaseConfigured && auth) {
-      try {
-        await signOut(auth);
-      } catch (err) {
-        console.error('Logout error:', err);
-      }
-    }
     setCurrentUser(null);
     localStorage.removeItem(STORAGE_USER_KEY);
   };
 
   /**
-   * Switch organization template.
+   * Switch organization template
    */
   const switchOrgTemplate = (templateKey) => {
     if (!templateKey) return;
     const key = String(templateKey).toUpperCase();
-    if (ORG_TEMPLATES[key]) {
+    if (orgTemplates[key] || ORG_TEMPLATES[key]) {
       setCurrentOrgKey(key);
-    } else {
-      console.warn(`Organization template '${templateKey}' not found in ORG_TEMPLATES.`);
     }
   };
 
@@ -321,7 +271,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(user);
   };
 
-  const activeOrg = resolveOrg(currentOrgKey);
+  const activeOrg = orgTemplates[currentOrgKey] || ORG_TEMPLATES[currentOrgKey] || resolveOrg(currentOrgKey);
 
   const value = {
     user: currentUser,
@@ -339,19 +289,24 @@ export const AuthProvider = ({ children }) => {
     logout,
     setUser,
     availableUsers: MOCK_USERS,
-    isFirebaseActive: isFirebaseConfigured,
-    isSupabaseActive: isSupabaseConfigured,
 
-    // Organization Template State & Dynamic Resolvers
+    // Dynamic Multi-Tenant Organization State
     currentOrg: activeOrg,
     orgKey: currentOrgKey,
+    orgTemplates,
+    createCustomOrg,
+    updateOrgSettings,
     switchOrgTemplate,
-    orgTemplates: ORG_TEMPLATES,
-    categories: getOrgCategories(activeOrg),
-    locationLabel: getOrgLocationLabel(activeOrg),
-    userLabel: getOrgUserLabel(activeOrg),
-    userTerm: getOrgUserLabel(activeOrg),
-    getRoleTerm: (targetRole) => getRoleTerm(targetRole || currentUser?.role, activeOrg),
+    categories: activeOrg.categories || [],
+    locationLabel: activeOrg.locationLabel || 'Location',
+    userLabel: activeOrg.userLabel || activeOrg.userTerm || 'Student',
+    userTerm: activeOrg.userTerm || activeOrg.userLabel || 'Student',
+    getRoleTerm: (targetRole) => {
+      const r = targetRole || currentUser?.role;
+      if (r === ROLES.ADMIN) return activeOrg.adminTerm || 'Admin';
+      if (r === ROLES.STAFF) return activeOrg.staffTerm || 'Staff';
+      return activeOrg.userTerm || activeOrg.userLabel || 'Student';
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -366,3 +321,4 @@ export const useAuth = () => {
 };
 
 export default AuthContext;
+

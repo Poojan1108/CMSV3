@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import Lenis from 'lenis';
 import { useNavigate } from 'react-router-dom';
 
-import Navbar from '../components/Navbar';
-import Hero from '../components/Hero';
-import Problem from '../components/Problem';
-import Solution from '../components/Solution';
-import Workflow from '../components/Workflow';
-import Features from '../components/Features';
-import DashboardShowcase from '../components/DashboardShowcase';
-import Stats from '../components/Stats';
-import Testimonials from '../components/Testimonials';
-import CTA from '../components/CTA';
-import Footer from '../components/Footer';
+import LandingNavbar from '../components/landing/LandingNavbar';
+import LandingHero from '../components/landing/LandingHero';
+import LandingTrustBar from '../components/landing/LandingTrustBar';
+import LandingReportIssue from '../components/landing/LandingReportIssue';
+import LandingTransparency from '../components/landing/LandingTransparency';
+import LandingRoles from '../components/landing/LandingRoles';
+import LandingOwner from '../components/landing/LandingOwner';
+import LandingCitizenControl from '../components/landing/LandingCitizenControl';
+import LandingMetrics from '../components/landing/LandingMetrics';
+import LandingTestimonials from '../components/landing/LandingTestimonials';
+import LandingBottomCTA from '../components/landing/LandingBottomCTA';
+import LandingFooter from '../components/landing/LandingFooter';
 import Auth from '../components/Auth';
+
 import { complaintService } from '../services/complaintService';
 import { useAuth } from '../context/AuthContext';
 import { ROLES } from '../utils/constants';
@@ -23,7 +25,7 @@ export default function LandingPage({ initialMode = 'landing' }) {
   const navigate = useNavigate();
   const { role } = useAuth();
 
-  // On initial mount, trigger background sync with Supabase
+  // On mount, sync Supabase data in the background
   useEffect(() => {
     complaintService.syncFromSupabase().catch((err) => {
       console.warn('Initial Supabase sync notice:', err);
@@ -34,11 +36,12 @@ export default function LandingPage({ initialMode = 'landing' }) {
     setView(initialMode);
   }, [initialMode]);
 
+  // Smooth Lenis scrolling
   useEffect(() => {
     if (view !== 'landing') return;
 
     const lenisInstance = new Lenis({
-      duration: 1.1,
+      duration: 1.0,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smooth: true,
     });
@@ -50,29 +53,21 @@ export default function LandingPage({ initialMode = 'landing' }) {
     }
     rafId = requestAnimationFrame(raf);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
-    );
-
-    document
-      .querySelectorAll('.landing .reveal-on-scroll')
-      .forEach((el) => observer.observe(el));
-
     return () => {
       lenisInstance.destroy();
-      observer.disconnect();
       cancelAnimationFrame(rafId);
     };
   }, [view]);
 
+  // Smooth scroll handler
+  const handleScrollToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Auth view for Login, Register & Reset Password
   if (view === 'login' || view === 'signup' || view === 'forgot-password') {
     return (
       <Auth
@@ -94,21 +89,26 @@ export default function LandingPage({ initialMode = 'landing' }) {
     );
   }
 
+  // Full Landing Page
   return (
-    <div className="landing">
-      <Navbar setView={setView} />
+    <div className="rx-landing-page">
+      <LandingNavbar
+        setView={setView}
+        onScrollToSection={handleScrollToSection}
+      />
       <main>
-        <Hero setView={setView} />
-        <Problem />
-        <Solution />
-        <Workflow />
-        <Features />
-        <DashboardShowcase />
-        <Stats />
-        <Testimonials />
-        <CTA setView={setView} />
+        <LandingHero setView={setView} />
+        <LandingTrustBar />
+        <LandingReportIssue />
+        <LandingTransparency />
+        <LandingRoles setView={setView} />
+        <LandingOwner />
+        <LandingCitizenControl />
+        <LandingMetrics />
+        <LandingTestimonials />
+        <LandingBottomCTA setView={setView} />
       </main>
-      <Footer />
+      <LandingFooter setView={setView} onScrollToSection={handleScrollToSection} />
     </div>
   );
 }

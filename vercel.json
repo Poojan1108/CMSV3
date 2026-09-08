@@ -1,0 +1,10 @@
+{
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/health.js" },
+    { "source": "/api/auth/:path*", "destination": "/api/auth.js" },
+    { "source": "/api/tickets/:path*", "destination": "/api/tickets.js" },
+    { "source": "/api/tickets", "destination": "/api/tickets.js" },
+    { "source": "/((?!api/.*).*)", "destination": "/index.html" }
+  ]
+}

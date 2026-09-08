@@ -77,6 +77,21 @@ export default function AdminAnalytics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKey]);
 
+  // Real-time live synchronization: refreshes analytics metrics when tickets or statuses change
+  useEffect(() => {
+    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
+      try {
+        setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
+      } catch (err) {
+        console.error('Error in AdminAnalytics live sync:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [orgKey]);
+
   // Core metrics — computed strictly from live data
   const metrics = useMemo(() => {
     const total = complaints.length;
@@ -277,90 +292,68 @@ export default function AdminAnalytics() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow={`${currentOrg?.name || ''} Admin`}
+        eyebrow={`${currentOrg?.name || ''} Executive Admin`}
         icon={<ShieldAlert size={12} />}
-        title="Executive Dashboard"
-        description="Live complaint telemetry, resolution performance and global ticket controls."
+        title="Telemetry & Institutional Governance"
+        description="Comprehensive grievance metrics, resolution performance, and live staff reassignment controls."
         actions={
-          <div className="export-toolbar no-print">
+          <div className="export-toolbar no-print" style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
-              <FileSpreadsheet size={15} />
-              CSV
+              <FileSpreadsheet size={14} />
+              Export CSV
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleExportJSON}>
-              <FileJson size={15} />
-              JSON
+              <FileJson size={14} />
+              Export JSON
             </button>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => window.print()}>
-              <Printer size={15} />
+              <Printer size={14} />
               Print Summary
             </button>
           </div>
         }
       />
 
-      {/* KPI cards */}
+      {/* 4-Tile Telemetry Rail */}
       <div className="stat-grid">
-        <div className="kpi-card">
-          <div className="kpi-head">
-            <div>
-              <span className="kpi-label">Total Tickets</span>
-              <div className="kpi-value">{metrics.total}</div>
-            </div>
-            <span className="kpi-icon bg-tone-accent">
-              <BarChart3 size={20} />
-            </span>
+        <div className="card card-pad" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Incidents</span>
+            <BarChart3 size={18} style={{ color: 'var(--app-accent)' }} />
           </div>
-          <div className="kpi-foot">All-time intake volume</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--app-text)' }}>{metrics.total}</div>
+          <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>All-time grievance intake</div>
         </div>
 
-        <div className="kpi-card">
-          <div className="kpi-head">
-            <div>
-              <span className="kpi-label">Resolution Rate</span>
-              <div className="kpi-value tone-success">{metrics.resolutionRate}%</div>
-            </div>
-            <span className="kpi-icon bg-tone-success">
-              <TrendingUp size={20} />
-            </span>
+        <div className="card card-pad" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Resolution Rate</span>
+            <TrendingUp size={18} style={{ color: metrics.resolutionRate > 0 ? 'var(--app-success)' : 'var(--app-text-muted)' }} />
           </div>
-          <div className="kpi-foot">
-            {metrics.resolved} of {metrics.total} resolved
-          </div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: metrics.resolutionRate > 0 ? 'var(--app-success)' : 'var(--app-text)' }}>{metrics.resolutionRate}%</div>
+          <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>{metrics.resolved} of {metrics.total} closed</div>
         </div>
 
-        <div className="kpi-card">
-          <div className="kpi-head">
-            <div>
-              <span className="kpi-label">Avg Resolution Time</span>
-              <div className="kpi-value">
-                {metrics.avgResolutionHours != null ? `${metrics.avgResolutionHours}h` : '—'}
-              </div>
-            </div>
-            <span className="kpi-icon bg-tone-info">
-              <Clock size={20} />
-            </span>
+        <div className="card card-pad" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Avg Repair Time</span>
+            <Clock size={18} style={{ color: 'var(--app-info)' }} />
           </div>
-          <div className="kpi-foot">
-            {metrics.avgResolutionHours != null
-              ? 'Across confirmed resolutions'
-              : 'No confirmed resolutions yet'}
+          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--app-text)' }}>
+            {metrics.avgResolutionHours != null ? `${metrics.avgResolutionHours} hrs` : '—'}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>Across confirmed closures</div>
         </div>
 
-        <div className="kpi-card">
-          <div className="kpi-head">
-            <div style={{ minWidth: 0 }}>
-              <span className="kpi-label">Most Active Category</span>
-              <div className="kpi-value" style={{ fontSize: 19, marginTop: 10 }}>
-                {metrics.mostActiveCategory}
-              </div>
-            </div>
-            <span className="kpi-icon bg-tone-warning">
-              <Layers size={20} />
-            </span>
+        <div className="card card-pad" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Top Volume Dept</span>
+            <Layers size={18} style={{ color: 'var(--app-warning)' }} />
           </div>
-          <div className="kpi-foot">Highest ticket intake</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--app-text)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {metrics.mostActiveCategory}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>Highest incident frequency</div>
         </div>
       </div>
 

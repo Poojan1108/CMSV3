@@ -89,6 +89,22 @@ export default function StaffResolutions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTicketId]);
 
+  // Real-time live synchronization: refreshes resolution queues and logs live
+  useEffect(() => {
+    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
+      try {
+        const data = complaintService.getAll({ sortBy: 'newest' });
+        setAllComplaints(data);
+      } catch (err) {
+        console.error('Error in StaffResolutions live sync:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Open tickets eligible for transfer
   const openComplaints = useMemo(
     () =>
@@ -184,7 +200,7 @@ export default function StaffResolutions() {
         }
       />
 
-      <div className="detail-layout" style={{ gridTemplateColumns: 'minmax(300px, 400px) minmax(0, 1fr)' }}>
+      <div className="detail-layout resolutions-detail-layout">
         {/* Reassignment form */}
         <section className="card card-pad">
           <h2 className="card-title">Ticket Transfer</h2>
@@ -298,7 +314,7 @@ export default function StaffResolutions() {
             </div>
 
             <div className="toolbar-row">
-              <div className="search-field" style={{ maxWidth: 200, minWidth: 150 }}>
+              <div className="search-field">
                 <Search size={13} />
                 <input
                   type="text"
@@ -313,6 +329,7 @@ export default function StaffResolutions() {
                 value={resDeptFilter}
                 onChange={(e) => setResDeptFilter(e.target.value)}
                 aria-label="Filter by category"
+                className="toolbar-select"
               >
                 <option value="all">All Categories</option>
                 {[...new Set(resolvedComplaints.map((c) => c.category))].map((cat) => (

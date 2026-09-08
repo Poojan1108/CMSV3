@@ -17,6 +17,9 @@ import {
   Shield,
   UserCheck,
   AlertTriangle,
+  Camera,
+  Maximize2,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -105,6 +108,30 @@ export default function StaffQueue() {
   useEffect(() => {
     loadComplaints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgKey, sortBy]);
+
+  // Real-time live synchronization: automatically updates queue cards and counters when tickets are created, reassigned, or status updated
+  useEffect(() => {
+    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
+      try {
+        const data = complaintService.getAll({ org: orgKey, sortBy });
+        setComplaints(data);
+
+        setSelectedTicket((prev) => {
+          if (prev) {
+            const refreshed = complaintService.getById(prev.id);
+            return refreshed || prev;
+          }
+          return null;
+        });
+      } catch (err) {
+        console.error('Error in StaffQueue live sync:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [orgKey, sortBy]);
 
   // Header metrics
@@ -337,117 +364,158 @@ export default function StaffQueue() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="card card-pad toolbar no-print">
-        <div className="toolbar-row">
-          <div className="segmented" role="tablist" aria-label="Ticket scope">
+      {/* 1. Triage Command Strip (Page 4 Spec) */}
+      <div className="status-segment-strip" role="tablist" aria-label="Triage filter strip">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scopeFilter === 'all' && statusFilter === 'all'}
+          className={`status-segment-pill ${scopeFilter === 'all' && statusFilter === 'all' ? 'is-active' : ''}`}
+          onClick={() => {
+            setScopeFilter('all');
+            setStatusFilter('all');
+          }}
+        >
+          All Queue Tickets
+          <span className="segment-count">{complaints.length}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scopeFilter === 'assigned'}
+          className={`status-segment-pill ${scopeFilter === 'assigned' ? 'is-active' : ''}`}
+          onClick={() => {
+            setScopeFilter('assigned');
+            setStatusFilter('all');
+          }}
+        >
+          Assigned to Me
+          <span className="segment-count">{metrics.assignedToMe}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === STATUSES.PENDING}
+          className={`status-segment-pill ${statusFilter === STATUSES.PENDING ? 'is-active' : ''}`}
+          onClick={() => {
+            setScopeFilter('all');
+            setStatusFilter(STATUSES.PENDING);
+          }}
+        >
+          Needs Triage
+          <span className="segment-count">{metrics.pendingReview}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === STATUSES.IN_PROGRESS}
+          className={`status-segment-pill ${statusFilter === STATUSES.IN_PROGRESS ? 'is-active' : ''}`}
+          onClick={() => {
+            setScopeFilter('all');
+            setStatusFilter(STATUSES.IN_PROGRESS);
+          }}
+        >
+          In Progress
+          <span className="segment-count">{metrics.inProgress}</span>
+        </button>
+
+        {metrics.slaBreached > 0 && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={priorityFilter === PRIORITIES.URGENT}
+            className="status-segment-pill"
+            style={{
+              borderColor: 'var(--app-danger)',
+              color: 'var(--app-danger)',
+              background: priorityFilter === PRIORITIES.URGENT ? 'var(--app-danger-subtle)' : 'var(--app-surface)',
+            }}
+            onClick={() => {
+              setPriorityFilter(priorityFilter === PRIORITIES.URGENT ? 'all' : PRIORITIES.URGENT);
+            }}
+          >
+            <AlertTriangle size={13} style={{ color: 'var(--app-danger)' }} />
+            SLA Critical
+            <span className="segment-count" style={{ background: 'var(--app-danger)', color: '#fff' }}>
+              {metrics.slaBreached}
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* 2. Streamlined Toolbar (Content-on-Canvas) */}
+      <div className="toolbar-row" style={{ marginTop: 12, marginBottom: 8 }}>
+        <div className="search-field">
+          <Search size={15} />
+          <input
+            type="text"
+            placeholder="Search ID, keyword, room, or student..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search tickets"
+          />
+          {searchQuery && (
             <button
               type="button"
-              role="tab"
-              aria-selected={scopeFilter === 'all'}
-              className={scopeFilter === 'all' ? 'is-active' : ''}
-              onClick={() => setScopeFilter('all')}
+              className="search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
             >
-              <Inbox size={14} />
-              All Tickets ({complaints.length})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={scopeFilter === 'assigned'}
-              className={scopeFilter === 'assigned' ? 'is-active' : ''}
-              onClick={() => setScopeFilter('assigned')}
-            >
-              <UserCheck size={14} />
-              Assigned to Me ({metrics.assignedToMe})
-            </button>
-          </div>
-
-          <div className="toolbar-spacer" />
-
-          <div className="search-field">
-            <Search size={15} />
-            <input
-              type="text"
-              placeholder="Search ID, title, reporter or location…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search tickets"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="search-clear"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="toolbar-row">
-          <span className="filter-label">
-            <Filter size={14} />
-            Filters
-          </span>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Filter by status"
-          >
-            {STATUS_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            aria-label="Filter by priority"
-          >
-            <option value="all">All Priorities</option>
-            {PRIORITY_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-            aria-label="Filter by department"
-          >
-            <option value="all">All Departments</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort order">
-            <option value="newest">Sort: Newest</option>
-            <option value="oldest">Sort: Oldest</option>
-            <option value="priority">Sort: Priority</option>
-          </select>
-
-          {hasActiveFilters && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetFilters}>
-              <RefreshCw size={13} />
-              Reset
+              <X size={13} />
             </button>
           )}
-
-          <span className="result-count">
-            Showing <strong>{filteredComplaints.length}</strong> of {complaints.length}
-          </span>
         </div>
+
+        <div className="toolbar-spacer" />
+
+        <select
+          value={departmentFilter}
+          onChange={(e) => setDepartmentFilter(e.target.value)}
+          aria-label="Filter by department"
+          className="toolbar-select"
+        >
+          <option value="all">All Departments</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          aria-label="Filter by priority"
+          className="toolbar-select"
+        >
+          <option value="all">All Priorities</option>
+          {PRIORITY_FILTER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          aria-label="Sort order"
+          className="toolbar-select"
+        >
+          <option value="newest">Sort: Newest</option>
+          <option value="oldest">Sort: Oldest</option>
+          <option value="priority">Sort: Priority</option>
+        </select>
+
+        {hasActiveFilters && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={handleResetFilters}>
+            <RefreshCw size={13} />
+            Reset
+          </button>
+        )}
       </div>
 
       {/* Ticket cards */}
@@ -478,6 +546,7 @@ export default function StaffQueue() {
                 <div className="ticket-card-top">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <TicketId id={ticket.id} />
+                    <Tag>{ticket.category}</Tag>
                     {isAssignedToMe && <Tag>You</Tag>}
                   </div>
 
@@ -487,8 +556,6 @@ export default function StaffQueue() {
                     <StatusBadge status={ticket.status} />
                   </div>
                 </div>
-
-                <Tag>{ticket.category}</Tag>
 
                 <h3 className="ticket-card-title">{ticket.title}</h3>
 
@@ -624,6 +691,7 @@ function TicketDetailModal({
   navigate,
 }) {
   const [commentTab, setCommentTab] = useState('all');
+  const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
   const sla = getSlaStatus(ticket);
 
   const comments = ticket.comments || [];
@@ -717,6 +785,94 @@ function TicketDetailModal({
         <p className="resolution-summary-text">{ticket.description}</p>
       </div>
 
+      {/* Attached Media & Photo Evidence */}
+      {ticket.attachments && ticket.attachments.length > 0 && (
+        <div style={{ margin: '12px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h4 className="section-heading" style={{ margin: 0, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Camera size={14} className="tone-accent" />
+              Photo Evidence ({ticket.attachments.length})
+            </h4>
+            <span style={{ fontSize: 11, color: 'var(--app-text-muted)' }}>Click to inspect full size</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: 8 }}>
+            {ticket.attachments.map((att, idx) => (
+              <div
+                key={att.id || idx}
+                onClick={() => setSelectedLightboxImage(att)}
+                style={{
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  border: '1px solid var(--app-border-soft)',
+                  background: 'var(--app-card-bg-subtle)',
+                  cursor: 'pointer',
+                  position: 'relative',
+                }}
+                className="photo-card-hover"
+                title={`Inspect ${att.name || 'photo'}`}
+              >
+                {att.url ? (
+                  <div style={{ width: '100%', height: 82, position: 'relative' }}>
+                    <img
+                      src={att.url}
+                      alt={att.name || 'Evidence'}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)',
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: 4,
+                        right: 4,
+                        background: 'rgba(0,0,0,0.7)',
+                        color: '#fff',
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        fontSize: 9,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                      }}
+                    >
+                      <Maximize2 size={9} /> View
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ height: 82, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FileText size={20} className="tone-muted" />
+                  </div>
+                )}
+                <div style={{ padding: '4px 6px' }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--app-text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {att.name || `Photo ${idx + 1}`}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: 'var(--app-text-muted)' }}>
+                    {att.size || 'Attached'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Status audit log */}
       <div>
         <h4 className="section-heading" style={{ marginBottom: 10 }}>
@@ -785,7 +941,7 @@ function TicketDetailModal({
                   className="comment-bubble"
                   style={
                     c.isInternal
-                      ? { borderColor: 'rgba(217, 154, 43, 0.35)', background: 'var(--app-warning-subtle)' }
+                      ? { borderColor: 'var(--app-accent-border)', background: 'var(--app-warning-subtle)' }
                       : undefined
                   }
                 >
@@ -847,6 +1003,68 @@ function TicketDetailModal({
           </button>
         </div>
       </div>
+
+      {/* Photo Evidence Lightbox Modal */}
+      {selectedLightboxImage && (
+        <Modal
+          title={selectedLightboxImage.name || 'Inspection Photo Evidence'}
+          subtitle={selectedLightboxImage.size ? `Attached file size: ${selectedLightboxImage.size}` : 'High-resolution photo evidence'}
+          onClose={() => setSelectedLightboxImage(null)}
+          maxWidth={760}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                Staff Inspection View · {ticket.id}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selectedLightboxImage.url && (
+                  <a
+                    href={selectedLightboxImage.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Open Full Size
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setSelectedLightboxImage(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              background: '#090d16',
+              borderRadius: 8,
+              overflow: 'hidden',
+              minHeight: 280,
+              maxHeight: 520,
+              padding: 8,
+            }}
+          >
+            {selectedLightboxImage.url ? (
+              <img
+                src={selectedLightboxImage.url}
+                alt={selectedLightboxImage.name || 'Inspection Photo'}
+                style={{ maxWidth: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 4 }}
+              />
+            ) : (
+              <div style={{ color: '#fff', padding: 40, textAlign: 'center' }}>
+                Preview image unavailable
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }

@@ -1,0 +1,144 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  STAFF
+  ADMIN
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  PENDING
+  IN_PROGRESS
+  PENDING_CONFIRMATION
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(STUDENT)
+  orgKey       String      @default("COLLEGE")
+  avatarUrl    String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  assignedTickets Ticket[]        @relation("AssignedStaff")
+  submittedTickets Ticket[]       @relation("StudentTickets")
+  comments        TicketComment[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  orgKey    String   @default("COLLEGE")
+  createdAt DateTime @default(now())
+
+  users   User[]
+  tickets Ticket[]
+}
+
+model Ticket {
+  id                String         @id // e.g. "CMS-2026-1001"
+  title             String
+  description       String
+  category          String
+  priority          TicketPriority @default(MEDIUM)
+  status            TicketStatus   @default(PENDING)
+  location          String?
+  orgKey            String         @default("COLLEGE")
+  
+  // Complainant info
+  studentId         String
+  studentName       String
+  studentEmail      String
+  student           User           @relation("StudentTickets", fields: [studentId], references: [id])
+  studentMeta       Json?
+
+  // Assignment info
+  assignedToId      String?
+  assignedTo        User?          @relation("AssignedStaff", fields: [assignedToId], references: [id])
+  departmentId      String?
+  department        Department?    @relation(fields: [departmentId], references: [id])
+
+  // SLA Tracking (Computed on creation, monitored in-process without Redis)
+  slaResponseDue    DateTime?
+  slaResolveDue     DateTime?
+  slaBreached       Boolean        @default(false)
+
+  // Resolution info
+  resolutionDetails Json?
+  resolvedAt        DateTime?
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  comments          TicketComment[]
+  history           TicketHistory[]
+
+  @@index([orgKey])
+  @@index([status])
+  @@index([studentId])
+  @@index([assignedToId])
+  @@index([slaBreached])
+}
+
+model TicketComment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], ON DELETE: Cascade)
+  senderId   String?
+  sender     User?    @relation(fields: [senderId], references: [id])
+  senderName String
+  senderRole Role     @default(STUDENT)
+  text       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model TicketHistory {
+  id        Int          @id @default(autoincrement())
+  ticketId  String
+  ticket    Ticket       @relation(fields: [ticketId], references: [id], ON DELETE: Cascade)
+  status    TicketStatus
+  updatedBy String
+  note      String?
+  createdAt DateTime     @default(now())
+
+  @@index([ticketId])
+}
+
+model SlaRule {
+  id            String         @id @default(uuid())
+  orgKey        String         @default("COLLEGE")
+  priority      TicketPriority
+  category      String?        // null applies to all categories
+  responseHours Int            @default(24)
+  resolveHours  Int            @default(72)
+  createdAt     DateTime       @default(now())
+
+  @@unique([orgKey, priority, category])
+}

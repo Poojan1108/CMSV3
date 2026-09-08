@@ -1,114 +1,144 @@
 import { createClient } from '@supabase/supabase-js';
 
-const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
-const supabaseUrl = env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
   supabaseAnonKey &&
   supabaseUrl !== 'https://your-project-id.supabase.co' &&
-  !supabaseUrl.includes('your-project-id') &&
   supabaseAnonKey !== 'your_supabase_anon_public_key_here'
 );
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        persistSession: false, // Session managed by Firebase Auth
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
       },
     })
   : null;
 
-if (!isSupabaseConfigured) {
-  console.info(
-    '[ResolveX] Supabase is running in local storage fallback mode. Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local to enable live database persistence.'
-  );
+/**
+ * Initializes a Supabase Realtime channel that listens for live database mutations.
+ * Calls callback on any INSERT, UPDATE, or DELETE on complaints or comments.
+ */
+export function initRealtimeSubscription(onPayload) {
+  if (!isSupabaseConfigured || !supabase) {
+    return () => {};
+  }
+
+  const channel = supabase
+    .channel('cms-live-realtime-channel')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'complaints' },
+      (payload) => {
+        if (typeof onPayload === 'function') {
+          onPayload({ type: 'complaint', ...payload });
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'complaint_comments' },
+      (payload) => {
+        if (typeof onPayload === 'function') {
+          onPayload({ type: 'comment', ...payload });
+        }
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.info('[Supabase Realtime] Connected to live WebSocket stream.');
+      }
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
 
 /**
- * Fetch a user profile from Supabase by UID
+ * Converts a browser File/Blob to a Base64 data URL string.
  */
-export async function getProfileFromSupabase(userId) {
-  if (!isSupabaseConfigured || !supabase || !userId) {
-    return null;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error && error.code !== 'PGRST116') {
-      console.warn('[Supabase getProfile warning]:', error.message);
-    }
-    return data || null;
-  } catch (err) {
-    console.warn('[Supabase getProfile error]:', err);
-    return null;
-  }
+export function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
- * Upsert and persist a user profile in Supabase profiles table
+ * Uploads an attachment to Supabase Storage bucket 'complaint-attachments'.
+ * Gracefully falls back to a high-speed Data URL if Supabase Storage is not yet configured or reachable.
+ *
+ * @param {File} file - The file object from input or drag-and-drop
+ * @param {string} [ticketId='draft'] - Associated ticket identifier
+ * @returns {Promise<{ id: string, name: string, size: number, type: string, url: string }>}
  */
-export async function syncUserProfileToSupabase(userProfile, isExplicitUpdate = false) {
-  if (!isSupabaseConfigured || !supabase || !userProfile?.id) {
-    return userProfile;
+export async function uploadComplaintAttachment(file, ticketId = 'draft') {
+  const fileId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const cleanName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image.jpg';
+  const filePath = `complaints/${ticketId}/${Date.now()}_${cleanName}`;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('complaint-attachments')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (!error && data) {
+        const { data: urlData } = supabase.storage
+          .from('complaint-attachments')
+          .getPublicUrl(filePath);
+
+        if (urlData?.publicUrl) {
+          return {
+            id: fileId,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: urlData.publicUrl,
+            storagePath: filePath,
+          };
+        }
+      } else if (error) {
+        console.warn('[Supabase Storage] Upload error, using Data URL fallback:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Supabase Storage] Upload exception, using Data URL fallback:', err);
+    }
   }
 
+  // Resilient fallback: data URL ensures the image displays immediately without failure
   try {
-    // 1. Check if profile already exists in Supabase
-    const { data: existing, error: fetchError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userProfile.id)
-      .maybeSingle();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.warn('[Supabase profiles fetch warning]:', fetchError.message);
-    }
-
-    // If existing record exists and we are not doing an explicit signup/role update
-    if (existing && !isExplicitUpdate) {
-      return {
-        ...userProfile,
-        ...existing,
-        role: existing.role || userProfile.role || 'student',
-      };
-    }
-
-    // 2. Prepare full profile record to upsert
-    const profileRecord = {
-      id: userProfile.id,
-      name: userProfile.name || userProfile.displayName || existing?.name || 'User',
-      email: userProfile.email || existing?.email,
-      role: isExplicitUpdate ? userProfile.role : (existing?.role || userProfile.role || 'student'),
-      org_key: userProfile.orgKey || existing?.org_key || 'COLLEGE',
-      avatar_url: userProfile.photoURL || userProfile.avatar || existing?.avatar_url || null,
-      created_at: existing?.created_at || new Date().toISOString(),
-    };
-
-    const { data: upserted, error: upsertError } = await supabase
-      .from('profiles')
-      .upsert(profileRecord, { onConflict: 'id' })
-      .select()
-      .single();
-
-    if (upsertError) {
-      console.warn('[Supabase profiles upsert warning]:', upsertError.message);
-      return userProfile;
-    }
-
+    const dataUrl = await fileToDataUrl(file);
     return {
-      ...userProfile,
-      ...upserted,
-      role: upserted.role,
+      id: fileId,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url: dataUrl,
     };
   } catch (err) {
-    console.error('[Supabase syncUserProfile error]:', err);
-    return userProfile;
+    console.error('Failed to convert file to data URL:', err);
+    return {
+      id: fileId,
+      name: file.name || 'image.jpg',
+      size: file.size || 0,
+      type: file.type || 'image/jpeg',
+      url: '',
+    };
   }
 }

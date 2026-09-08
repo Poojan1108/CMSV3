@@ -66,6 +66,22 @@ export const INITIAL_COMPLAINTS = [
       name: 'Dr. Robert Vance',
       department: 'Hostel Administration',
     },
+    attachments: [
+      {
+        id: 'att_1001_1',
+        name: 'leaking_pipe_under_sink.jpg',
+        size: '1.2 MB',
+        type: 'image/jpeg',
+        url: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&q=80&w=800',
+      },
+      {
+        id: 'att_1001_2',
+        name: 'restroom_floor_water.jpg',
+        size: '850 KB',
+        type: 'image/jpeg',
+        url: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800',
+      },
+    ],
     statusHistory: [
       {
         status: STATUSES.PENDING,

@@ -64,6 +64,25 @@ export default function MyComplaintsList() {
     }
   }, [user, sortBy]);
 
+  // Real-time live synchronization: instantly updates complaint list and status badges
+  useEffect(() => {
+    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
+      try {
+        const list = complaintService.getAll({
+          studentId: user?.id,
+          sortBy,
+        });
+        setComplaints(list);
+      } catch (err) {
+        console.error('Error in MyComplaintsList live sync:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id, sortBy]);
+
   // Overview metrics
   const metrics = useMemo(() => {
     const count = (status) => complaints.filter((c) => c.status === status).length;
@@ -141,184 +160,155 @@ export default function MyComplaintsList() {
         }
       />
 
-      {/* Overview metrics */}
-      <div className="stat-grid">
-        <MetricCard icon={FileText} label="Total Filed" value={metrics.total} tone="accent" />
-        <MetricCard
-          icon={Clock}
-          label={STATUS_LABELS[STATUSES.PENDING]}
-          value={metrics.pending}
-          tone="warning"
-          onClick={() => setStatusFilter(statusFilter === STATUSES.PENDING ? 'all' : STATUSES.PENDING)}
-          isActive={statusFilter === STATUSES.PENDING}
-        />
-        <MetricCard
-          icon={RefreshCw}
-          label={STATUS_LABELS[STATUSES.IN_PROGRESS]}
-          value={metrics.inProgress}
-          tone="info"
-          onClick={() =>
-            setStatusFilter(statusFilter === STATUSES.IN_PROGRESS ? 'all' : STATUSES.IN_PROGRESS)
-          }
-          isActive={statusFilter === STATUSES.IN_PROGRESS}
-        />
-        <MetricCard
-          icon={CheckCircle2}
-          label={STATUS_LABELS[STATUSES.RESOLVED]}
-          value={metrics.resolved}
-          tone="success"
-          onClick={() => setStatusFilter(statusFilter === STATUSES.RESOLVED ? 'all' : STATUSES.RESOLVED)}
-          isActive={statusFilter === STATUSES.RESOLVED}
-        />
-      </div>
+      {/* 1. Unified Status & Metric Segmented Control (Page 1 Spec) */}
+      <div className="status-segment-strip" role="tablist" aria-label="Filter complaints by status">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === 'all'}
+          className={`status-segment-pill ${statusFilter === 'all' ? 'is-active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          All Complaints
+          <span className="segment-count">{metrics.total}</span>
+        </button>
 
-      {/* Awaiting confirmation banner */}
-      {unconfirmedTickets.length > 0 && (
-        <div className="callout callout-success" role="status">
-          <CheckCircle2 size={18} />
-          <div style={{ flex: 1 }}>
-            <span className="callout-title">
-              {unconfirmedTickets.length} ticket{unconfirmedTickets.length > 1 ? 's' : ''} awaiting
-              your confirmation
-            </span>
-            Staff marked the issue as fixed. Review and confirm to close{' '}
-            {unconfirmedTickets.length > 1 ? 'them' : 'it'}.
-          </div>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === STATUSES.PENDING}
+          className={`status-segment-pill ${statusFilter === STATUSES.PENDING ? 'is-active' : ''}`}
+          onClick={() => setStatusFilter(STATUSES.PENDING)}
+        >
+          {STATUS_LABELS[STATUSES.PENDING]}
+          <span className="segment-count">{metrics.pending}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === STATUSES.IN_PROGRESS}
+          className={`status-segment-pill ${statusFilter === STATUSES.IN_PROGRESS ? 'is-active' : ''}`}
+          onClick={() => setStatusFilter(STATUSES.IN_PROGRESS)}
+        >
+          {STATUS_LABELS[STATUSES.IN_PROGRESS]}
+          <span className="segment-count">{metrics.inProgress}</span>
+        </button>
+
+        {metrics.pendingConfirmation > 0 && (
           <button
             type="button"
-            className="btn btn-sm btn-secondary"
-            onClick={() =>
-              navigate(`/track?id=${encodeURIComponent(unconfirmedTickets[0].id)}`)
-            }
+            role="tab"
+            aria-selected={statusFilter === STATUSES.PENDING_CONFIRMATION}
+            className={`status-segment-pill is-review-pill ${
+              statusFilter === STATUSES.PENDING_CONFIRMATION ? 'is-active' : ''
+            }`}
+            onClick={() => setStatusFilter(STATUSES.PENDING_CONFIRMATION)}
           >
-            Review {unconfirmedTickets[0].id}
-            <ChevronRight size={14} />
+            Needs Review
+            <span className="segment-count">{metrics.pendingConfirmation}</span>
           </button>
-        </div>
-      )}
+        )}
 
-      {/* Toolbar */}
-      <div className="card card-pad toolbar">
-        <div className="toolbar-row">
-          <div className="search-field">
-            <Search size={15} />
-            <input
-              type="text"
-              placeholder="Search by ticket ID, keywords or location…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search complaints"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="search-clear"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={statusFilter === STATUSES.RESOLVED}
+          className={`status-segment-pill ${statusFilter === STATUSES.RESOLVED ? 'is-active' : ''}`}
+          onClick={() => setStatusFilter(STATUSES.RESOLVED)}
+        >
+          {STATUS_LABELS[STATUSES.RESOLVED]}
+          <span className="segment-count">{metrics.resolved}</span>
+        </button>
 
-          <div className="toolbar-spacer" />
-
-          <label className="filter-label" htmlFor="sort-select">
-            Sort
-          </label>
-          <select
-            id="sort-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            aria-label="Sort complaints"
+        {metrics.rejected > 0 && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === STATUSES.REJECTED}
+            className={`status-segment-pill ${statusFilter === STATUSES.REJECTED ? 'is-active' : ''}`}
+            onClick={() => setStatusFilter(STATUSES.REJECTED)}
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="priority">Highest priority</option>
-          </select>
-        </div>
+            Rejected
+            <span className="segment-count">{metrics.rejected}</span>
+          </button>
+        )}
+      </div>
 
-        <div className="toolbar-row">
-          <div className="pill-group" role="group" aria-label="Filter by status">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                className={`filter-pill ${statusFilter === f.key ? 'is-active' : ''}`}
-                onClick={() => setStatusFilter(f.key)}
-              >
-                {f.label}
-                {f.key !== 'all' && ` (${statusCounts[f.key] ?? 0})`}
-              </button>
-            ))}
-            {metrics.pendingConfirmation > 0 && (
-              <button
-                type="button"
-                className={`filter-pill ${
-                  statusFilter === STATUSES.PENDING_CONFIRMATION ? 'is-active' : ''
-                }`}
-                onClick={() =>
-                  setStatusFilter(
-                    statusFilter === STATUSES.PENDING_CONFIRMATION
-                      ? 'all'
-                      : STATUSES.PENDING_CONFIRMATION
-                  )
-                }
-              >
-                Needs Confirmation ({metrics.pendingConfirmation})
-              </button>
-            )}
-            {metrics.rejected > 0 && (
-              <button
-                type="button"
-                className={`filter-pill ${statusFilter === STATUSES.REJECTED ? 'is-active' : ''}`}
-                onClick={() =>
-                  setStatusFilter(statusFilter === STATUSES.REJECTED ? 'all' : STATUSES.REJECTED)
-                }
-              >
-                Rejected ({metrics.rejected})
-              </button>
-            )}
-          </div>
-
-          <div className="toolbar-spacer" />
-
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            aria-label="Filter by category"
-          >
-            <option value="all">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            aria-label="Filter by priority"
-          >
-            <option value="all">All Priorities</option>
-            {Object.values(PRIORITIES).map((p) => (
-              <option key={p} value={p}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </option>
-            ))}
-          </select>
-
-          {hasActiveFilters && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>
-              <X size={14} />
-              Clear filters
+      {/* 2. Streamlined Filter Toolbar (Content-on-Canvas) */}
+      <div className="toolbar-row" style={{ marginTop: '12px', marginBottom: '8px' }}>
+        <div className="search-field">
+          <Search size={15} />
+          <input
+            type="text"
+            placeholder="Search by ticket ID, room, or issue..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search complaints"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+            >
+              <X size={13} />
             </button>
           )}
         </div>
+
+        <div className="toolbar-spacer" />
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+          className="toolbar-select"
+        >
+          <option value="all">All Departments</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          aria-label="Filter by priority"
+          className="toolbar-select"
+        >
+          <option value="all">All Priorities</option>
+          {Object.values(PRIORITIES).map((p) => (
+            <option key={p} value={p}>
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          id="sort-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          aria-label="Sort complaints"
+          className="toolbar-select"
+        >
+          <option value="newest">Sort: Newest</option>
+          <option value="oldest">Sort: Oldest</option>
+          <option value="priority">Sort: Priority</option>
+        </select>
+
+        {hasActiveFilters && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>
+            <X size={14} />
+            Clear
+          </button>
+        )}
       </div>
 
-      {/* Results */}
+      {/* 3. Results Feed */}
       {isLoading ? (
         <LoadingState label="Loading complaints…" />
       ) : filteredComplaints.length === 0 ? (
@@ -327,8 +317,8 @@ export default function MyComplaintsList() {
           title={hasActiveFilters ? 'No tickets match your filters' : 'No complaints yet'}
           description={
             hasActiveFilters
-              ? 'Try adjusting your search or clearing the active filters.'
-              : 'When you submit a complaint it will appear here with live status tracking.'
+              ? 'Try adjusting your search query or clearing active filters.'
+              : 'When you submit a service request it will appear here with live tracking.'
           }
         >
           {hasActiveFilters && (
@@ -344,60 +334,87 @@ export default function MyComplaintsList() {
         </EmptyState>
       ) : (
         <div className="complaints-grid">
-          {filteredComplaints.map((item) => (
-            <article key={item.id} className="ticket-card">
-              <div className="ticket-card-top">
-                <TicketId id={item.id} />
-                <div className="ticket-card-badges">
-                  <PriorityBadge priority={item.priority} />
-                  <StatusBadge status={item.status} />
+          {filteredComplaints.map((item) => {
+            const isAwaitingReview = item.status === STATUSES.PENDING_CONFIRMATION;
+
+            return (
+              <article
+                key={item.id}
+                className={`ticket-card ${isAwaitingReview ? 'is-needs-review' : ''}`}
+              >
+                <div className="ticket-card-top">
+                  <TicketId id={item.id} />
+                  <div className="ticket-card-badges">
+                    <PriorityBadge priority={item.priority} />
+                    <StatusBadge status={item.status} />
+                  </div>
                 </div>
-              </div>
 
-              <h3 className="ticket-card-title">{item.title}</h3>
+                <h3 className="ticket-card-title">{item.title}</h3>
 
-              <p className="ticket-card-snippet">
-                {item.description.length > 140
-                  ? `${item.description.substring(0, 140)}…`
-                  : item.description}
-              </p>
+                <p className="ticket-card-snippet">{item.description}</p>
 
-              <div className="ticket-card-meta">
-                <span className="meta-item" title="Category">
-                  <TagIcon size={13} />
-                  {item.category}
-                  {item.subCategory ? ` • ${item.subCategory}` : ''}
-                </span>
-                <span className="meta-item" title="Location">
-                  <MapPin size={13} />
-                  {item.location}
-                </span>
-                <span className="meta-item" title="Filed">
-                  <Clock size={13} />
-                  {formatRelativeTime(item.createdAt)}
-                </span>
-              </div>
-
-              <div className="ticket-card-footer">
-                {item.assignedTo ? (
-                  <span className="handler-line is-assigned">
-                    Assigned to {item.assignedTo.name}
-                  </span>
-                ) : (
-                  <span className="handler-line">Awaiting triage</span>
+                {isAwaitingReview && (
+                  <div className="ticket-action-notice">
+                    <CheckCircle2 size={13} />
+                    <span>Staff marked resolved — review notes and confirm fix</span>
+                  </div>
                 )}
 
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => navigate(`/track?id=${encodeURIComponent(item.id)}`)}
-                >
-                  View Progress
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </article>
-          ))}
+                <div className="ticket-card-meta">
+                  <span className="meta-item" title="Category / Department">
+                    <TagIcon size={13} />
+                    {item.category}
+                    {item.subCategory ? ` · ${item.subCategory}` : ''}
+                  </span>
+                  <span className="meta-item" title="Location">
+                    <MapPin size={13} />
+                    {item.location}
+                  </span>
+                  <span className="meta-item" title="Date filed">
+                    <Clock size={13} />
+                    {formatRelativeTime(item.createdAt)}
+                  </span>
+                </div>
+
+                <div className="ticket-card-footer">
+                  {isAwaitingReview ? (
+                    <span className="handler-line" style={{ color: '#15803d', fontWeight: 600 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                      Action required
+                    </span>
+                  ) : item.assignedTo ? (
+                    <span className="handler-line">
+                      Assigned to <strong>{item.assignedTo.name}</strong>
+                    </span>
+                  ) : (
+                    <span className="handler-line">Awaiting triage</span>
+                  )}
+
+                  {isAwaitingReview ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => navigate(`/track?id=${encodeURIComponent(item.id)}`)}
+                    >
+                      <CheckCircle2 size={13} />
+                      Review & Confirm
+                      <ChevronRight size={13} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => navigate(`/track?id=${encodeURIComponent(item.id)}`)}
+                    >
+                      View Progress
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

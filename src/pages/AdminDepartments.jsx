@@ -29,9 +29,70 @@ const SLA_OPTIONS = [
 const SLA_STORAGE_PREFIX = 'cms_sla_targets_';
 
 export default function AdminDepartments() {
-  const { currentOrg, orgKey, switchOrgTemplate, orgTemplates, categories, availableUsers } =
+  const { currentOrg, orgKey, switchOrgTemplate, orgTemplates, categories, availableUsers, updateOrgSettings } =
     useAuth();
   const { showToast } = useToast();
+
+  // Custom Organization Configuration State
+  const [showOrgConfigModal, setShowOrgConfigModal] = useState(false);
+  const [orgConfigData, setOrgConfigData] = useState({
+    name: currentOrg?.name || '',
+    userTerm: currentOrg?.userTerm || '',
+    staffTerm: currentOrg?.staffTerm || '',
+    locationLabel: currentOrg?.locationLabel || '',
+  });
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+
+  useEffect(() => {
+    if (currentOrg) {
+      setOrgConfigData({
+        name: currentOrg.name || '',
+        userTerm: currentOrg.userTerm || '',
+        staffTerm: currentOrg.staffTerm || '',
+        locationLabel: currentOrg.locationLabel || '',
+      });
+    }
+  }, [currentOrg]);
+
+  const handleSaveOrgConfig = (e) => {
+    e.preventDefault();
+    if (!orgConfigData.name.trim()) {
+      showToast('Organization name cannot be empty', 'error');
+      return;
+    }
+    updateOrgSettings(orgKey, {
+      name: orgConfigData.name.trim(),
+      userTerm: orgConfigData.userTerm.trim() || undefined,
+      staffTerm: orgConfigData.staffTerm.trim() || undefined,
+      locationLabel: orgConfigData.locationLabel.trim() || undefined,
+    });
+    setShowOrgConfigModal(false);
+    showToast('Organization profile updated successfully!', 'success');
+  };
+
+  const handleAddCustomCategory = (e) => {
+    e.preventDefault();
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) return;
+    if (categories.includes(trimmed)) {
+      showToast('Category already exists', 'warning');
+      return;
+    }
+    const updatedCategories = [...categories, trimmed];
+    updateOrgSettings(orgKey, { categories: updatedCategories });
+    setNewCategoryInput('');
+    showToast(`Added category "${trimmed}"`, 'success');
+  };
+
+  const handleRemoveCategory = (catToRemove) => {
+    if (categories.length <= 1) {
+      showToast('At least one category is required', 'warning');
+      return;
+    }
+    const updatedCategories = categories.filter((c) => c !== catToRemove);
+    updateOrgSettings(orgKey, { categories: updatedCategories });
+    showToast(`Removed category "${catToRemove}"`, 'info');
+  };
 
   // Live complaints for workload calculation
   const [complaints, setComplaints] = useState([]);
@@ -215,59 +276,92 @@ export default function AdminDepartments() {
         }
       />
 
-      {/* Org template cards */}
+      {/* Organization Profile & Customization Card */}
       <section className="card card-pad">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Organization Template</h2>
+            <h2 className="card-title">Organization Settings & Terminology</h2>
             <p className="card-subtitle">
-              Adapts categories, terminology and location fields across the workspace.
+              Configure operational categories, labels, and role terminology for {currentOrg.name}.
             </p>
           </div>
-          <span className="context-chip">
-            Active: <strong>{currentOrg.name}</strong>
-          </span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowOrgConfigModal(true)}
+          >
+            <Sliders size={14} />
+            Customize Organization
+          </button>
         </div>
 
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))' }}>
-          {Object.keys(orgTemplates).map((key) => {
-            const tmpl = orgTemplates[key];
-            const isActive = orgKey === key;
+        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))' }}>
+          <div className="metric-card">
+            <span className="metric-icon bg-tone-accent">
+              {getOrgIcon(orgKey)}
+            </span>
+            <div>
+              <div className="priority-name">{currentOrg.name}</div>
+              <div className="cell-sub">Type: {currentOrg.type || 'Organization'}</div>
+            </div>
+          </div>
 
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  if (!isActive) {
-                    switchOrgTemplate(key);
-                    showToast(`Switched to ${tmpl.name}`, 'success');
-                  }
-                }}
-                className={`metric-card is-clickable ${isActive ? 'is-active' : ''}`}
-                style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}
-                aria-pressed={isActive}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span className={`metric-icon ${isActive ? 'bg-tone-accent' : 'bg-tone-neutral'}`}>
-                    {getOrgIcon(key)}
-                  </span>
-                  {isActive && (
-                    <span className="metric-icon bg-tone-accent" style={{ width: 24, height: 24 }}>
-                      <Check size={13} />
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <div className="priority-name">{tmpl.name}</div>
-                  <div className="cell-sub">
-                    {tmpl.userTerm} • {tmpl.locationLabel}
-                  </div>
-                </div>
-                <div className="cell-sub">{tmpl.categories.length} preset categories</div>
+          <div className="metric-card">
+            <div>
+              <div className="priority-name">{currentOrg.userTerm || 'Member'}</div>
+              <div className="cell-sub">Complainant Title</div>
+            </div>
+          </div>
+
+          <div className="metric-card">
+            <div>
+              <div className="priority-name">{currentOrg.staffTerm || 'Staff'}</div>
+              <div className="cell-sub">Resolver Title</div>
+            </div>
+          </div>
+
+          <div className="metric-card">
+            <div>
+              <div className="priority-name">{currentOrg.locationLabel || 'Location'}</div>
+              <div className="cell-sub">Location Field Prompt</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories Pills & Quick Add */}
+        <div style={{ marginTop: 18, borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <span className="field-label" style={{ margin: 0, fontWeight: 600 }}>
+              Operational Categories ({categories.length})
+            </span>
+            <form onSubmit={handleAddCustomCategory} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 auto', maxWidth: 320 }}>
+              <input
+                type="text"
+                placeholder="New Category..."
+                value={newCategoryInput}
+                onChange={(e) => setNewCategoryInput(e.target.value)}
+                style={{ height: 32, fontSize: 13, padding: '0 10px', minWidth: 120, flex: '1 1 120px' }}
+              />
+              <button type="submit" className="btn btn-secondary btn-sm">
+                + Add
               </button>
-            );
-          })}
+            </form>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {categories.map((cat) => (
+              <span key={cat} className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {cat}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveCategory(cat)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                  title="Remove category"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -570,6 +664,85 @@ export default function AdminDepartments() {
                   onChange={(e) => setNewStaffData({ ...newStaffData, phone: e.target.value })}
                 />
               </div>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Configure Organization Modal */}
+      {showOrgConfigModal && (
+        <Modal
+          title="Customize Organization Profile"
+          subtitle={currentOrg.name}
+          onClose={() => setShowOrgConfigModal(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowOrgConfigModal(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" form="org-config-form" className="btn btn-primary">
+                Save Changes
+              </button>
+            </>
+          }
+        >
+          <form id="org-config-form" onSubmit={handleSaveOrgConfig}>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label htmlFor="cfg-org-name" className="field-label" style={{ display: 'block' }}>
+                Organization Name<span className="required-mark">*</span>
+              </label>
+              <input
+                id="cfg-org-name"
+                type="text"
+                required
+                value={orgConfigData.name}
+                onChange={(e) => setOrgConfigData({ ...orgConfigData, name: e.target.value })}
+              />
+            </div>
+
+            <div className="form-grid-2" style={{ marginBottom: 14 }}>
+              <div className="form-group">
+                <label htmlFor="cfg-user-term" className="field-label" style={{ display: 'block' }}>
+                  Member / Complainant Title
+                </label>
+                <input
+                  id="cfg-user-term"
+                  type="text"
+                  placeholder="e.g. Student, Resident, Employee"
+                  value={orgConfigData.userTerm}
+                  onChange={(e) => setOrgConfigData({ ...orgConfigData, userTerm: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="cfg-staff-term" className="field-label" style={{ display: 'block' }}>
+                  Staff / Resolver Title
+                </label>
+                <input
+                  id="cfg-staff-term"
+                  type="text"
+                  placeholder="e.g. Staff, Technician, Engineer"
+                  value={orgConfigData.staffTerm}
+                  onChange={(e) => setOrgConfigData({ ...orgConfigData, staffTerm: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="cfg-loc-label" className="field-label" style={{ display: 'block' }}>
+                Location Field Prompt
+              </label>
+              <input
+                id="cfg-loc-label"
+                type="text"
+                placeholder="e.g. Hostel Block / Room, Flat No, Desk ID"
+                value={orgConfigData.locationLabel}
+                onChange={(e) => setOrgConfigData({ ...orgConfigData, locationLabel: e.target.value })}
+              />
             </div>
           </form>
         </Modal>

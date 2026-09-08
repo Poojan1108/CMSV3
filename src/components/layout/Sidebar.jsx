@@ -28,9 +28,8 @@ import { ROLES } from '../../utils/constants';
  */
 const NAV_CONFIG = {
   [ROLES.STUDENT]: [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: 'exact' },
-    { path: '/complaints/new', label: 'New Complaint', icon: PlusCircle, match: 'exact' },
     { path: '/complaints', label: 'My Complaints', icon: FileText, match: 'exact' },
+    { path: '/complaints/new', label: 'New Complaint', icon: PlusCircle, match: 'exact' },
     { path: '/track', label: 'Track Ticket', icon: Search, match: 'exact' },
   ],
   [ROLES.STAFF]: [
@@ -39,9 +38,8 @@ const NAV_CONFIG = {
     { path: '/staff/resolutions', label: 'Resolution Log', icon: History, match: 'exact' },
   ],
   [ROLES.ADMIN]: [
-    { path: '/admin/dashboard', label: 'Global Dashboard', icon: BarChart3, match: 'exact' },
-    { path: '/admin/analytics', label: 'Analytics', icon: TrendingUp, match: 'exact' },
-    { path: '/admin/departments', label: 'Departments', icon: Building2, match: 'exact' },
+    { path: '/admin/analytics', label: 'Analytics & Governance', icon: BarChart3, match: 'exact' },
+    { path: '/admin/departments', label: 'Departments & SLA', icon: Building2, match: 'exact' },
   ],
 };
 
@@ -59,8 +57,11 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
   const meta = ROLE_META[role] || ROLE_META[ROLES.STUDENT];
   const RoleIcon = meta.icon;
 
-  const isItemActive = (item) =>
-    item.match === 'exact' ? pathname === item.path : pathname.startsWith(item.path);
+  const isItemActive = (item) => {
+    if (item.path === '/complaints' && pathname === '/dashboard') return true;
+    if (item.path === '/admin/analytics' && pathname === '/admin/dashboard') return true;
+    return item.match === 'exact' ? pathname === item.path : pathname.startsWith(item.path);
+  };
 
   return (
     <>

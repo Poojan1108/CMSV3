@@ -6,8 +6,6 @@ import {
   Lock,
   User,
   ShieldCheck,
-  Clock,
-  Cpu,
   ArrowRight,
   ArrowLeft,
   KeyRound,
@@ -30,13 +28,23 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
   const [formError, setFormError] = useState('');
   const [resetSuccessMessage, setResetSuccessMessage] = useState('');
 
-  const { login, signup, resetPassword, userLabel, getRoleTerm } = useAuth();
+  const { login, signup, resetPassword, userLabel, getRoleTerm, orgTemplates, orgKey } = useAuth();
   const { showToast } = useToast();
+
+  // Multi-Tenant Organization Registration State
+  const [selectedOrgKey, setSelectedOrgKey] = useState(orgKey || 'COLLEGE');
+  const [isCreatingNewOrg, setIsCreatingNewOrg] = useState(false);
+  const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgBaseTemplate, setNewOrgBaseTemplate] = useState('COLLEGE');
+  const [newOrgUserTerm, setNewOrgUserTerm] = useState('');
+  const [newOrgLocationLabel, setNewOrgLocationLabel] = useState('');
 
   const resetFormState = () => {
     setFormError('');
     setResetSuccessMessage('');
     setShowPassword(false);
+    setIsCreatingNewOrg(false);
+    setNewOrgName('');
   };
 
   const handleSwitchMode = (mode) => {
@@ -63,13 +71,28 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
           throw new Error('Please provide your full name.');
         }
         if (!email.trim() || !password) {
-          throw new Error('Please provide a valid email and password.');
+          throw new Error('Please enter a valid email and password.');
         }
         if (password.length < 6) {
           throw new Error('Password must be at least 6 characters long.');
         }
-        await signup(email.trim(), password, name.trim(), selectedRole);
-        showToast('Account created successfully! Welcome to ResolveX.', 'success');
+
+        if (isCreatingNewOrg) {
+          if (!newOrgName.trim()) {
+            throw new Error('Please provide an organization name.');
+          }
+          await signup(email.trim(), password, name.trim(), ROLES.ADMIN, null, {
+            name: newOrgName.trim(),
+            baseTemplate: newOrgBaseTemplate,
+            userTerm: newOrgUserTerm.trim() || undefined,
+            locationLabel: newOrgLocationLabel.trim() || undefined,
+          });
+          showToast(`Organization "${newOrgName}" created! Welcome Admin.`, 'success');
+        } else {
+          await signup(email.trim(), password, name.trim(), selectedRole, selectedOrgKey);
+          showToast('Account created successfully! Welcome to ResolveX.', 'success');
+        }
+
         if (onSuccess) onSuccess();
       } else if (authMode === 'forgot-password') {
         if (!email.trim()) {
@@ -91,289 +114,340 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
   };
 
   return (
-    <div className="auth-page-container">
-      {/* Top Left Floating Logo / Home Link */}
-      <div
-        className="auth-header-logo"
+    <div className="auth-canvas">
+      {/* Back to Home Button */}
+      <button
+        type="button"
+        className="auth-floating-back-btn"
         onClick={onBackToHome}
-        role="button"
-        tabIndex={0}
-        aria-label="Back to landing page"
+        aria-label="Back to home"
       >
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="32" height="32" rx="8" fill="var(--bg-landing, #0B0D14)" />
-          <path d="M16 6L25 11.2V20.8L16 26L7 20.8V11.2L16 6Z" stroke="var(--primary, #3b82f6)" strokeWidth="2" />
-          <circle cx="16" cy="16" r="3" fill="var(--text-white, #ffffff)" />
-        </svg>
-        <span className="logo-text">ResolveX</span>
-      </div>
+        <ArrowLeft size={14} />
+        <span>Back to Home</span>
+      </button>
 
-      {/* Top Right Quick Mode Toggles */}
-      <div className="auth-header-actions">
-        {authMode === 'login' && (
-          <>
-            <span className="header-hint">New to ResolveX?</span>
-            <button
-              type="button"
-              className="auth-toggle-btn"
-              onClick={() => handleSwitchMode('signup')}
-            >
-              Sign Up <ArrowRight size={14} style={{ marginLeft: '6px' }} />
-            </button>
-          </>
-        )}
-        {authMode === 'signup' && (
-          <>
-            <span className="header-hint">Already have an account?</span>
-            <button
-              type="button"
-              className="auth-toggle-btn"
-              onClick={() => handleSwitchMode('login')}
-            >
-              Log in <ArrowRight size={14} style={{ marginLeft: '6px' }} />
-            </button>
-          </>
-        )}
-        {authMode === 'forgot-password' && (
-          <button
-            type="button"
-            className="auth-toggle-btn"
-            onClick={() => handleSwitchMode('login')}
-          >
-            <ArrowLeft size={14} style={{ marginRight: '6px' }} /> Back to Log in
-          </button>
-        )}
-      </div>
+      {/* Main 2-Column Split Container (Form on Left, Rounded Card on Right) */}
+      <div className="auth-split-wrapper">
+        {/* Left: Clean Form Area */}
+        <div className="auth-form-column">
+          <div className="auth-form-inner">
+            {/* Header Title & Subtitle */}
+            <div className="auth-header-block">
+              <div
+                className="auth-mobile-brand"
+                onClick={onBackToHome}
+                role="button"
+                tabIndex={0}
+                aria-label="ResolveX Home"
+              >
+                <span className="rx-logo-resolve">Resolve</span>
+                <span className="rx-logo-x">X</span>
+              </div>
 
-      {/* Main Grid Content */}
-      <div className="auth-main-layout">
-        {/* Left Side: Brand Showcase */}
-        <div className="auth-left-brand">
-          <div className="auth-left-content">
-            <div className="auth-hero-text">
-              <h1>
-                Every Complaint.<br />
-                Structured Into<br />
-                <span className="blue-gradient-text">Resolution.</span>
+              <h1 className="auth-main-title">
+                {authMode === 'login' && 'Welcome back!'}
+                {authMode === 'signup' && 'Create account'}
+                {authMode === 'forgot-password' && 'Reset password'}
               </h1>
-              <p>
-                A unified platform to capture, route, track, and resolve complaints across departments
-                with complete transparency and real-time accountability.
+              <p className="auth-main-subtitle">
+                {authMode === 'login' && "Simplify your workflow and boost your productivity with ResolveX. Get started for free."}
+                {authMode === 'signup' && 'Join the ResolveX network to manage community and campus resolutions.'}
+                {authMode === 'forgot-password' && 'Enter your institutional email to receive a secure password recovery link.'}
               </p>
             </div>
 
-            {/* Trust Badges */}
-            <div className="auth-trust-badges-bar">
-              <div className="auth-badge-item">
-                <ShieldCheck size={16} className="badge-icon" />
-                <span>Enterprise Security</span>
-              </div>
-              <div className="auth-badge-item">
-                <Clock size={16} className="badge-icon" />
-                <span>Real-time Tracking</span>
-              </div>
-              <div className="auth-badge-item">
-                <Cpu size={16} className="badge-icon" />
-                <span>Automated Triage</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Centered Floating Card */}
-        <div className="auth-right-form-wrapper">
-          <div className="auth-form-card">
-            {/* Card Header */}
-            <div className="auth-card-title-group">
-              {authMode === 'login' && (
-                <>
-                  <h2>Welcome <span className="blue-gradient-text">Back</span></h2>
-                  <p>Access your complaint management workspace.</p>
-                </>
-              )}
-              {authMode === 'signup' && (
-                <>
-                  <h2>Create <span className="blue-gradient-text">Account</span></h2>
-                  <p>Get started with your complaint management workspace.</p>
-                </>
-              )}
-              {authMode === 'forgot-password' && (
-                <>
-                  <h2>Reset <span className="blue-gradient-text">Password</span></h2>
-                  <p>Enter your email to receive recovery instructions.</p>
-                </>
-              )}
-            </div>
-
-            {/* Inline Error Alert */}
+            {/* Error Alert Box */}
             {formError && (
-              <div className="auth-error-alert" role="alert">
-                <AlertCircle size={16} className="error-icon" />
+              <div className="auth-alert error" role="alert">
+                <AlertCircle size={15} className="auth-alert-icon" />
                 <span>{formError}</span>
               </div>
             )}
 
-            {/* Inline Success Alert (for Password Reset) */}
+            {/* Success Alert Box */}
             {resetSuccessMessage && (
-              <div className="auth-success-alert" role="status">
-                <CheckCircle2 size={16} className="success-icon" />
+              <div className="auth-alert success" role="status">
+                <CheckCircle2 size={15} className="auth-alert-icon" />
                 <span>{resetSuccessMessage}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="auth-form">
-              {/* Name Field on Signup */}
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="auth-form-pill-group">
+              {/* Full Name (Sign Up only) */}
               {authMode === 'signup' && (
-                <div className="form-input-wrapper">
-                  <label htmlFor="auth-name">Full Name</label>
-                  <div className="input-with-icon">
-                    <User size={18} className="input-icon" />
-                    <input
-                      id="auth-name"
-                      type="text"
-                      placeholder="e.g. Alex Chen"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      autoComplete="name"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Role Selection on Signup */}
-              {authMode === 'signup' && (
-                <div className="form-input-wrapper">
-                  <label htmlFor="auth-role">Select Account Type</label>
-                  <div className="input-with-icon">
-                    <select
-                      id="auth-role"
-                      className="auth-select-input"
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      disabled={isLoading}
-                    >
-                      <option value={ROLES.STUDENT}>{userLabel || 'Student / User'}</option>
-                      <option value={ROLES.STAFF}>{getRoleTerm(ROLES.STAFF) || 'Staff Officer'}</option>
-                      <option value={ROLES.ADMIN}>{getRoleTerm(ROLES.ADMIN) || 'System Administrator'}</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Email Field */}
-              <div className="form-input-wrapper">
-                <label htmlFor="auth-email">Email Address</label>
-                <div className="input-with-icon">
-                  <Mail size={18} className="input-icon" />
+                <div className="auth-pill-field">
                   <input
-                    id="auth-email"
-                    type="email"
-                    placeholder="youremail@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="auth-name"
+                    type="text"
+                    className="auth-pill-input"
+                    placeholder="Full Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     required
-                    autoComplete="email"
+                    autoComplete="name"
                     disabled={isLoading}
                   />
                 </div>
-              </div>
+              )}
 
-              {/* Password Field (Only for login and signup) */}
-              {authMode !== 'forgot-password' && (
-                <div className="form-input-wrapper">
-                  <label htmlFor="auth-password">Password</label>
-                  <div className="input-with-icon password-input-container">
-                    <Lock size={18} className="input-icon" />
-                    <input
-                      id="auth-password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder={authMode === 'login' ? 'Enter your password' : 'Create strong password (min 6 chars)'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                      disabled={isLoading}
-                    />
-                    <button
-                      type="button"
-                      className="pwd-toggle-btn"
-                      onClick={() => setShowPassword(!showPassword)}
-                      tabIndex={-1}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-
-                  {authMode === 'login' && (
-                    <button
-                      type="button"
-                      className="forgot-pwd-link-btn"
-                      onClick={() => handleSwitchMode('forgot-password')}
-                      disabled={isLoading}
-                    >
-                      Forgot Password?
-                    </button>
-                  )}
+              {/* Role Selection (Sign Up only) */}
+              {authMode === 'signup' && (
+                <div className="auth-pill-field">
+                  <select
+                    id="auth-role"
+                    className="auth-pill-input auth-pill-select"
+                    value={selectedRole}
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+                      setSelectedRole(newRole);
+                      if (newRole !== ROLES.ADMIN) {
+                        setIsCreatingNewOrg(false);
+                      }
+                    }}
+                    disabled={isLoading}
+                  >
+                    <option value={ROLES.STUDENT}>{userLabel || 'Student / Resident / Member'}</option>
+                    <option value={ROLES.STAFF}>{getRoleTerm(ROLES.STAFF) || 'Staff / Field Technician'}</option>
+                    <option value={ROLES.ADMIN}>{getRoleTerm(ROLES.ADMIN) || 'System Administrator'}</option>
+                  </select>
                 </div>
               )}
 
-              {/* Submit Button */}
+              {/* Organization Selection (Sign Up only) */}
+              {authMode === 'signup' && (
+                <>
+                  <div className="auth-pill-field">
+                    <select
+                      id="auth-org-select"
+                      className="auth-pill-input auth-pill-select"
+                      value={isCreatingNewOrg ? 'CREATE_NEW' : selectedOrgKey}
+                      onChange={(e) => {
+                        if (e.target.value === 'CREATE_NEW') {
+                          setIsCreatingNewOrg(true);
+                          setSelectedRole(ROLES.ADMIN);
+                        } else {
+                          setIsCreatingNewOrg(false);
+                          setSelectedOrgKey(e.target.value);
+                        }
+                      }}
+                      disabled={isLoading}
+                    >
+                      <optgroup label="Join Existing Organization">
+                        {Object.keys(orgTemplates).map((key) => (
+                          <option key={key} value={key}>
+                            {orgTemplates[key]?.name || key} ({orgTemplates[key]?.type || 'organization'})
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Create Organization">
+                        <option value="CREATE_NEW">➕ Register New Organization (Admin)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  {/* New Custom Organization Creation Fields */}
+                  {isCreatingNewOrg && (
+                    <>
+                      <div className="auth-pill-field">
+                        <input
+                          id="auth-new-org-name"
+                          type="text"
+                          className="auth-pill-input"
+                          placeholder="Organization Name (e.g. St. Xavier's University)"
+                          value={newOrgName}
+                          onChange={(e) => setNewOrgName(e.target.value)}
+                          required={isCreatingNewOrg}
+                          disabled={isLoading}
+                        />
+                      </div>
+
+                      <div className="auth-pill-field">
+                        <select
+                          id="auth-new-org-template"
+                          className="auth-pill-input auth-pill-select"
+                          value={newOrgBaseTemplate}
+                          onChange={(e) => setNewOrgBaseTemplate(e.target.value)}
+                          disabled={isLoading}
+                        >
+                          <option value="COLLEGE">🎓 College / University Template</option>
+                          <option value="SOCIETY">🏢 Housing Society Template</option>
+                          <option value="CORPORATE">💼 Corporate Workplace Template</option>
+                          <option value="CUSTOM">⚙️ Custom Setup (Custom terms)</option>
+                        </select>
+                      </div>
+
+                      {newOrgBaseTemplate === 'CUSTOM' && (
+                        <>
+                          <div className="auth-pill-field">
+                            <input
+                              id="auth-custom-user-term"
+                              type="text"
+                              className="auth-pill-input"
+                              placeholder="Member Term (e.g. Resident, Tenant, Client)"
+                              value={newOrgUserTerm}
+                              onChange={(e) => setNewOrgUserTerm(e.target.value)}
+                              disabled={isLoading}
+                            />
+                          </div>
+                          <div className="auth-pill-field">
+                            <input
+                              id="auth-custom-location-label"
+                              type="text"
+                              className="auth-pill-input"
+                              placeholder="Location Label (e.g. Flat No, Cabin No, Desk ID)"
+                              value={newOrgLocationLabel}
+                              onChange={(e) => setNewOrgLocationLabel(e.target.value)}
+                              disabled={isLoading}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Email / Username Field */}
+              <div className="auth-pill-field">
+                <input
+                  id="auth-email"
+                  type="email"
+                  className="auth-pill-input"
+                  placeholder={authMode === 'login' ? 'Username' : 'Institutional Email'}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Password Field */}
+              {authMode !== 'forgot-password' && (
+                <div className="auth-pill-field auth-password-field">
+                  <input
+                    id="auth-password"
+                    type={showPassword ? 'text' : 'password'}
+                    className="auth-pill-input auth-pill-password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle-pill"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              )}
+
+              {/* Forgot Password Link on Right (Login mode only) */}
+              {authMode === 'login' && (
+                <div className="auth-forgot-row">
+                  <button
+                    type="button"
+                    className="auth-forgot-pill-btn"
+                    onClick={() => handleSwitchMode('forgot-password')}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+              )}
+
+              {/* Submit Pill Button */}
               <button
                 type="submit"
-                className="btn btn-primary auth-submit-btn"
+                className="auth-pill-submit-btn"
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={16} className="spin-animation" style={{ marginRight: '8px' }} />
-                    <span>Processing...</span>
+                    <Loader2 size={16} className="auth-spin" />
+                    <span>Please wait...</span>
                   </>
                 ) : (
                   <>
-                    {authMode === 'login' && (
-                      <>
-                        <span>Login</span>
-                        <ArrowRight size={16} />
-                      </>
-                    )}
-                    {authMode === 'signup' && (
-                      <>
-                        <span>Create Account</span>
-                        <ArrowRight size={16} />
-                      </>
-                    )}
-                    {authMode === 'forgot-password' && (
-                      <>
-                        <KeyRound size={16} style={{ marginRight: '6px' }} />
-                        <span>Send Reset Link</span>
-                      </>
-                    )}
+                    {authMode === 'login' && 'Login'}
+                    {authMode === 'signup' && 'Register'}
+                    {authMode === 'forgot-password' && 'Send Recovery Link'}
                   </>
                 )}
               </button>
             </form>
 
-            {/* Back to Login link from Forgot Password */}
-            {authMode === 'forgot-password' && (
-              <div className="auth-card-sublinks">
-                <button
-                  type="button"
-                  className="auth-sublink-btn"
-                  onClick={() => handleSwitchMode('login')}
-                  disabled={isLoading}
-                >
-                  Remembered your password? <strong>Log in</strong>
-                </button>
-              </div>
-            )}
-
-            <div className="auth-footer-note">
-              <span className="note-lock-icon">🔒</span>
-              <span>Protected with Firebase Auth & Supabase RLS</span>
+            {/* Bottom Switcher */}
+            <div className="auth-bottom-switcher">
+              {authMode === 'login' && (
+                <p>
+                  Not a member?{' '}
+                  <button
+                    type="button"
+                    className="auth-switch-pill-link"
+                    onClick={() => handleSwitchMode('signup')}
+                  >
+                    Register now
+                  </button>
+                </p>
+              )}
+              {authMode === 'signup' && (
+                <p>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    className="auth-switch-pill-link"
+                    onClick={() => handleSwitchMode('login')}
+                  >
+                    Login
+                  </button>
+                </p>
+              )}
+              {authMode === 'forgot-password' && (
+                <p>
+                  Remembered your password?{' '}
+                  <button
+                    type="button"
+                    className="auth-switch-pill-link"
+                    onClick={() => handleSwitchMode('login')}
+                  >
+                    Back to Login
+                  </button>
+                </p>
+              )}
             </div>
+          </div>
+        </div>
+
+        {/* Right: Rounded Illustration Card */}
+        <div className="auth-hero-column">
+          <div className="auth-hero-card">
+            {/* Vector Illustration */}
+            <div className="auth-hero-art-wrapper">
+              <img
+                src="/Cabin-bro.svg"
+                alt="ResolveX Workflow & Living"
+                className="auth-hero-vector"
+              />
+            </div>
+
+            {/* Carousel Indicator Dots */}
+            <div className="auth-hero-dots">
+              <span className="auth-dot" />
+              <span className="auth-dot active" />
+              <span className="auth-dot" />
+            </div>
+
+            {/* Tagline Headline */}
+            <h2 className="auth-hero-tagline">
+              Make your work easier and organized with <strong>ResolveX</strong>
+            </h2>
           </div>
         </div>
       </div>

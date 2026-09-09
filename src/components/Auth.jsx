@@ -63,9 +63,9 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
         if (!email.trim() || !password) {
           throw new Error('Please enter both email and password.');
         }
-        await login(email.trim(), password);
+        const loginRes = await login(email.trim(), password);
         showToast('Welcome back! Signed in successfully.', 'success');
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(loginRes?.user);
       } else if (authMode === 'signup') {
         if (!name.trim()) {
           throw new Error('Please provide your full name.');
@@ -77,11 +77,12 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
           throw new Error('Password must be at least 6 characters long.');
         }
 
+        let signupRes;
         if (isCreatingNewOrg) {
           if (!newOrgName.trim()) {
             throw new Error('Please provide an organization name.');
           }
-          await signup(email.trim(), password, name.trim(), ROLES.ADMIN, null, {
+          signupRes = await signup(email.trim(), password, name.trim(), ROLES.ADMIN, null, {
             name: newOrgName.trim(),
             baseTemplate: newOrgBaseTemplate,
             userTerm: newOrgUserTerm.trim() || undefined,
@@ -89,11 +90,11 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
           });
           showToast(`Organization "${newOrgName}" created! Welcome Admin.`, 'success');
         } else {
-          await signup(email.trim(), password, name.trim(), selectedRole, selectedOrgKey);
+          signupRes = await signup(email.trim(), password, name.trim(), selectedRole, selectedOrgKey);
           showToast('Account created successfully! Welcome to ResolveX.', 'success');
         }
 
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(signupRes?.user);
       } else if (authMode === 'forgot-password') {
         if (!email.trim()) {
           throw new Error('Please enter the email address linked to your account.');

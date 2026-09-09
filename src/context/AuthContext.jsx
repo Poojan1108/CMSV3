@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { MOCK_USERS } from '../data/mockData';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   ROLES,
   ORG_TEMPLATES,
@@ -11,12 +10,20 @@ import {
 } from '../utils/constants';
 
 import { authApi } from '../services/api';
+import {
+  supabase,
+  isSupabaseConfigured,
+  getUserProfile,
+  upsertUserProfile,
+  fetchOrgProfiles,
+} from '../services/supabaseClient';
 
 const AuthContext = createContext(null);
 
 const STORAGE_USER_KEY = 'cms_active_user_v1';
 const STORAGE_ORG_KEY = 'cms_active_org_v1';
 const STORAGE_CUSTOM_ORGS_KEY = 'cms_custom_orgs_v1';
+const STORAGE_REGISTERED_USERS_KEY = 'cms_registered_users_v1';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -30,8 +37,24 @@ export const AuthProvider = ({ children }) => {
         }
       }
     }
-    return MOCK_USERS[0];
+    return null;
   });
+
+  // Persistent registry of all users created on this browser/session
+  const [registeredUsers, setRegisteredUsers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_REGISTERED_USERS_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to load registered users', e);
+      }
+    }
+    return [];
+  });
+
+  // Live organization member profiles fetched from Supabase
+  const [orgProfiles, setOrgProfiles] = useState([]);
 
   const [orgTemplates, setOrgTemplates] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -58,6 +81,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
+  // Sync current user to local storage for offline resilience
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(currentUser));
@@ -74,6 +98,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     try {
+      localStorage.setItem(STORAGE_REGISTERED_USERS_KEY, JSON.stringify(registeredUsers));
+    } catch (e) {
+      console.error('Failed to save registered users', e);
+    }
+  }, [registeredUsers]);
+
+  useEffect(() => {
+    try {
       const customOnly = {};
       Object.keys(orgTemplates).forEach((k) => {
         if (!ORG_TEMPLATES[k] || k.startsWith('ORG_') || k === 'CUSTOM') {
@@ -85,6 +117,82 @@ export const AuthProvider = ({ children }) => {
       console.error('Failed to save custom orgs', e);
     }
   }, [orgTemplates]);
+
+  // Fetch live organization profiles from Supabase for staff assignment
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfiles = async () => {
+      if (isSupabaseConfigured && supabase) {
+        const profiles = await fetchOrgProfiles(currentOrgKey);
+        if (isMounted && profiles && profiles.length > 0) {
+          setOrgProfiles(profiles);
+        }
+      }
+    };
+    loadProfiles();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentOrgKey]);
+
+  // Synchronize Supabase Auth session on mount and live auth changes
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    let isMounted = true;
+
+    // Check active session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted || !session?.user) return;
+      const profile = await getUserProfile(session.user.id);
+      const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+      const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
+      const resolvedUser = {
+        id: session.user.id,
+        email: session.user.email,
+        name: profile?.name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+        role,
+        orgKey: org,
+        department: profile?.department || '',
+        avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
+      };
+      setCurrentUser(resolvedUser);
+      if (org) setCurrentOrgKey(org);
+    });
+
+    // Subscribe to Supabase auth events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          const profile = await getUserProfile(session.user.id);
+          const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+          const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
+          const resolvedUser = {
+            id: session.user.id,
+            email: session.user.email,
+            name: profile?.name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            role,
+            orgKey: org,
+            department: profile?.department || '',
+            avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
+          };
+          setCurrentUser(resolvedUser);
+          if (org) setCurrentOrgKey(org);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        localStorage.removeItem(STORAGE_USER_KEY);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [currentOrgKey]);
 
   /**
    * Create a new Custom Organization (Admin creation)
@@ -142,38 +250,81 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     setLoading(true);
     try {
+      const cleanEmail = (email || '').trim().toLowerCase();
       let loggedInUser = null;
-      try {
-        const res = await authApi.login(email, password);
-        if (res && res.user) {
-          loggedInUser = res.user;
+
+      // 1. Primary Authentication: Supabase Auth
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Supabase authentication failed');
         }
-      } catch (apiErr) {
-        console.info('[Auth] Server API offline or unreachable, using local session:', apiErr.message);
+
+        if (data?.user) {
+          const profile = await getUserProfile(data.user.id);
+          const role = (profile?.role || data.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+          const org = profile?.org_key || data.user.user_metadata?.orgKey || currentOrgKey;
+
+          loggedInUser = {
+            id: data.user.id,
+            name: profile?.name || data.user.user_metadata?.name || cleanEmail.split('@')[0],
+            email: data.user.email,
+            role,
+            orgKey: org,
+            department: profile?.department || '',
+            avatar: profile?.avatar_url || data.user.user_metadata?.avatar || null,
+          };
+
+          // Synchronize profile if not yet in database
+          if (!profile) {
+            await upsertUserProfile(loggedInUser);
+          }
+        }
       }
 
-      // Check if email matches any pre-seeded demo mock user
-      const matchedMock = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
-
+      // 2. Fallback Transport: Local registry / API if Supabase offline
       if (!loggedInUser) {
-        loggedInUser = matchedMock || {
-          id: `usr_${Date.now()}`,
-          name: email.split('@')[0],
-          email,
-          role: ROLES.STUDENT,
-          orgKey: currentOrgKey,
-        };
-      } else if (matchedMock) {
-        // Harmonize with mock user profile if logging in with demo account
-        loggedInUser = {
-          ...matchedMock,
-          ...loggedInUser,
-          id: matchedMock.id,
-          role: matchedMock.role,
-        };
+        try {
+          const res = await authApi.login(email, password);
+          if (res && res.user) {
+            loggedInUser = res.user;
+          }
+        } catch (apiErr) {
+          console.info('[Auth] Server API offline, checking local registry:', apiErr.message);
+        }
+
+        const matchedRegistered = registeredUsers.find(
+          (u) => (u.email || '').toLowerCase() === cleanEmail
+        );
+
+        if (!loggedInUser) {
+          if (matchedRegistered) {
+            loggedInUser = { ...matchedRegistered };
+          } else {
+            loggedInUser = {
+              id: `usr_${Date.now()}`,
+              name: cleanEmail.split('@')[0],
+              email: cleanEmail,
+              role: ROLES.STUDENT,
+              orgKey: currentOrgKey,
+            };
+            setRegisteredUsers((prev) => [...prev, loggedInUser]);
+          }
+        } else if (matchedRegistered) {
+          loggedInUser = {
+            ...matchedRegistered,
+            ...loggedInUser,
+            role: matchedRegistered.role || loggedInUser.role,
+            orgKey: matchedRegistered.orgKey || loggedInUser.orgKey || currentOrgKey,
+          };
+        }
       }
 
-      // Normalize role to lowercase
+      // Normalize role
       if (loggedInUser.role) {
         loggedInUser.role = String(loggedInUser.role).toLowerCase();
       }
@@ -200,8 +351,9 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     setLoading(true);
     try {
+      const cleanEmail = (email || '').trim().toLowerCase();
       let effectiveOrgKey = targetOrgKey || currentOrgKey;
-      let effectiveRole = role;
+      let effectiveRole = String(role || ROLES.STUDENT).toLowerCase();
 
       // If user registers a new organization, create it and designate user as Admin
       if (newOrgData && newOrgData.name) {
@@ -211,24 +363,83 @@ export const AuthProvider = ({ children }) => {
       }
 
       let registeredUser = null;
-      try {
-        const res = await authApi.register({ name, email, password, role: effectiveRole, orgKey: effectiveOrgKey });
-        if (res && res.user) {
-          registeredUser = res.user;
+
+      // 1. Primary Registration: Supabase Auth
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              name: name || cleanEmail.split('@')[0],
+              role: effectiveRole,
+              orgKey: effectiveOrgKey,
+            },
+          },
+        });
+
+        if (error) {
+          if (error.message?.toLowerCase().includes('rate limit')) {
+            throw new Error(
+              "Supabase email rate limit exceeded. To fix: Open Supabase Dashboard > Authentication > Providers > Email and turn OFF 'Confirm email'."
+            );
+          }
+          throw new Error(error.message || 'Supabase registration failed');
         }
-      } catch (apiErr) {
-        console.info('[Auth] Server API offline or unreachable, using local session:', apiErr.message);
+
+        if (data?.user) {
+          registeredUser = {
+            id: data.user.id,
+            name: name || cleanEmail.split('@')[0],
+            email: cleanEmail,
+            role: effectiveRole,
+            orgKey: effectiveOrgKey,
+          };
+
+          // Save profile row in public.profiles immediately
+          await upsertUserProfile(registeredUser);
+        }
       }
 
+      // 2. Fallback Transport: Local registry / API if Supabase offline
       if (!registeredUser) {
-        registeredUser = {
-          id: `usr_${Date.now()}`,
-          name: name || email.split('@')[0],
-          email,
-          role: effectiveRole,
-          orgKey: effectiveOrgKey,
-        };
+        try {
+          const res = await authApi.register({
+            name,
+            email: cleanEmail,
+            password,
+            role: effectiveRole,
+            orgKey: effectiveOrgKey,
+          });
+          if (res && res.user) {
+            registeredUser = res.user;
+          }
+        } catch (apiErr) {
+          console.info('[Auth] Server API offline, saving to local registry:', apiErr.message);
+        }
+
+        if (!registeredUser) {
+          registeredUser = {
+            id: `usr_${Date.now()}`,
+            name: name || cleanEmail.split('@')[0],
+            email: cleanEmail,
+            role: effectiveRole,
+            orgKey: effectiveOrgKey,
+          };
+        } else {
+          registeredUser = {
+            ...registeredUser,
+            role: effectiveRole,
+            orgKey: effectiveOrgKey,
+          };
+        }
       }
+
+      // Persist in local registry
+      setRegisteredUsers((prev) => {
+        const filtered = prev.filter((u) => (u.email || '').toLowerCase() !== cleanEmail);
+        return [...filtered, registeredUser];
+      });
 
       setCurrentOrgKey(effectiveOrgKey);
       setCurrentUser(registeredUser);
@@ -246,18 +457,41 @@ export const AuthProvider = ({ children }) => {
    */
   const updateUserRole = async (newRole) => {
     if (!currentUser || !newRole) return;
+    const normalizedRole = String(newRole).toLowerCase();
     const updated = {
       ...currentUser,
-      role: newRole,
+      role: normalizedRole,
     };
     setCurrentUser(updated);
+
+    // Update in Supabase profile
+    if (isSupabaseConfigured && supabase && currentUser.id) {
+      await upsertUserProfile({ id: currentUser.id, role: normalizedRole });
+    }
+
+    // Also update in registeredUsers registry
+    setRegisteredUsers((prev) =>
+      prev.map((u) =>
+        (u.email || '').toLowerCase() === (currentUser.email || '').toLowerCase()
+          ? { ...u, role: normalizedRole }
+          : u
+      )
+    );
   };
 
   /**
-   * Send Password Reset Email (Mock / REST)
+   * Send Password Reset Email
    */
   const resetPassword = async (email) => {
     setAuthError(null);
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+      } catch (err) {
+        console.warn('[Supabase resetPassword Error]:', err.message);
+      }
+    }
     return {
       success: true,
       message: `Password reset instructions sent to ${email}.`,
@@ -268,6 +502,13 @@ export const AuthProvider = ({ children }) => {
    * Logout and clear session
    */
   const logout = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('[Supabase signOut Error]:', e);
+      }
+    }
     setCurrentUser(null);
     localStorage.removeItem(STORAGE_USER_KEY);
   };
@@ -291,6 +532,36 @@ export const AuthProvider = ({ children }) => {
 
   const normalizedRole = (currentUser?.role || ROLES.STUDENT).toLowerCase();
 
+  // Unified roster: live Supabase org profiles + locally registered users (No mock data!)
+  const allAvailableUsers = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+
+    // 1. Supabase live team members
+    orgProfiles.forEach((u) => {
+      if (u.email && !seen.has(u.email.toLowerCase())) {
+        seen.add(u.email.toLowerCase());
+        list.push(u);
+      }
+    });
+
+    // 2. Locally registered users
+    registeredUsers.forEach((u) => {
+      if (u.email && !seen.has(u.email.toLowerCase())) {
+        seen.add(u.email.toLowerCase());
+        list.push(u);
+      }
+    });
+
+    // 3. Current user if active
+    if (currentUser?.email && !seen.has(currentUser.email.toLowerCase())) {
+      seen.add(currentUser.email.toLowerCase());
+      list.push(currentUser);
+    }
+
+    return list;
+  }, [orgProfiles, registeredUsers, currentUser]);
+
   const value = {
     user: currentUser ? { ...currentUser, role: normalizedRole } : null,
     currentUser: currentUser ? { ...currentUser, role: normalizedRole } : null,
@@ -306,7 +577,7 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     logout,
     setUser,
-    availableUsers: MOCK_USERS,
+    availableUsers: allAvailableUsers,
 
     // Dynamic Multi-Tenant Organization State
     currentOrg: activeOrg,

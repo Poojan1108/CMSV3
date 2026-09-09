@@ -1,4 +1,3 @@
-import { INITIAL_COMPLAINTS } from '../data/mockData.js';
 import { generateComplaintsCSV } from '../utils/formatters.js';
 import { ticketApi } from './api.js';
 import {
@@ -128,29 +127,30 @@ async function recordCommentToSupabase(complaintId, comment) {
 }
 
 /**
- * Initializes localStorage with seed complaints if empty.
+ * Initializes localStorage with empty complaints dataset if missing.
  */
 const initStorage = () => {
   if (typeof window === 'undefined') return;
   const existing = localStorage.getItem(STORAGE_KEY);
   if (!existing) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_COMPLAINTS));
-    localStorage.setItem(ID_COUNTER_KEY, '1005');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    localStorage.setItem(ID_COUNTER_KEY, '1000');
   }
 };
 
 /**
  * Retrieves all raw complaints from localStorage.
+ * Returns empty array if no records exist.
  * @returns {Array}
  */
 const getRawComplaints = () => {
   initStorage();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : INITIAL_COMPLAINTS;
+    return raw ? JSON.parse(raw) : [];
   } catch (error) {
     console.error('Failed to read complaints from localStorage:', error);
-    return INITIAL_COMPLAINTS;
+    return [];
   }
 };
 
@@ -322,7 +322,7 @@ export const complaintService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && dbComplaints && dbComplaints.length > 0) {
+        if (!error && Array.isArray(dbComplaints)) {
           const { data: dbComments } = await supabase.from('complaint_comments').select('*');
           const { data: dbHistory } = await supabase.from('complaint_history').select('*');
 
@@ -902,13 +902,13 @@ export const complaintService = {
   },
 
   /**
-   * Resets local storage complaints back to initial mock seed data.
+   * Resets local storage complaints back to a clean empty dataset.
    */
   resetToSeedData: () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_COMPLAINTS));
-    localStorage.setItem(ID_COUNTER_KEY, '1005');
-    notifyLiveChange({ type: 'reset_seed', count: INITIAL_COMPLAINTS.length });
-    return INITIAL_COMPLAINTS;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    localStorage.setItem(ID_COUNTER_KEY, '1000');
+    notifyLiveChange({ type: 'reset_seed', count: 0 });
+    return [];
   },
 
   /**

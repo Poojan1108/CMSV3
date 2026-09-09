@@ -3,7 +3,7 @@
  * Clean REST client communicating with the Fastify + Prisma backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
 
 /**
  * Helper to retrieve stored auth token

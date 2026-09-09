@@ -1794,19 +1794,22 @@
    Form on Left, Rounded Mint Card on Right, 100% Viewport Height
    ========================================================================== */
 .auth-canvas {
-  height: 100vh;
-  max-height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   width: 100vw;
+  max-width: 100%;
   background: #ffffff;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--rx-font-sans);
   color: #0f172a;
   box-sizing: border-box;
-  padding: 20px 40px;
+  padding: 24px 40px;
 }
 
 /* Minimal Floating Back Button */
@@ -2240,11 +2243,12 @@
 
 @media (max-width: 480px) {
   .auth-canvas {
-    padding: 68px 16px 28px;
+    padding: 72px 16px 32px;
   }
 
   .auth-form-inner {
     max-width: 100%;
+    margin-top: 10px;
   }
 
   .auth-main-title {

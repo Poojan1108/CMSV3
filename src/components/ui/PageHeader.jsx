@@ -4,7 +4,7 @@ import React from 'react';
 export default function PageHeader({ eyebrow, icon, title, description, breadcrumb, actions }) {
   return (
     <header className="page-header">
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, width: '100%' }}>
         {breadcrumb}
         {eyebrow && (
           <div>
@@ -14,8 +14,8 @@ export default function PageHeader({ eyebrow, icon, title, description, breadcru
             </span>
           </div>
         )}
-        <h1 className="page-title">{title}</h1>
-        {description && <p className="page-desc">{description}</p>}
+        <h1 className="page-title" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>{title}</h1>
+        {description && <p className="page-desc" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>{description}</p>}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
     </header>

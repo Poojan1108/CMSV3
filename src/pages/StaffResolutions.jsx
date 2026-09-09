@@ -215,6 +215,8 @@ export default function StaffResolutions() {
               </label>
               <select
                 id="transfer-ticket"
+                className="form-select"
+                style={{ width: '100%', minWidth: 0 }}
                 value={selectedTicketId}
                 onChange={(e) => setSelectedTicketId(e.target.value)}
               >
@@ -230,20 +232,24 @@ export default function StaffResolutions() {
             </div>
 
             {activeTicket && (
-              <div className="resolution-summary" style={{ margin: 0 }}>
+              <div className="resolution-summary" style={{ margin: 0, minWidth: 0, overflow: 'hidden' }}>
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: 6,
+                    gap: 8,
+                    flexWrap: 'wrap',
                   }}
                 >
                   <TicketId id={activeTicket.id} />
                   <Tag>{activeTicket.category}</Tag>
                 </div>
-                <div className="comment-author">{activeTicket.title}</div>
-                <div className="cell-sub" style={{ marginTop: 4 }}>
+                <div className="comment-author" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                  {activeTicket.title}
+                </div>
+                <div className="cell-sub" style={{ marginTop: 4, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                   Current handler: {activeTicket.assignedTo?.name || 'Unassigned'} •{' '}
                   {activeTicket.location}
                 </div>
@@ -256,6 +262,8 @@ export default function StaffResolutions() {
               </label>
               <select
                 id="transfer-target"
+                className="form-select"
+                style={{ width: '100%', minWidth: 0 }}
                 value={targetHandlerId}
                 onChange={(e) => setTargetHandlerId(e.target.value)}
               >
@@ -313,8 +321,8 @@ export default function StaffResolutions() {
               <p className="card-subtitle">Audit record of closed complaints</p>
             </div>
 
-            <div className="toolbar-row">
-              <div className="search-field">
+            <div className="toolbar-row" style={{ width: '100%' }}>
+              <div className="search-field" style={{ flex: '1 1 200px' }}>
                 <Search size={13} />
                 <input
                   type="text"
@@ -329,7 +337,8 @@ export default function StaffResolutions() {
                 value={resDeptFilter}
                 onChange={(e) => setResDeptFilter(e.target.value)}
                 aria-label="Filter by category"
-                className="toolbar-select"
+                className="toolbar-select form-select"
+                style={{ flex: '1 1 160px', minWidth: 0 }}
               >
                 <option value="all">All Categories</option>
                 {[...new Set(resolvedComplaints.map((c) => c.category))].map((cat) => (
@@ -359,7 +368,7 @@ export default function StaffResolutions() {
                 return (
                   <article key={ticket.id} className="ticket-card" style={{ height: 'auto' }}>
                     <div className="ticket-card-top">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <div className="ticket-card-badges">
                         <TicketId id={ticket.id} />
                         <Tag>{ticket.category}</Tag>
                         <StatusBadge status={ticket.status} />

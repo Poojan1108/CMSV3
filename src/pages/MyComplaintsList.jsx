@@ -60,17 +60,16 @@ export default function MyComplaintsList() {
         sortBy,
       });
 
-      // Fallback: if studentId has no records, match by email or load demo complaints
-      if ((!list || list.length === 0) && user) {
+      // Match by student ID or student email for clean privacy
+      if ((!list || list.length === 0) && user?.email) {
         const all = complaintService.getAll({ sortBy });
         const byEmail = all.filter(
-          (c) => c.student?.email?.toLowerCase() === user.email?.toLowerCase()
+          (c) =>
+            c.student?.email?.toLowerCase() === user.email?.toLowerCase() ||
+            c.studentEmail?.toLowerCase() === user.email?.toLowerCase() ||
+            c.student_email?.toLowerCase() === user.email?.toLowerCase()
         );
-        if (byEmail.length > 0) {
-          list = byEmail;
-        } else if (all.length > 0) {
-          list = all;
-        }
+        list = byEmail;
       }
       setComplaints(list || []);
     } catch (err) {

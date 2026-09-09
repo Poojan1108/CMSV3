@@ -123,10 +123,10 @@ export const getSlaStatus = (complaint) => {
   let badgeText = '';
   if (isCompleted) {
     badgeText = isBreached
-      ? `SLA Exceeded (+${Math.ceil(elapsedHours - limitHours)}h)`
+      ? `SLA Exceeded (+${Math.max(1, Math.round(elapsedHours - limitHours))}h)`
       : `SLA Compliant (${Math.round(elapsedHours)}h)`;
   } else if (isBreached) {
-    const overdueHours = Math.ceil(elapsedHours - limitHours);
+    const overdueHours = Math.max(1, Math.round(elapsedHours - limitHours));
     badgeText = `SLA Breached (+${overdueHours}h)`;
   } else if (remainingHours < 1) {
     const remainingMins = Math.max(1, Math.round(remainingHours * 60));

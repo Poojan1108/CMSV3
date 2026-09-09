@@ -76,10 +76,11 @@ export default function LandingPage({ initialMode = 'landing' }) {
           setView('landing');
           navigate('/');
         }}
-        onSuccess={() => {
-          if (role === ROLES.ADMIN) {
+        onSuccess={(loggedUser) => {
+          const effectiveRole = (loggedUser?.role || role || ROLES.STUDENT).toLowerCase();
+          if (effectiveRole === ROLES.ADMIN) {
             navigate('/admin/dashboard');
-          } else if (role === ROLES.STAFF) {
+          } else if (effectiveRole === ROLES.STAFF) {
             navigate('/staff/queue');
           } else {
             navigate('/dashboard');

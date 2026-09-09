@@ -43,6 +43,20 @@ const SERIES_CLASSES = [
 
 const seriesClass = (index) => SERIES_CLASSES[index % SERIES_CLASSES.length];
 
+const chipStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '3px 8px',
+  borderRadius: '999px',
+  background: 'var(--app-card-bg-subtle, #f4f4f5)',
+  border: '1px solid var(--app-border-soft, #e4e4e7)',
+  color: 'var(--app-text, #18181b)',
+  fontSize: '11.5px',
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'all 0.15s ease',
+};
+
 export default function AdminAnalytics() {
   const { user, currentOrg, orgKey, availableUsers } = useAuth();
   const { showToast } = useToast();
@@ -297,7 +311,7 @@ export default function AdminAnalytics() {
         title="Telemetry & Institutional Governance"
         description="Comprehensive grievance metrics, resolution performance, and live staff reassignment controls."
         actions={
-          <div className="export-toolbar no-print" style={{ display: 'flex', gap: 8 }}>
+          <div className="export-toolbar no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%' }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
               <FileSpreadsheet size={14} />
               Export CSV
@@ -498,8 +512,8 @@ export default function AdminAnalytics() {
         </div>
 
         {/* Filters */}
-        <div className="toolbar-row" style={{ marginBottom: 16 }}>
-          <div className="search-field">
+        <div className="toolbar-row" style={{ marginBottom: 12, width: '100%' }}>
+          <div className="search-field" style={{ flex: '1 1 220px', minWidth: 0 }}>
             <Search size={15} />
             <input
               type="text"
@@ -526,6 +540,8 @@ export default function AdminAnalytics() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             aria-label="Filter by status"
+            className="toolbar-select form-select"
+            style={{ minWidth: 0 }}
           >
             <option value="all">All Statuses</option>
             {Object.values(STATUSES).map((s) => (
@@ -539,6 +555,8 @@ export default function AdminAnalytics() {
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
             aria-label="Filter by priority"
+            className="toolbar-select form-select"
+            style={{ minWidth: 0 }}
           >
             <option value="all">All Priorities</option>
             {Object.values(PRIORITIES).map((p) => (
@@ -552,6 +570,8 @@ export default function AdminAnalytics() {
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             aria-label="Filter by category"
+            className="toolbar-select form-select"
+            style={{ minWidth: 0 }}
           >
             <option value="all">All Categories</option>
             {categoriesList.map((c) => (
@@ -561,6 +581,94 @@ export default function AdminAnalytics() {
             ))}
           </select>
         </div>
+
+        {/* Active Filter Chips */}
+        {(searchQuery.trim() !== '' || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all') && (
+          <div
+            className="active-filter-chips"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexWrap: 'wrap',
+              marginBottom: '14px',
+              fontSize: '12px',
+              width: '100%',
+              minWidth: 0,
+            }}
+          >
+            <span style={{ color: 'var(--app-text-muted, #71717a)', marginRight: 2 }}>Active:</span>
+
+            {searchQuery.trim() !== '' && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={chipStyle}
+                title="Clear search query"
+              >
+                Search: "{searchQuery.slice(0, 15)}{searchQuery.length > 15 ? '…' : ''}"
+                <X size={12} style={{ marginLeft: 4 }} />
+              </button>
+            )}
+
+            {statusFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                style={chipStyle}
+                title="Clear status filter"
+              >
+                Status: {STATUS_LABELS[statusFilter] || statusFilter}
+                <X size={12} style={{ marginLeft: 4 }} />
+              </button>
+            )}
+
+            {priorityFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setPriorityFilter('all')}
+                style={chipStyle}
+                title="Clear priority filter"
+              >
+                Priority: {PRIORITY_LABELS[priorityFilter] || priorityFilter}
+                <X size={12} style={{ marginLeft: 4 }} />
+              </button>
+            )}
+
+            {categoryFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                style={chipStyle}
+                title="Clear category filter"
+              >
+                Category: {categoryFilter}
+                <X size={12} style={{ marginLeft: 4 }} />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+                setPriorityFilter('all');
+                setCategoryFilter('all');
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--app-accent, #2563eb)',
+                cursor: 'pointer',
+                fontSize: '11.5px',
+                padding: '2px 4px',
+                textDecoration: 'underline',
+              }}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="table-scroll">
@@ -623,7 +731,16 @@ export default function AdminAnalytics() {
                         <>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                             <UserCheck size={13} className="tone-success" />
-                            <span className="cell-main" style={{ maxWidth: 140 }}>
+                            <span
+                              className="cell-main"
+                              style={{
+                                maxWidth: 140,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block',
+                              }}
+                            >
                               {item.assignedTo.name}
                             </span>
                           </div>
@@ -675,8 +792,10 @@ export default function AdminAnalytics() {
           }
         >
           <form id="assign-ticket-form" onSubmit={handleAssignSubmit}>
-            <div className="resolution-summary" style={{ margin: '0 0 16px' }}>
-              <div className="comment-author">{assignmentModalTicket.title}</div>
+            <div className="resolution-summary" style={{ margin: '0 0 16px', minWidth: 0 }}>
+              <div className="comment-author" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                {assignmentModalTicket.title}
+              </div>
               <div className="cell-sub" style={{ marginTop: 4 }}>
                 {assignmentModalTicket.category} • Priority:{' '}
                 {PRIORITY_LABELS[assignmentModalTicket.priority]}
@@ -689,6 +808,8 @@ export default function AdminAnalytics() {
               </label>
               <select
                 id="assignee-select"
+                className="form-select"
+                style={{ width: '100%', minWidth: 0 }}
                 value={selectedAssigneeId}
                 onChange={(e) => setSelectedAssigneeId(e.target.value)}
               >
@@ -708,6 +829,8 @@ export default function AdminAnalytics() {
               </label>
               <textarea
                 id="assign-note"
+                className="form-textarea"
+                style={{ width: '100%', minWidth: 0 }}
                 rows={3}
                 placeholder="Instructions or reason for assignment…"
                 value={reassignReason}

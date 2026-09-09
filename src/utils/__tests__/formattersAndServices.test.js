@@ -28,7 +28,116 @@ class LocalStorageMock {
 }
 
 global.localStorage = new LocalStorageMock();
-global.window = global;
+global.window = {
+  ...global,
+  dispatchEvent: () => true,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  CustomEvent: class CustomEvent {
+    constructor(type, eventInitDict) {
+      this.type = type;
+      this.detail = eventInitDict?.detail;
+    }
+  },
+};
+
+// Standalone test fixture dataset for unit test assertions (Decoupled from production code)
+const TEST_SEED_COMPLAINTS = [
+  {
+    id: 'CMS-2026-1001',
+    title: 'Water leakage in Block B Room 304 restroom pipe',
+    description: 'The sink pipe in Room 304 restroom has been leaking heavily.',
+    category: 'Hostel',
+    priority: PRIORITIES.URGENT,
+    status: STATUSES.IN_PROGRESS,
+    location: 'Hostel Block B, Room 304',
+    createdAt: '2026-07-22T08:30:00.000Z',
+    updatedAt: '2026-07-22T11:15:00.000Z',
+    student: { id: 'usr_student_1', name: 'Alex Chen', email: 'alex.chen@campus.edu' },
+    assignedTo: { id: 'usr_staff_warden', name: 'Dr. Robert Vance', department: 'Hostel Administration' },
+    statusHistory: [
+      { status: STATUSES.PENDING, updatedBy: 'Alex Chen', note: 'Submitted', timestamp: '2026-07-22T08:30:00.000Z' },
+      { status: STATUSES.IN_PROGRESS, updatedBy: 'Dr. Robert Vance', note: 'Assigned plumber', timestamp: '2026-07-22T11:15:00.000Z' },
+    ],
+    comments: [],
+  },
+  {
+    id: 'CMS-2026-1002',
+    title: 'Wi-Fi signal dropping in Central Library 2nd Floor',
+    description: 'Signal keeps dropping every few minutes.',
+    category: 'IT & Wifi',
+    priority: PRIORITIES.HIGH,
+    status: STATUSES.PENDING,
+    location: 'Central Library, 2nd Floor East Wing',
+    createdAt: '2026-07-23T09:00:00.000Z',
+    updatedAt: '2026-07-23T09:00:00.000Z',
+    student: { id: 'usr_student_2', name: 'Liam Patel', email: 'liam.p@campus.edu' },
+    statusHistory: [{ status: STATUSES.PENDING, updatedBy: 'Liam Patel', note: 'Submitted', timestamp: '2026-07-23T09:00:00.000Z' }],
+    comments: [],
+  },
+  {
+    id: 'CMS-2026-1003',
+    title: 'Cafeteria hygiene issue - unwashed utensils',
+    description: 'Plates in main cafeteria had food residue.',
+    category: 'Mess & Food',
+    priority: PRIORITIES.HIGH,
+    status: STATUSES.RESOLVED,
+    location: 'Main Dining Hall, Counter 2',
+    createdAt: '2026-07-21T12:00:00.000Z',
+    updatedAt: '2026-07-21T18:00:00.000Z',
+    resolvedAt: '2026-07-21T18:00:00.000Z',
+    student: { id: 'usr_student_1', name: 'Alex Chen', email: 'alex.chen@campus.edu' },
+    statusHistory: [{ status: STATUSES.PENDING, updatedBy: 'Alex Chen', note: 'Submitted', timestamp: '2026-07-21T12:00:00.000Z' }],
+    comments: [],
+  },
+  {
+    id: 'CMS-2026-1004',
+    title: 'Chemistry Lab 2 exhaust fan stopped functioning',
+    description: 'Fume hood ventilation is not working.',
+    category: 'Sanitation',
+    priority: PRIORITIES.LOW,
+    status: STATUSES.REJECTED,
+    location: 'Science Block C, Lab 204',
+    createdAt: '2026-07-20T14:00:00.000Z',
+    updatedAt: '2026-07-20T16:00:00.000Z',
+    student: { id: 'usr_student_3', name: 'Liam Smith', email: 'liam.s@campus.edu' },
+    statusHistory: [{ status: STATUSES.PENDING, updatedBy: 'Liam Smith', note: 'Submitted', timestamp: '2026-07-20T14:00:00.000Z' }],
+    comments: [],
+  },
+  {
+    id: 'CMS-2026-1005',
+    title: 'Broken window latch in Girls Hostel Block C Room 112',
+    description: 'Window does not lock properly.',
+    category: 'Sanitation',
+    priority: PRIORITIES.MEDIUM,
+    status: STATUSES.PENDING,
+    location: 'Hostel Block C, Room 112',
+    createdAt: '2026-07-24T07:15:00.000Z',
+    updatedAt: '2026-07-24T07:15:00.000Z',
+    student: { id: 'usr_student_4', name: 'Priya Sharma', email: 'priya.s@campus.edu' },
+    statusHistory: [{ status: STATUSES.PENDING, updatedBy: 'Priya Sharma', note: 'Submitted', timestamp: '2026-07-24T07:15:00.000Z' }],
+    comments: [],
+  },
+  {
+    id: 'CMS-2026-1006',
+    title: 'Study table leg broken in Room 304',
+    description: 'Desk wobbling severely.',
+    category: 'Hostel',
+    priority: PRIORITIES.MEDIUM,
+    status: STATUSES.PENDING_CONFIRMATION,
+    location: 'Hostel Block B, Room 304',
+    createdAt: '2026-07-24T10:00:00.000Z',
+    updatedAt: '2026-07-24T14:30:00.000Z',
+    student: { id: 'usr_student_1', name: 'Alex Chen', email: 'alex.chen@campus.edu' },
+    statusHistory: [{ status: STATUSES.PENDING, updatedBy: 'Alex Chen', note: 'Submitted', timestamp: '2026-07-24T10:00:00.000Z' }],
+    comments: [],
+  },
+];
+
+function seedTestComplaints() {
+  localStorage.setItem('cms_complaints_v1', JSON.stringify(TEST_SEED_COMPLAINTS));
+  localStorage.setItem('cms_complaint_counter_v1', '1005');
+}
 
 // Lightweight test framework runner
 let totalTests = 0;
@@ -210,7 +319,7 @@ describe('2. Relative Time Formatter Tests', () => {
 // SUITE 3: Complaint Service - create()
 describe('3. Complaint Service: create()', () => {
   test('validates required fields, sets defaults, generates ticket ID, and persists to LocalStorage', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const inputData = {
       title: 'Water Leakage in Lab',
@@ -241,7 +350,7 @@ describe('3. Complaint Service: create()', () => {
   });
 
   test('increments ticket ID sequence on subsequent creations', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const ticket1 = complaintService.create({ title: 'Issue 1', description: 'Desc 1', category: 'General' });
     const ticket2 = complaintService.create({ title: 'Issue 2', description: 'Desc 2', category: 'General' });
@@ -255,7 +364,7 @@ describe('3. Complaint Service: create()', () => {
 // SUITE 4: Complaint Service - getAll()
 describe('4. Complaint Service: getAll()', () => {
   test('filters complaints by status', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const pending = complaintService.getAll({ status: STATUSES.PENDING });
     expect(pending.length).toBe(2);
@@ -275,19 +384,18 @@ describe('4. Complaint Service: getAll()', () => {
   });
 
   test('filters complaints by category', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const wifiComplaints = complaintService.getAll({ category: 'IT & Wifi' });
     expect(wifiComplaints.length).toBe(1);
     expect(wifiComplaints[0].id).toBe('CMS-2026-1002');
 
     const sanitationComplaints = complaintService.getAll({ category: 'Sanitation' });
-    expect(sanitationComplaints.length).toBe(1);
-    expect(sanitationComplaints[0].id).toBe('CMS-2026-1005');
+    expect(sanitationComplaints.length).toBe(2);
   });
 
   test('filters complaints by priority', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const urgent = complaintService.getAll({ priority: PRIORITIES.URGENT });
     expect(urgent.length).toBe(1);
@@ -298,7 +406,7 @@ describe('4. Complaint Service: getAll()', () => {
   });
 
   test('filters complaints by search query', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const matchTitle = complaintService.getAll({ search: 'restroom' });
     expect(matchTitle.length).toBe(1);
@@ -316,7 +424,7 @@ describe('4. Complaint Service: getAll()', () => {
   });
 
   test('sorts complaints by date and priority', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const newest = complaintService.getAll({ sortBy: 'newest' });
     expect(newest[0].createdAt >= newest[newest.length - 1].createdAt).toBe(true);
@@ -332,7 +440,7 @@ describe('4. Complaint Service: getAll()', () => {
 // SUITE 5: Complaint Service - updateStatus()
 describe('5. Complaint Service: updateStatus()', () => {
   test('updates complaint status, appends audit log to statusHistory, and refreshes timestamp', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const updated = complaintService.updateStatus(
       'CMS-2026-1002',
@@ -355,7 +463,7 @@ describe('5. Complaint Service: updateStatus()', () => {
   });
 
   test('handles string updater and provides default audit note if note is omitted', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const updated = complaintService.updateStatus('CMS-2026-1005', STATUSES.RESOLVED, 'Admin Eleanor');
 
@@ -366,7 +474,7 @@ describe('5. Complaint Service: updateStatus()', () => {
   });
 
   test('returns null for non-existent complaint ID', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const result = complaintService.updateStatus('CMS-9999-9999', STATUSES.RESOLVED, 'Admin');
     expect(result).toBeNull();
   });
@@ -375,7 +483,7 @@ describe('5. Complaint Service: updateStatus()', () => {
 // SUITE 6: Complaint Service - addComment()
 describe('6. Complaint Service: addComment()', () => {
   test('adds public comment with sender metadata', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const senderObj = { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' };
     const updated = complaintService.addComment('CMS-2026-1001', senderObj, 'Any update on the plumber?', false);
@@ -390,7 +498,7 @@ describe('6. Complaint Service: addComment()', () => {
   });
 
   test('adds internal note comment for staff', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const staffObj = { name: 'Dr. Robert Vance', role: ROLES.STAFF, id: 'usr_staff_warden' };
     const updated = complaintService.addComment('CMS-2026-1001', staffObj, 'Internal note: part ordered.', true);
@@ -401,7 +509,7 @@ describe('6. Complaint Service: addComment()', () => {
   });
 
   test('rejects empty or whitespace-only comments', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const senderObj = { name: 'Alex Chen', role: ROLES.STUDENT, id: 'usr_student_1' };
     expect(complaintService.addComment('CMS-2026-1001', senderObj, '', false)).toBeNull();
@@ -410,7 +518,7 @@ describe('6. Complaint Service: addComment()', () => {
   });
 
   test('returns null when adding comment to non-existent ticket ID', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     expect(complaintService.addComment('CMS-9999-9999', 'Alex', 'Test comment')).toBeNull();
   });
 });
@@ -418,7 +526,7 @@ describe('6. Complaint Service: addComment()', () => {
 // SUITE 7: Complaint Service - getStats()
 describe('7. Complaint Service: getStats()', () => {
   test('calculates accurate aggregate metrics from complaints dataset', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const stats = complaintService.getStats();
     expect(stats.total).toBe(6);
@@ -430,7 +538,7 @@ describe('7. Complaint Service: getStats()', () => {
   });
 
   test('updates stats dynamically when new tickets are created', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     complaintService.create({
       title: 'Emergency Generator Failure',
@@ -604,7 +712,7 @@ describe('8. SLA Calculation Helper: getSlaStatus()', () => {
 // SUITE 9: Complaint Service: reassign()
 describe('9. Complaint Service: reassign()', () => {
   test('reassigns ticket to new target assignee, updates assignedTo, updatedAt, statusHistory audit log, and adds internal comment with transfer note', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const targetAssignee = {
       id: 'usr_staff_2',
@@ -647,7 +755,7 @@ describe('9. Complaint Service: reassign()', () => {
   });
 
   test('handles string reassignedBy parameter and omitted transfer reason', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const targetAssignee = {
       id: 'usr_staff_3',
@@ -671,7 +779,7 @@ describe('9. Complaint Service: reassign()', () => {
   });
 
   test('falls back to default reassigner name "Staff" when reassignedBy is null or empty', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const targetAssignee = {
       id: 'usr_staff_4',
@@ -690,7 +798,7 @@ describe('9. Complaint Service: reassign()', () => {
   });
 
   test('returns null when attempting to reassign a non-existent complaint ID', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     const targetAssignee = { id: 'usr_staff_1', name: 'Dr. Vance', department: 'Admin' };
     const result = complaintService.reassign('CMS-9999-9999', targetAssignee, 'Admin');
@@ -699,7 +807,7 @@ describe('9. Complaint Service: reassign()', () => {
   });
 
   test('safely initializes statusHistory and comments arrays if they were missing on target ticket', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
 
     // Manually manipulate raw storage to remove statusHistory & comments from a ticket
     const rawList = JSON.parse(localStorage.getItem('cms_complaints_v1'));
@@ -720,53 +828,47 @@ describe('9. Complaint Service: reassign()', () => {
 
 // SUITE 10: Complaint Service - resetToSeedData()
 describe('10. Admin Functionality: resetToSeedData()', () => {
-  test('restores default seed dataset into LocalStorage and returns INITIAL_COMPLAINTS', () => {
-    localStorage.clear();
+  test('clears complaints dataset in LocalStorage and returns empty array without mock data', () => {
+    seedTestComplaints();
     const result = complaintService.resetToSeedData();
 
     expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(6);
-    expect(result[0].id).toBe('CMS-2026-1001');
+    expect(result.length).toBe(0);
 
     const storedComplaints = JSON.parse(localStorage.getItem('cms_complaints_v1'));
-    expect(storedComplaints.length).toBe(6);
-    expect(storedComplaints[0].id).toBe('CMS-2026-1001');
+    expect(storedComplaints.length).toBe(0);
 
     const counter = localStorage.getItem('cms_complaint_counter_v1');
-    expect(counter).toBe('1005');
+    expect(counter).toBe('1000');
   });
 
-  test('overwrites mutated complaints and modified storage state back to seed defaults', () => {
-    complaintService.resetToSeedData();
+  test('overwrites mutated complaints and modified storage state back to clean empty dataset', () => {
+    seedTestComplaints();
 
-    // Mutate state by creating a new ticket and updating another
+    // Mutate state by creating a new ticket
     complaintService.create({ title: 'Temporary Ticket', description: 'Will be wiped', category: 'General' });
-    complaintService.updateStatus('CMS-2026-1001', STATUSES.RESOLVED, 'Admin');
 
     const beforeReset = complaintService.getAll();
     expect(beforeReset.length).toBe(7);
 
     // Perform Reset
     const afterReset = complaintService.resetToSeedData();
-    expect(afterReset.length).toBe(6);
+    expect(afterReset.length).toBe(0);
 
     const reFetched = complaintService.getAll();
-    expect(reFetched.length).toBe(6);
-    expect(reFetched.find((c) => c.title === 'Temporary Ticket')).toBeFalsy();
-    // CMS-2026-1001 status in seed data is IN_PROGRESS
-    expect(reFetched.find((c) => c.id === 'CMS-2026-1001').status).toBe(STATUSES.IN_PROGRESS);
+    expect(reFetched.length).toBe(0);
   });
 
-  test('restores seed data when LocalStorage has been corrupted or cleared', () => {
+  test('resets dataset cleanly when LocalStorage has been corrupted or cleared', () => {
     localStorage.setItem('cms_complaints_v1', 'CORRUPTED_JSON_STRING!!!');
     localStorage.setItem('cms_complaint_counter_v1', '9999');
 
     const result = complaintService.resetToSeedData();
-    expect(result.length).toBe(6);
+    expect(result.length).toBe(0);
 
     const stored = JSON.parse(localStorage.getItem('cms_complaints_v1'));
-    expect(stored.length).toBe(6);
-    expect(localStorage.getItem('cms_complaint_counter_v1')).toBe('1005');
+    expect(stored.length).toBe(0);
+    expect(localStorage.getItem('cms_complaint_counter_v1')).toBe('1000');
   });
 
   test('ensures ticket creation after reset starts with correct next sequence ID', () => {
@@ -779,7 +881,7 @@ describe('10. Admin Functionality: resetToSeedData()', () => {
     });
 
     const currentYear = new Date().getFullYear();
-    expect(created.id).toBe(`CMS-${currentYear}-1006`);
+    expect(created.id).toBe(`CMS-${currentYear}-1001`);
   });
 });
 
@@ -860,7 +962,7 @@ describe('11. Admin Functionality: CSV Export String Generation', () => {
   });
 
   test('works via complaintService.exportToCSV() method with stored complaints', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const csvOutput = complaintService.exportToCSV();
 
     const lines = csvOutput.split('\n');
@@ -873,35 +975,35 @@ describe('11. Admin Functionality: CSV Export String Generation', () => {
 
 describe('Postel’s Law & Jakob’s Law - Ticket ID Sanitization (getById)', () => {
   test('finds complaint with exact ID', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const found = complaintService.getById('CMS-2026-1001');
     expect(found).toBeTruthy();
     expect(found.id).toBe('CMS-2026-1001');
   });
 
   test('finds complaint with lowercase ID', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const found = complaintService.getById('cms-2026-1001');
     expect(found).toBeTruthy();
     expect(found.id).toBe('CMS-2026-1001');
   });
 
   test('finds complaint with leading hash symbol and whitespace', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const found = complaintService.getById('  #CMS-2026-1002  ');
     expect(found).toBeTruthy();
     expect(found.id).toBe('CMS-2026-1002');
   });
 
   test('finds complaint with numeric suffix lookup (e.g. 1003)', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     const found = complaintService.getById('1003');
     expect(found).toBeTruthy();
     expect(found.id).toBe('CMS-2026-1003');
   });
 
   test('returns null for empty or non-existent ID gracefully', () => {
-    complaintService.resetToSeedData();
+    seedTestComplaints();
     expect(complaintService.getById('')).toBe(null);
     expect(complaintService.getById('   ')).toBe(null);
     expect(complaintService.getById('NON-EXISTENT-9999')).toBe(null);

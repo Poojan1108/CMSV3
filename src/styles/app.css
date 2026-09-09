@@ -386,6 +386,9 @@
   color: var(--app-text);
   margin: 0;
   line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .app-shell .page-desc {
@@ -393,6 +396,9 @@
   color: var(--app-text-secondary);
   margin: 4px 0 0;
   max-width: 640px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .app-shell .page-actions {

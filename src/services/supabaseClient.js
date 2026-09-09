@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
@@ -142,3 +142,110 @@ export async function uploadComplaintAttachment(file, ticketId = 'draft') {
     };
   }
 }
+
+/**
+ * Retrieves the application profile for an authenticated Supabase user.
+ *
+ * @param {string} userId - auth.users UUID
+ * @returns {Promise<object|null>} Profile record or null if not found
+ */
+export async function getUserProfile(userId) {
+  if (!isSupabaseConfigured || !supabase || !userId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Supabase getUserProfile Error]:', error.message);
+      return null;
+    }
+    return data || null;
+  } catch (err) {
+    console.warn('[Supabase getUserProfile Exception]:', err);
+    return null;
+  }
+}
+
+/**
+ * Upserts a profile record in the public.profiles table.
+ *
+ * @param {object} profile - Profile data containing id, name, email, role, org_key
+ * @returns {Promise<object|null>} The saved profile or null
+ */
+export async function upsertUserProfile(profile) {
+  if (!isSupabaseConfigured || !supabase || !profile?.id) return null;
+  try {
+    const payload = {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      role: (profile.role || 'student').toLowerCase(),
+      org_key: profile.org_key || profile.orgKey || 'COLLEGE',
+      department_id: profile.department_id || profile.departmentId || null,
+      avatar_url: profile.avatar_url || profile.avatar || null,
+      phone: profile.phone || null,
+      roll_no: profile.roll_no || profile.rollNo || null,
+      room_no: profile.room_no || profile.room || null,
+      assigned_categories: profile.assigned_categories || profile.assignedCategories || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert([payload], { onConflict: 'id' })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Supabase upsertUserProfile Error]:', error.message);
+      return null;
+    }
+    return data || payload;
+  } catch (err) {
+    console.warn('[Supabase upsertUserProfile Exception]:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetches all registered member profiles within a given organization.
+ * Used to populate live staff reassignment dropdowns and department rosters.
+ *
+ * @param {string} [orgKey='COLLEGE'] - Organization key
+ * @returns {Promise<Array>} Array of normalized profile objects
+ */
+export async function fetchOrgProfiles(orgKey = 'COLLEGE') {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    let query = supabase.from('profiles').select('*');
+    if (orgKey && orgKey !== 'ALL') {
+      query = query.eq('org_key', orgKey);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[Supabase fetchOrgProfiles Error]:', error.message);
+      return [];
+    }
+    return (data || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      role: (p.role || 'student').toLowerCase(),
+      orgKey: p.org_key,
+      department: p.department_name || '',
+      departmentId: p.department_id,
+      avatar: p.avatar_url,
+      phone: p.phone,
+      rollNo: p.roll_no,
+      room: p.room_no,
+      assignedCategories: p.assigned_categories || [],
+    }));
+  } catch (err) {
+    console.warn('[Supabase fetchOrgProfiles Exception]:', err);
+    return [];
+  }
+}
+

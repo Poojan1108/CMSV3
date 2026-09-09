@@ -80,7 +80,7 @@ export default function MobileReportIssueIllustration() {
         <text x="281" y="163" fill="#94a3b8" fontSize="7.5" fontWeight="500" fontFamily="system-ui, sans-serif">Electrical</text>
 
         {/* 2. Issue Details: Clean, Airy & Perfectly Scaled */}
-        <text x="184" y="188" fill="#94a3b8" fontSize="6.5" fontWeight="700" textTransform="uppercase" letterSpacing="0.8" fontFamily="system-ui, sans-serif">ISSUE DETAILS</text>
+        <text x="184" y="188" fill="#94a3b8" fontSize="6.5" fontWeight="700" letterSpacing="0.8" fontFamily="system-ui, sans-serif">ISSUE DETAILS</text>
         <text x="184" y="202" fill="#0f172a" fontSize="9" fontWeight="700" fontFamily="system-ui, sans-serif">Water tap leaking</text>
         <text x="184" y="213" fill="#64748b" fontSize="7" fontWeight="400" fontFamily="system-ui, sans-serif">Sink faucet dripping continuously</text>
         

@@ -334,15 +334,16 @@ export default function AdminDepartments() {
             <span className="field-label" style={{ margin: 0, fontWeight: 600 }}>
               Operational Categories ({categories.length})
             </span>
-            <form onSubmit={handleAddCustomCategory} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 auto', maxWidth: 320 }}>
+            <form onSubmit={handleAddCustomCategory} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 auto', maxWidth: '100%', minWidth: 0 }}>
               <input
                 type="text"
+                className="form-input"
                 placeholder="New Category..."
                 value={newCategoryInput}
                 onChange={(e) => setNewCategoryInput(e.target.value)}
-                style={{ height: 32, fontSize: 13, padding: '0 10px', minWidth: 120, flex: '1 1 120px' }}
+                style={{ height: 32, fontSize: 13, padding: '0 10px', minWidth: 0, flex: '1 1 120px' }}
               />
-              <button type="submit" className="btn btn-secondary btn-sm">
+              <button type="submit" className="btn btn-secondary btn-sm" style={{ flexShrink: 0 }}>
                 + Add
               </button>
             </form>
@@ -480,22 +481,22 @@ export default function AdminDepartments() {
                     </div>
 
                     {/* Contact */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <span className="meta-item" style={{ fontSize: 12 }}>
-                        <Mail size={12} />
-                        {staff.email}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                      <span className="meta-item" style={{ fontSize: 12, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0 }}>
+                        <Mail size={12} style={{ flexShrink: 0 }} />
+                        <span style={{ minWidth: 0, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{staff.email}</span>
                       </span>
                       {staff.phone && (
                         <span className="meta-item" style={{ fontSize: 12 }}>
-                          <Phone size={12} />
-                          {staff.phone}
+                          <Phone size={12} style={{ flexShrink: 0 }} />
+                          <span>{staff.phone}</span>
                         </span>
                       )}
                     </div>
 
                     {/* Categories */}
                     {staff.assignedCategories.length > 0 && (
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div className="meta-cell-label" style={{ marginBottom: 6 }}>
                           Assigned Categories
                         </div>
@@ -510,15 +511,16 @@ export default function AdminDepartments() {
                     )}
 
                     {/* Footer */}
-                    <div className="ticket-card-footer">
+                    <div className="ticket-card-footer" style={{ flexWrap: 'wrap', gap: 8 }}>
                       <span
                         className={`handler-line ${
                           workload > 0 ? 'tone-warning' : 'tone-success'
                         }`}
+                        style={{ minWidth: 0 }}
                       >
                         {workload} active ticket{workload === 1 ? '' : 's'}
                       </span>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
@@ -617,6 +619,8 @@ export default function AdminDepartments() {
               <input
                 id="new-staff-name"
                 type="text"
+                className="form-input"
+                style={{ width: '100%' }}
                 required
                 placeholder="e.g. Marcus Brody"
                 value={newStaffData.name}
@@ -631,6 +635,8 @@ export default function AdminDepartments() {
               <input
                 id="new-staff-email"
                 type="email"
+                className="form-input"
+                style={{ width: '100%' }}
                 required
                 placeholder="m.brody@organization.edu"
                 value={newStaffData.email}
@@ -646,6 +652,8 @@ export default function AdminDepartments() {
                 <input
                   id="new-staff-dept"
                   type="text"
+                  className="form-input"
+                  style={{ width: '100%' }}
                   placeholder="Facilities / IT / Security"
                   value={newStaffData.department}
                   onChange={(e) => setNewStaffData({ ...newStaffData, department: e.target.value })}
@@ -659,6 +667,8 @@ export default function AdminDepartments() {
                 <input
                   id="new-staff-phone"
                   type="tel"
+                  className="form-input"
+                  style={{ width: '100%' }}
                   placeholder="+1 555 000 0000"
                   value={newStaffData.phone}
                   onChange={(e) => setNewStaffData({ ...newStaffData, phone: e.target.value })}
@@ -698,6 +708,8 @@ export default function AdminDepartments() {
               <input
                 id="cfg-org-name"
                 type="text"
+                className="form-input"
+                style={{ width: '100%' }}
                 required
                 value={orgConfigData.name}
                 onChange={(e) => setOrgConfigData({ ...orgConfigData, name: e.target.value })}
@@ -712,6 +724,8 @@ export default function AdminDepartments() {
                 <input
                   id="cfg-user-term"
                   type="text"
+                  className="form-input"
+                  style={{ width: '100%' }}
                   placeholder="e.g. Student, Resident, Employee"
                   value={orgConfigData.userTerm}
                   onChange={(e) => setOrgConfigData({ ...orgConfigData, userTerm: e.target.value })}
@@ -725,6 +739,8 @@ export default function AdminDepartments() {
                 <input
                   id="cfg-staff-term"
                   type="text"
+                  className="form-input"
+                  style={{ width: '100%' }}
                   placeholder="e.g. Staff, Technician, Engineer"
                   value={orgConfigData.staffTerm}
                   onChange={(e) => setOrgConfigData({ ...orgConfigData, staffTerm: e.target.value })}
@@ -739,6 +755,8 @@ export default function AdminDepartments() {
               <input
                 id="cfg-loc-label"
                 type="text"
+                className="form-input"
+                style={{ width: '100%' }}
                 placeholder="e.g. Hostel Block / Room, Flat No, Desk ID"
                 value={orgConfigData.locationLabel}
                 onChange={(e) => setOrgConfigData({ ...orgConfigData, locationLabel: e.target.value })}

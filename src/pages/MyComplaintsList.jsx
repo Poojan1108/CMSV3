@@ -55,6 +55,7 @@ export default function MyComplaintsList() {
 
   const loadUserComplaints = async () => {
     try {
+      await complaintService.syncFromSupabase();
       let list = complaintService.getAll({
         studentId: user?.id,
         sortBy,
@@ -84,9 +85,14 @@ export default function MyComplaintsList() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     setIsLoading(true);
-    loadUserComplaints();
-    setIsLoading(false);
+    loadUserComplaints().finally(() => {
+      if (isMounted) setIsLoading(false);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [user, sortBy]);
 
   // Real-time live synchronization: instantly updates complaint list and status badges

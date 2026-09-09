@@ -79,15 +79,32 @@ export default function AdminAnalytics() {
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     setIsLoading(true);
-    try {
-      setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
-    } catch (err) {
-      console.error('Failed to load analytics complaints:', err);
-      showToast('Failed to load system analytics', 'error');
-    } finally {
-      setIsLoading(false);
-    }
+
+    const loadLiveAnalytics = async () => {
+      try {
+        const data = await complaintService.fetchComplaints({ org: orgKey, sortBy: 'newest' });
+        if (isMounted) {
+          setComplaints(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load analytics complaints:', err);
+        if (isMounted) {
+          showToast('Failed to load system analytics', 'error');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadLiveAnalytics();
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKey]);
 

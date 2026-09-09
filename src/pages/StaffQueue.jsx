@@ -106,11 +106,11 @@ export default function StaffQueue() {
     }
   }, [location.pathname]);
 
-  const loadComplaints = () => {
+  const loadComplaints = async () => {
     setIsLoading(true);
     try {
-      const data = complaintService.getAll({ org: orgKey, sortBy });
-      setComplaints(data);
+      const data = await complaintService.fetchComplaints({ org: orgKey, sortBy });
+      setComplaints(data || []);
 
       if (selectedTicket) {
         const refreshed = complaintService.getById(selectedTicket.id);

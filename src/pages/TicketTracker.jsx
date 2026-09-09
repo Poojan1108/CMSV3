@@ -76,27 +76,40 @@ export default function TicketTracker() {
   const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
 
   useEffect(() => {
-    try {
-      let myTickets = complaintService.getAll({ studentId: user?.id });
-      if (!myTickets || myTickets.length === 0) {
-        myTickets = complaintService.getAll();
-      }
-      setUserComplaintsList(myTickets);
+    let isMounted = true;
 
-      if (ticketIdParam) {
-        const found = complaintService.getById(ticketIdParam);
-        setComplaint(found || myTickets[0] || null);
-        setLookupId(found ? found.id : ticketIdParam);
-      } else if (myTickets.length > 0) {
-        setComplaint(myTickets[0]);
-        setLookupId(myTickets[0].id);
-        setSearchParams({ id: myTickets[0].id }, { replace: true });
-      } else {
-        setComplaint(null);
+    const loadTrackerData = async () => {
+      try {
+        await complaintService.syncFromSupabase();
+        if (!isMounted) return;
+
+        let myTickets = complaintService.getAll({ studentId: user?.id });
+        if (!myTickets || myTickets.length === 0) {
+          myTickets = complaintService.getAll();
+        }
+        setUserComplaintsList(myTickets);
+
+        if (ticketIdParam) {
+          const found = complaintService.getById(ticketIdParam);
+          setComplaint(found || myTickets[0] || null);
+          setLookupId(found ? found.id : ticketIdParam);
+        } else if (myTickets.length > 0) {
+          setComplaint(myTickets[0]);
+          setLookupId(myTickets[0].id);
+          setSearchParams({ id: myTickets[0].id }, { replace: true });
+        } else {
+          setComplaint(null);
+        }
+      } catch (err) {
+        console.error('Error fetching ticket tracker data:', err);
       }
-    } catch (err) {
-      console.error('Error fetching ticket tracker data:', err);
-    }
+    };
+
+    loadTrackerData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [ticketIdParam, user, setSearchParams]);
 
   // Real-time live synchronization: reacts to new comments, status transitions, and Supabase WebSocket events
@@ -123,10 +136,16 @@ export default function TicketTracker() {
     };
   }, [complaint?.id, ticketIdParam, user?.id]);
 
-  const handleLookupSubmit = (e) => {
+  const handleLookupSubmit = async (e) => {
     e.preventDefault();
     if (!lookupId.trim()) return;
-    const found = complaintService.getById(lookupId.trim());
+
+    let found = complaintService.getById(lookupId.trim());
+    if (!found) {
+      await complaintService.syncFromSupabase();
+      found = complaintService.getById(lookupId.trim());
+    }
+
     if (found) {
       setComplaint(found);
       setLookupId(found.id);

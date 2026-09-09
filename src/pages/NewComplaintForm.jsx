@@ -290,6 +290,10 @@ export default function NewComplaintForm() {
         currentOrg: orgKey,
       });
 
+      if (created?._syncPromise) {
+        await created._syncPromise;
+      }
+
       clearDraft();
       showToast(`Ticket ${created.id} submitted successfully`, 'success');
       navigate('/complaints');

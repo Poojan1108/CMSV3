@@ -57,7 +57,7 @@ function notifyLiveChange(detail = {}) {
  * Background upsert of complaint record into Supabase
  */
 async function syncComplaintToSupabase(complaint) {
-  if (!isSupabaseConfigured || !supabase || !complaint) return;
+  if (!isSupabaseConfigured || !supabase || !complaint) return { success: false };
   try {
     const payload = {
       id: complaint.id,
@@ -76,10 +76,18 @@ async function syncComplaintToSupabase(complaint) {
       student_meta: complaint.student || {},
       assigned_to: complaint.assignedTo || null,
       resolution_details: complaint.resolutionDetails || null,
+      org_key: complaint.org || complaint.currentOrg || 'COLLEGE',
+      attachments: complaint.attachments || [],
     };
-    await supabase.from('complaints').upsert([payload], { onConflict: 'id' });
+    const { data, error } = await supabase.from('complaints').upsert([payload], { onConflict: 'id' }).select();
+    if (error) {
+      console.warn('[Supabase Sync Complaint Error]:', error.message || error);
+      return { success: false, error };
+    }
+    return { success: true, data };
   } catch (err) {
     console.warn('[Supabase Sync Complaint Error]:', err);
+    return { success: false, error: err };
   }
 }
 
@@ -198,9 +206,11 @@ if (typeof window !== 'undefined') {
           priority: row.priority,
           status: row.status,
           location: row.location,
+          org: row.org_key || 'COLLEGE',
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           resolvedAt: row.resolved_at,
+          attachments: row.attachments || [],
           student: row.student_meta || {
             id: row.student_id,
             name: row.student_name,
@@ -356,9 +366,11 @@ export const complaintService = {
               priority: row.priority,
               status: row.status,
               location: row.location,
+              org: row.org_key || 'COLLEGE',
               createdAt: row.created_at,
               updatedAt: row.updated_at,
               resolvedAt: row.resolved_at,
+              attachments: row.attachments || [],
               student: row.student_meta || {
                 id: row.student_id,
                 name: row.student_name,
@@ -398,6 +410,20 @@ export const complaintService = {
       // Remote API unreachable: serve local storage smoothly
     }
     return getRawComplaints();
+  },
+
+  /**
+   * Asynchronously sync with Supabase and fetch filtered complaints
+   * @param {Object} filters
+   * @returns {Promise<Array>}
+   */
+  fetchComplaints: async (filters = {}) => {
+    try {
+      await complaintService.syncFromSupabase();
+    } catch (err) {
+      console.warn('[complaintService.fetchComplaints] Supabase sync warning:', err);
+    }
+    return complaintService.getAll(filters);
   },
 
   /**
@@ -526,10 +552,10 @@ export const complaintService = {
       updatedAt: now,
       student: data.student || {
         id: 'usr_student_1',
-        name: 'Alex Chen',
-        email: 'alex.chen@campus.edu',
-        rollNo: 'CS-2024-042',
-        room: 'Block B - 304',
+        name: userLabel,
+        email: '',
+        rollNo: '',
+        room: data.location || locationLabel,
       },
       assignedTo: null,
       statusHistory: [
@@ -548,14 +574,20 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'create', complaint: newComplaint, id: newId });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(newComplaint);
-    recordStatusHistoryToSupabase(
-      newId,
-      STATUSES.PENDING,
-      data.student?.name || userLabel,
-      'Complaint registered in system.'
-    );
+    // Sync to Supabase & history in background while attaching promise for awaiters
+    const syncPromise = Promise.all([
+      syncComplaintToSupabase(newComplaint),
+      recordStatusHistoryToSupabase(
+        newId,
+        STATUSES.PENDING,
+        data.student?.name || userLabel,
+        'Complaint registered in system.'
+      ),
+    ]).catch((err) => {
+      console.warn('[complaintService.create] Sync warning:', err);
+    });
+
+    newComplaint._syncPromise = syncPromise;
 
     // Background sync to API backend
     ticketApi.create(newComplaint).catch(() => {});

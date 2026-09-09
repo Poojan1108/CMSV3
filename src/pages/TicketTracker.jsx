@@ -237,27 +237,55 @@ export default function TicketTracker() {
   );
 
   return (
-    <div className="page-stack">
+    <div
+      className="page-stack"
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Master Ticket Bar */}
-      <div className="card card-pad master-ticket-bar" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <Link to="/complaints" className="btn btn-ghost btn-sm" style={{ paddingLeft: 0 }}>
+      <div
+        className="card card-pad master-ticket-bar"
+        style={{
+          padding: 'clamp(12px, 3vw, 16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+          <Link to="/complaints" className="btn btn-ghost btn-sm" style={{ paddingLeft: 0, flexShrink: 0 }}>
             <ArrowLeft size={15} />
             Back to Complaints
           </Link>
-          <span style={{ color: 'var(--app-border-strong)' }}>|</span>
+          <span style={{ color: 'var(--app-border-strong)', flexShrink: 0 }}>|</span>
           {complaint && (
-            <>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <TicketId id={complaint.id} />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={handleCopyId} title="Copy ticket ID">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleCopyId}
+                title="Copy ticket ID"
+                style={{ height: 32, padding: '0 8px' }}
+              >
                 {copiedId ? <Check size={13} style={{ color: 'var(--app-success)' }} /> : <Copy size={13} />}
                 {copiedId ? 'Copied' : 'Copy'}
               </button>
-            </>
+            </div>
           )}
         </div>
 
-        <form onSubmit={handleLookupSubmit} className="search-field tracker-jump-search" style={{ margin: 0 }}>
+        <form onSubmit={handleLookupSubmit} className="search-field tracker-jump-search" style={{ margin: 0, minWidth: 0 }}>
           <Search size={14} />
           <input
             type="text"
@@ -275,15 +303,31 @@ export default function TicketTracker() {
           title="Ticket not found"
           description={`No complaint matched "${lookupId}". Check the ID or select one from your list.`}
         >
-          <Link to="/complaints" className="btn btn-primary">
+          <Link to="/complaints" className="btn btn-primary" style={{ minHeight: 42, display: 'inline-flex', alignItems: 'center' }}>
             View All Complaints
           </Link>
         </EmptyState>
       ) : (
         <>
           {/* Linear / Stripe-grade Milestone Stepper Rail */}
-          <div className="tracker-milestones-card">
-            <div className="tracker-milestones-header">
+          <div
+            className="tracker-milestones-card"
+            style={{
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+            }}
+          >
+            <div
+              className="tracker-milestones-header"
+              style={{
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box',
+              }}
+            >
               <div>
                 <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--app-text-muted)' }}>
                   Resolution Journey
@@ -294,10 +338,10 @@ export default function TicketTracker() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--app-text-secondary)' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--app-text-secondary)', flexShrink: 0 }}>
                   {Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}% Complete
                 </span>
-                <div style={{ width: 110 }} className="milestone-progress-bar-track">
+                <div style={{ width: 110, maxWidth: '100%' }} className="milestone-progress-bar-track">
                   <div
                     className="milestone-progress-bar-fill"
                     style={{
@@ -308,7 +352,7 @@ export default function TicketTracker() {
               </div>
             </div>
 
-            <div className="milestone-stages-grid">
+            <div className="milestone-stages-grid" style={{ width: '100%', minWidth: 0 }}>
               {TIMELINE_STAGES.map((stage, idx) => {
                 const isCompleted = idx < currentStageIndex;
                 const isCurrent = idx === currentStageIndex;
@@ -323,14 +367,23 @@ export default function TicketTracker() {
                   <div
                     key={stage.key}
                     className={`milestone-stage-cell ${isCompleted ? 'is-completed' : ''} ${isCurrent ? 'is-current' : ''} ${isUpcoming ? 'is-upcoming' : ''}`}
+                    style={{ minWidth: 0 }}
                   >
                     <div className="milestone-node-badge">
                       {isCompleted ? <Check size={14} /> : isCurrent ? <span style={{ width: 8, height: 8, borderRadius: 999, background: '#ffffff' }} /> : idx + 1}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, width: '100%' }}>
-                      <span className="milestone-title">{stage.label}</span>
-                      <span className="milestone-time-desc">{stageDesc}</span>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minWidth: 0,
+                        flex: 1,
+                        textAlign: 'inherit',
+                      }}
+                    >
+                      <span className="milestone-title" style={{ textAlign: 'inherit' }}>{stage.label}</span>
+                      <span className="milestone-time-desc" style={{ textAlign: 'inherit' }}>{stageDesc}</span>
                     </div>
                   </div>
                 );
@@ -339,59 +392,89 @@ export default function TicketTracker() {
           </div>
 
           {/* 2-Column Split Workspace */}
-          <div className="detail-layout tracker-detail-layout">
+          <div
+            className="detail-layout tracker-detail-layout"
+            style={{
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+            }}
+          >
             {/* LEFT COLUMN: Specifications & Evidence */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <section className="card card-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+              <section
+                className="card card-pad"
+                style={{
+                  padding: 'clamp(14px, 4vw, 20px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)' }}>
                     Ticket Specifications
                   </span>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <PriorityBadge priority={complaint.priority} />
                     <StatusBadge status={complaint.status} />
                   </div>
                 </div>
 
-                <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>
+                <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--app-text)', margin: 0, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                   {complaint.title}
                 </h1>
-                <p style={{ fontSize: 13.5, color: 'var(--app-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: 13.5, color: 'var(--app-text-secondary)', lineHeight: 1.5, margin: 0, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                   {complaint.description}
                 </p>
 
                 {complaint.priority === PRIORITIES.URGENT && complaint.urgencyJustification && (
-                  <div className="callout callout-danger" style={{ marginTop: 6 }}>
-                    <AlertTriangle size={15} />
-                    <div>
-                      <span className="callout-title">Urgency Justification</span>
-                      {complaint.urgencyJustification}
+                  <div
+                    className="callout callout-danger"
+                    style={{
+                      marginTop: 8,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                    }}
+                  >
+                    <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 2, color: 'var(--app-danger)' }} />
+                    <div style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      <span className="callout-title" style={{ fontWeight: 600, marginBottom: 2 }}>Urgency Justification</span>
+                      <span>{complaint.urgencyJustification}</span>
                     </div>
                   </div>
                 )}
 
-                <div className="meta-grid" style={{ marginTop: 8, borderTop: '1px solid var(--app-border-soft)', paddingTop: 12 }}>
-                  <div>
+                <div className="meta-grid" style={{ marginTop: 8, borderTop: '1px solid var(--app-border-soft)', paddingTop: 12, width: '100%', minWidth: 0 }}>
+                  <div style={{ minWidth: 0 }}>
                     <span className="meta-cell-label">Department</span>
-                    <span className="meta-cell-value">
+                    <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>
                       {complaint.category}
                       {complaint.subCategory ? ` · ${complaint.subCategory}` : ''}
                     </span>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span className="meta-cell-label">Location</span>
-                    <span className="meta-cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <MapPin size={13} className="tone-accent" />
-                      {complaint.location}
+                    <span className="meta-cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, wordBreak: 'break-word' }}>
+                      <MapPin size={13} className="tone-accent" style={{ flexShrink: 0 }} />
+                      <span>{complaint.location}</span>
                     </span>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span className="meta-cell-label">Filed Date</span>
                     <span className="meta-cell-value">{formatDate(complaint.createdAt)}</span>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span className="meta-cell-label">Reporter</span>
-                    <span className="meta-cell-value">
+                    <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>
                       {complaint.isAnonymous ? (
                         <span className="anon-chip">
                           <Lock size={12} /> Anonymous
@@ -406,8 +489,20 @@ export default function TicketTracker() {
 
               {/* Attached Media & Photos Evidence */}
               {complaint.attachments && complaint.attachments.length > 0 && (
-                <section className="card card-pad" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <section
+                  className="card card-pad"
+                  style={{
+                    padding: 'clamp(14px, 4vw, 20px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Camera size={14} className="tone-accent" />
                       Attached Photos & Evidence ({complaint.attachments.length})
@@ -415,7 +510,7 @@ export default function TicketTracker() {
                     <span style={{ fontSize: 11, color: 'var(--app-text-muted)' }}>Click photo to inspect</span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 130px), 1fr))', gap: 10, width: '100%', minWidth: 0 }}>
                     {complaint.attachments.map((att, idx) => (
                       <div
                         key={att.id || idx}
@@ -493,20 +588,29 @@ export default function TicketTracker() {
               )}
 
               {/* Assigned Technician Card */}
-              <section className="card card-pad" style={{ padding: '16px 20px' }}>
+              <section
+                className="card card-pad"
+                style={{
+                  padding: 'clamp(14px, 4vw, 18px)',
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
                 <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--app-text-muted)' }}>
                   Assigned Staff & SLA
                 </span>
                 {complaint.assignedTo ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--app-accent-subtle)', color: 'var(--app-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--app-accent-subtle)', color: 'var(--app-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                       {complaint.assignedTo.name.charAt(0)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {complaint.assignedTo.name}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                      <div style={{ fontSize: 12, color: 'var(--app-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {complaint.assignedTo.email || 'Campus Facilities Team'}
                       </div>
                     </div>
@@ -520,22 +624,34 @@ export default function TicketTracker() {
 
               {/* Resolution Action Card if awaiting confirmation */}
               {complaint.status === STATUSES.PENDING_CONFIRMATION && (
-                <section className="card card-pad" style={{ padding: '20px', border: '1px solid #86efac', background: '#ffffff', boxShadow: '0 1px 4px 0 rgba(22, 163, 74, 0.08)' }}>
+                <section
+                  className="card card-pad"
+                  style={{
+                    padding: 'clamp(14px, 4vw, 20px)',
+                    border: '1px solid #86efac',
+                    background: '#ffffff',
+                    boxShadow: '0 1px 4px 0 rgba(22, 163, 74, 0.08)',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                  }}
+                >
                   <div className="ticket-action-notice" style={{ marginBottom: 12 }}>
                     <CheckCircle2 size={15} />
                     <span>Staff marked this resolved — awaiting your confirmation</span>
                   </div>
-                  <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: '0 0 6px' }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: '0 0 6px', wordBreak: 'break-word' }}>
                     Work Completed — Verify Fix
                   </h3>
-                  <p style={{ fontSize: 13, color: 'var(--app-text-secondary)', margin: '0 0 14px', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                  <p style={{ fontSize: 13, color: 'var(--app-text-secondary)', margin: '0 0 14px', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: 6, border: '1px solid #e2e8f0', wordBreak: 'break-word' }}>
                     <strong>Staff resolution note:</strong> {complaint.resolutionDetails?.notes || 'Repairs completed.'}
                   </p>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="btn btn-primary"
-                      style={{ flex: 1 }}
+                      style={{ flex: '1 1 180px', minHeight: 42, justifyContent: 'center' }}
                       onClick={() => setShowConfirmModal(true)}
                     >
                       <CheckCircle2 size={15} />
@@ -544,6 +660,7 @@ export default function TicketTracker() {
                     <button
                       type="button"
                       className="btn btn-secondary"
+                      style={{ flex: '1 1 140px', minHeight: 42, justifyContent: 'center' }}
                       onClick={() => setShowReopenModal(true)}
                     >
                       Dispute / Reopen
@@ -554,21 +671,33 @@ export default function TicketTracker() {
             </div>
 
             {/* RIGHT COLUMN: Live Discussion & Audit Feed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <section className="card card-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', minHeight: 480 }}>
-                <div style={{ borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <MessageSquare size={16} className="tone-accent" />
-                    <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+              <section
+                className="card card-pad"
+                style={{
+                  padding: 'clamp(14px, 4vw, 20px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 380,
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <MessageSquare size={16} className="tone-accent" style={{ flexShrink: 0 }} />
+                    <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       Discussion & Updates
                     </h2>
                   </div>
-                  <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--app-text-muted)', flexShrink: 0 }}>
                     {complaint.comments?.length || 0} messages
                   </span>
                 </div>
 
-                <div className="discussion-thread" style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="discussion-thread" style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12, width: '100%', boxSizing: 'border-box' }}>
                   {(!complaint.comments || complaint.comments.length === 0) ? (
                     <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--app-text-muted)', fontSize: 13 }}>
                       No messages yet. Post an update or question below.
@@ -587,24 +716,27 @@ export default function TicketTracker() {
                         <div
                           key={c.id}
                           style={{
-                            padding: '12px 16px',
+                            padding: '12px 14px',
                             borderRadius: 10,
                             background: isStaff ? '#f5f5f4' : '#ffffff',
                             border: `1px solid ${isStaff ? '#e7e5e4' : '#e7e5e4'}`,
                             boxShadow: isStaff ? 'none' : '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                            maxWidth: '85%',
+                            maxWidth: '90%',
+                            minWidth: 0,
                             alignSelf: isStaff ? 'flex-start' : 'flex-end',
+                            boxSizing: 'border-box',
+                            wordBreak: 'break-word',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
-                            <strong style={{ fontSize: 12.5, fontWeight: 600, color: '#18181b' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 5, flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: 12.5, fontWeight: 600, color: '#18181b', minWidth: 0, wordBreak: 'break-word' }}>
                               {senderName}
                             </strong>
-                            <span style={{ fontSize: 11, color: '#78716c' }}>
+                            <span style={{ fontSize: 11, color: '#78716c', flexShrink: 0 }}>
                               {formatRelativeTime(c.createdAt)}
                             </span>
                           </div>
-                          <p style={{ fontSize: 13, color: '#27272a', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                          <p style={{ fontSize: 13, color: '#27272a', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                             {c.text}
                           </p>
                         </div>
@@ -613,18 +745,34 @@ export default function TicketTracker() {
                   )}
                 </div>
 
-                <form onSubmit={handleAddComment} style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--app-border-soft)', paddingTop: 12 }}>
+                <form
+                  onSubmit={handleAddComment}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    borderTop: '1px solid var(--app-border-soft)',
+                    paddingTop: 12,
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
                   <input
                     type="text"
+                    className="form-input"
                     placeholder="Type a message or inquiry..."
                     value={newCommentText}
                     onChange={(e) => setNewCommentText(e.target.value)}
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 0, height: 42 }}
                     disabled={isPostingComment}
                   />
-                  <button type="submit" className="btn btn-primary" disabled={isPostingComment || !newCommentText.trim()}>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ flexShrink: 0, height: 42, padding: '0 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    disabled={isPostingComment || !newCommentText.trim()}
+                  >
                     <Send size={14} />
-                    Send
+                    <span>Send</span>
                   </button>
                 </form>
               </section>
@@ -644,11 +792,17 @@ export default function TicketTracker() {
               <button
                 type="button"
                 className="btn btn-secondary"
+                style={{ height: 42, minHeight: 42 }}
                 onClick={() => setShowConfirmModal(false)}
               >
                 Cancel
               </button>
-              <button type="button" className="btn btn-primary" onClick={handleConfirmResolution}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ height: 42, minHeight: 42 }}
+                onClick={handleConfirmResolution}
+              >
                 <CheckCircle2 size={15} />
                 Confirm &amp; Close
               </button>
@@ -659,16 +813,18 @@ export default function TicketTracker() {
             By confirming you verify that the completed work has resolved your complaint. The
             ticket will move to <strong>Resolved</strong> and can no longer be updated.
           </p>
-          <div className="form-group">
+          <div className="form-group" style={{ marginTop: 12, width: '100%' }}>
             <label htmlFor="confirm-feedback" className="field-label">
               Feedback (optional)
             </label>
             <textarea
               id="confirm-feedback"
+              className="form-textarea"
               rows={3}
               placeholder="e.g. Work was completed quickly and everything works."
               value={confirmFeedbackText}
               onChange={(e) => setConfirmFeedbackText(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box' }}
             />
           </div>
         </Modal>
@@ -685,6 +841,7 @@ export default function TicketTracker() {
               <button
                 type="button"
                 className="btn btn-secondary"
+                style={{ height: 42, minHeight: 42 }}
                 onClick={() => setShowReopenModal(false)}
               >
                 Cancel
@@ -692,6 +849,7 @@ export default function TicketTracker() {
               <button
                 type="button"
                 className="btn btn-danger"
+                style={{ height: 42, minHeight: 42 }}
                 onClick={handleRejectResolution}
                 disabled={!reopenReasonText.trim()}
               >
@@ -703,16 +861,18 @@ export default function TicketTracker() {
           <p className="detail-desc" style={{ margin: 0 }}>
             Explain what still needs attention so staff can inspect it again.
           </p>
-          <div className="form-group">
+          <div className="form-group" style={{ marginTop: 12, width: '100%' }}>
             <label htmlFor="reopen-reason" className="field-label">
               Reason<span className="required-mark">*</span>
             </label>
             <textarea
               id="reopen-reason"
+              className="form-textarea"
               rows={3}
               placeholder="e.g. The leak started again after ten minutes…"
               value={reopenReasonText}
               onChange={(e) => setReopenReasonText(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box' }}
             />
           </div>
         </Modal>
@@ -726,17 +886,18 @@ export default function TicketTracker() {
           onClose={() => setSelectedLightboxImage(null)}
           maxWidth={760}
           footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--app-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                 {complaint?.id} · {complaint?.category}
               </span>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {selectedLightboxImage.url && (
                   <a
                     href={selectedLightboxImage.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-secondary btn-sm"
+                    style={{ minHeight: 36, display: 'inline-flex', alignItems: 'center' }}
                   >
                     Open Full Resolution
                   </a>
@@ -744,6 +905,7 @@ export default function TicketTracker() {
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
+                  style={{ minHeight: 36 }}
                   onClick={() => setSelectedLightboxImage(null)}
                 >
                   Close
@@ -760,16 +922,18 @@ export default function TicketTracker() {
               background: '#090d16',
               borderRadius: 8,
               overflow: 'hidden',
-              minHeight: 280,
-              maxHeight: 520,
+              minHeight: 200,
+              maxHeight: '65vh',
               padding: 8,
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             {selectedLightboxImage.url ? (
               <img
                 src={selectedLightboxImage.url}
                 alt={selectedLightboxImage.name || 'Inspection Photo'}
-                style={{ maxWidth: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 4 }}
+                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 4 }}
               />
             ) : (
               <div style={{ color: '#fff', padding: 40, textAlign: 'center' }}>

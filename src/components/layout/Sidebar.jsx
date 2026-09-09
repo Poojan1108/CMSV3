@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Wrench,
   GraduationCap,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
@@ -58,6 +59,9 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
   const meta = ROLE_META[userRole] || ROLE_META[ROLES.STUDENT];
   const RoleIcon = meta.icon;
 
+  // On mobile drawer mode, always show full labels and org info even if desktop sidebar was collapsed
+  const showLabels = isMobileOpen || !isCollapsed;
+
   const isItemActive = (item) => {
     if (item.path === '/complaints' && pathname === '/dashboard') return true;
     if (item.path === '/admin/analytics' && pathname === '/admin/dashboard') return true;
@@ -67,13 +71,19 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
   return (
     <>
       {isMobileOpen && (
-        <div className="sx-sidebar-backdrop" onClick={onCloseMobile} aria-hidden="true" />
+        <div
+          className="sx-sidebar-backdrop"
+          onClick={onCloseMobile}
+          onTouchStart={onCloseMobile}
+          aria-hidden="true"
+        />
       )}
 
       <aside
-        className={`sx-sidebar ${isCollapsed ? 'is-collapsed' : ''} ${
+        className={`sx-sidebar ${isCollapsed && !isMobileOpen ? 'is-collapsed' : ''} ${
           isMobileOpen ? 'is-mobile-open' : ''
         }`}
+        aria-label="Sidebar Navigation"
       >
         {/* Role / workspace identity */}
         <div className="sx-sidebar-head">
@@ -81,7 +91,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
             <span className="sx-role-icon">
               <RoleIcon size={15} />
             </span>
-            {!isCollapsed && (
+            {showLabels && (
               <span className="sx-role-text">
                 <span className="sx-role-title">{meta.label}</span>
                 <span className="sx-role-org">{currentOrg?.name || 'ResolveX'}</span>
@@ -89,6 +99,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
             )}
           </div>
 
+          {/* Desktop collapse toggle */}
           <button
             type="button"
             className="sx-collapse-btn"
@@ -97,11 +108,34 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
           >
             {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
+
+          {/* Mobile close button inside the drawer header */}
+          {isMobileOpen && (
+            <button
+              type="button"
+              className="sx-mobile-close-btn"
+              onClick={onCloseMobile}
+              aria-label="Close navigation menu"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--app-text-muted, #71717a)',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
         <nav className="sx-sidebar-nav" aria-label="Primary">
-          {!isCollapsed && <p className="sx-nav-caption">Menu</p>}
+          {showLabels && <p className="sx-nav-caption">Menu</p>}
           <ul className="sx-nav-list">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -113,10 +147,10 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
                     onClick={onCloseMobile}
                     className={`sx-nav-item ${active ? 'is-active' : ''}`}
                     aria-current={active ? 'page' : undefined}
-                    title={isCollapsed ? item.label : undefined}
+                    title={!showLabels ? item.label : undefined}
                   >
                     <Icon size={17} />
-                    {!isCollapsed && <span className="sx-nav-label">{item.label}</span>}
+                    {showLabels && <span className="sx-nav-label">{item.label}</span>}
                   </Link>
                 </li>
               );
@@ -130,10 +164,10 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
             to="/landing"
             onClick={onCloseMobile}
             className="sx-nav-item sx-nav-home"
-            title={isCollapsed ? 'Back to Home' : undefined}
+            title={!showLabels ? 'Back to Home' : undefined}
           >
             <ArrowLeft size={17} />
-            {!isCollapsed && <span className="sx-nav-label">Back to Home</span>}
+            {showLabels && <span className="sx-nav-label">Back to Home</span>}
           </Link>
         </div>
       </aside>

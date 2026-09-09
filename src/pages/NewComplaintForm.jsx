@@ -301,8 +301,24 @@ export default function NewComplaintForm() {
     }
   };
 
+  // Keep selected category valid if organization template updates
+  useEffect(() => {
+    if (categories && categories.length > 0 && !categories.includes(category)) {
+      setCategory(categories[0]);
+      setSubCategory(getSubCategories(categories[0])[0]);
+    }
+  }, [categories]);
+
   return (
-    <div className="page-stack">
+    <div
+      className="page-stack"
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
       <PageHeader
         breadcrumb={
           <Breadcrumb to="/complaints" onNavigate={() => navigate('/complaints')}>
@@ -316,15 +332,27 @@ export default function NewComplaintForm() {
         description={`Submit a formal service ticket to ${currentOrg?.name || 'your organization'}. Requests are triaged under SLA guidelines.`}
       />
 
-      <form onSubmit={handleSubmit} className="form-stack">
+      <form onSubmit={handleSubmit} className="form-stack" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
         {/* Cluster 1: The Issue & Location (Core Identification) */}
-        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          className="card card-pad"
+          style={{
+            padding: 'clamp(14px, 4vw, 22px)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
             <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>1</span>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>The Issue & Location</h2>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
             <label htmlFor="complaint-title" className="form-label">
               Short summary<span className="required-mark">*</span>
             </label>
@@ -340,8 +368,9 @@ export default function NewComplaintForm() {
               }}
               maxLength={TITLE_MAX_LENGTH}
               required
+              style={{ width: '100%', boxSizing: 'border-box' }}
             />
-            <div className="form-help">
+            <div className="form-help" style={{ flexWrap: 'wrap', gap: 4 }}>
               <span>Be concise — mention the specific defect or room.</span>
               <span className={`char-counter ${title.length >= TITLE_MAX_LENGTH ? 'invalid' : ''}`}>
                 {title.length}/{TITLE_MAX_LENGTH}
@@ -358,16 +387,17 @@ export default function NewComplaintForm() {
                 showToast(`Auto-selected department: ${suggestedCategory}`, 'info');
               }}
               title={`Click to auto-switch category to ${suggestedCategory}`}
+              style={{ maxWidth: '100%', textAlign: 'left', boxSizing: 'border-box' }}
             >
-              <Sparkles size={14} className="sparkle-icon" />
-              <span>
+              <Sparkles size={14} className="sparkle-icon" style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 Detected department: <strong>{suggestedCategory}</strong> — Tap to apply
               </span>
             </button>
           )}
 
           {matchedKbArticle && (
-            <div className="kb-card">
+            <div className="kb-card" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
               <div className="kb-head">
                 <span className="kb-tag">
                   <CheckCircle2 size={14} />
@@ -386,7 +416,7 @@ export default function NewComplaintForm() {
               <h3 className="kb-article-title">{matchedKbArticle.title}</h3>
               <p className="kb-article-body">{matchedKbArticle.solution}</p>
 
-              <div className="kb-actions">
+              <div className="kb-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
@@ -396,6 +426,7 @@ export default function NewComplaintForm() {
                     setDescription('');
                     setDeflectionDismissed(true);
                   }}
+                  style={{ flex: '1 1 auto' }}
                 >
                   This solved my issue
                 </button>
@@ -403,6 +434,7 @@ export default function NewComplaintForm() {
                   type="button"
                   className="btn btn-sm btn-ghost"
                   onClick={() => setDeflectionDismissed(true)}
+                  style={{ flex: '1 1 auto' }}
                 >
                   Continue filing ticket
                 </button>
@@ -410,8 +442,8 @@ export default function NewComplaintForm() {
             </div>
           )}
 
-          <div className="form-grid-2">
-            <div className="form-group">
+          <div className="form-grid-2" style={{ width: '100%', minWidth: 0 }}>
+            <div className="form-group" style={{ minWidth: 0 }}>
               <label htmlFor="category-select" className="form-label">
                 Department / Category<span className="required-mark">*</span>
               </label>
@@ -420,6 +452,7 @@ export default function NewComplaintForm() {
                 className="form-select"
                 value={category}
                 onChange={(e) => handleCategoryChange(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               >
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
@@ -429,7 +462,7 @@ export default function NewComplaintForm() {
               </select>
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ minWidth: 0 }}>
               <label htmlFor="subcategory-select" className="form-label">
                 Sub-category<span className="required-mark">*</span>
               </label>
@@ -438,6 +471,7 @@ export default function NewComplaintForm() {
                 className="form-select"
                 value={subCategory}
                 onChange={(e) => setSubCategory(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               >
                 {availableSubCategories.map((sub) => (
                   <option key={sub} value={sub}>
@@ -448,7 +482,7 @@ export default function NewComplaintForm() {
             </div>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
             <label htmlFor="location-input" className="form-label">
               {locationLabel || 'Location / Room'}<span className="required-mark">*</span>
             </label>
@@ -460,6 +494,7 @@ export default function NewComplaintForm() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               required
+              style={{ width: '100%', boxSizing: 'border-box' }}
             />
 
             <div className="quick-pills">
@@ -480,13 +515,25 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Cluster 2: Details & Evidence */}
-        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          className="card card-pad"
+          style={{
+            padding: 'clamp(14px, 4vw, 22px)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
             <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>2</span>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Details & Evidence</h2>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
             <label htmlFor="description-textarea" className="form-label">
               Full description<span className="required-mark">*</span>
             </label>
@@ -498,8 +545,9 @@ export default function NewComplaintForm() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
+              style={{ width: '100%', boxSizing: 'border-box' }}
             />
-            <div className="form-help">
+            <div className="form-help" style={{ flexWrap: 'wrap', gap: 4 }}>
               <span>Minimum {DESCRIPTION_MIN_LENGTH} characters.</span>
               <span
                 className={`char-counter ${
@@ -512,9 +560,9 @@ export default function NewComplaintForm() {
             </div>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
             <label className="form-label">Priority Level & SLA Target</label>
-            <div className="priority-grid" role="radiogroup" aria-label="Priority level">
+            <div className="priority-grid" role="radiogroup" aria-label="Priority level" style={{ width: '100%', minWidth: 0 }}>
               {PRIORITY_OPTIONS.map((option) => (
                 <label
                   key={option.key}
@@ -532,37 +580,55 @@ export default function NewComplaintForm() {
                     <span className="priority-dot" style={{ background: option.dot }} />
                     <span className="priority-name">{option.label}</span>
                   </span>
-                  <span className="priority-sla">Target resolution: {option.sla}</span>
+                  <span className="priority-sla">Target: {option.sla}</span>
                 </label>
               ))}
             </div>
 
             {priority === PRIORITIES.URGENT && (
-              <div className="callout callout-danger" style={{ flexDirection: 'column', marginTop: 12 }}>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <AlertTriangle size={16} />
-                  <div style={{ flex: 1 }}>
-                    <span className="callout-title">Urgency justification required</span>
-                    <div className="form-group" style={{ marginTop: 8 }}>
-                      <textarea
-                        className="form-textarea"
-                        rows={2}
-                        placeholder="Explain why immediate dispatch is required (active leak, safety hazard, power failure…)"
-                        value={urgencyJustification}
-                        onChange={(e) => setUrgencyJustification(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
+              <div
+                className="callout callout-danger"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  marginTop: 12,
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0, color: 'var(--app-danger)' }} />
+                  <span className="callout-title" style={{ margin: 0, fontWeight: 600 }}>
+                    Urgency justification required
+                  </span>
+                </div>
+                <div className="form-group" style={{ marginTop: 8, width: '100%', minWidth: 0 }}>
+                  <textarea
+                    className="form-textarea"
+                    rows={2}
+                    placeholder="Explain why immediate dispatch is required (active leak, safety hazard, power failure…)"
+                    value={urgencyJustification}
+                    onChange={(e) => setUrgencyJustification(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      minWidth: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      display: 'block',
+                    }}
+                  />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
               <label className="form-label" style={{ marginBottom: 0 }}>Supporting Media & Photos (Optional)</label>
-              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>JPG, PNG, WebP up to {MAX_FILE_SIZE_MB}MB</span>
+              <span style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>Up to {MAX_FILE_SIZE_MB}MB</span>
             </div>
             <div
               className={`dropzone ${isDragging ? 'dropzone-active' : ''}`}
@@ -581,11 +647,13 @@ export default function NewComplaintForm() {
                   processFiles(e.dataTransfer.files);
                 }
               }}
-              style={
-                isDragging
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                ...(isDragging
                   ? { borderColor: 'var(--app-accent)', background: 'var(--app-card-bg-subtle)' }
-                  : {}
-              }
+                  : {}),
+              }}
             >
               <input
                 type="file"
@@ -596,15 +664,25 @@ export default function NewComplaintForm() {
               />
               <Upload size={22} className="tone-accent" />
               <div className="dropzone-title">
-                {isDragging ? 'Drop images here to attach' : 'Click to browse or drag & drop photos here'}
+                {isDragging ? 'Drop images here to attach' : 'Tap to attach photos or click to browse'}
               </div>
               <div className="dropzone-subtitle">
-                Attach clear photo evidence of physical damage, leaks, or maintenance faults
+                Clear photos of physical damage, water leaks, or hardware faults
               </div>
             </div>
 
             {attachments.length > 0 && (
-              <div className="attachments-grid" style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+              <div
+                className="attachments-grid"
+                style={{
+                  marginTop: 12,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
+                  gap: 10,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
                 {attachments.map((file) => (
                   <div
                     key={file.id}
@@ -615,8 +693,10 @@ export default function NewComplaintForm() {
                       padding: '8px 10px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
+                      gap: 10,
                       background: 'var(--app-card-bg)',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
                     }}
                   >
                     {file.previewUrl ? (
@@ -624,10 +704,10 @@ export default function NewComplaintForm() {
                         src={file.previewUrl}
                         alt=""
                         className="attachment-thumb"
-                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--app-border-soft)' }}
+                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--app-border-soft)', flexShrink: 0 }}
                       />
                     ) : (
-                      <span className="attachment-fallback" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--app-card-bg-subtle)', borderRadius: 8 }}>
+                      <span className="attachment-fallback" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--app-card-bg-subtle)', borderRadius: 8, flexShrink: 0 }}>
                         <FileCheck size={18} />
                       </span>
                     )}
@@ -644,7 +724,7 @@ export default function NewComplaintForm() {
                       className="btn btn-ghost btn-icon btn-sm"
                       onClick={() => removeAttachment(file.id)}
                       aria-label={`Remove ${file.name}`}
-                      style={{ color: 'var(--app-danger)', padding: 6 }}
+                      style={{ color: 'var(--app-danger)', padding: 6, flexShrink: 0 }}
                     >
                       <Trash2 size={15} />
                     </button>
@@ -656,14 +736,26 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Cluster 3: Access Window & Privacy Preferences */}
-        <div className="card card-pad" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          className="card card-pad"
+          style={{
+            padding: 'clamp(14px, 4vw, 22px)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
             <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>3</span>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Access Window & Privacy</h2>
           </div>
 
-          <div className="form-grid-2">
-            <div className="form-group">
+          <div className="form-grid-2" style={{ width: '100%', minWidth: 0 }}>
+            <div className="form-group" style={{ minWidth: 0 }}>
               <label htmlFor="access-date" className="form-label">
                 Preferred inspection date
               </label>
@@ -674,10 +766,11 @@ export default function NewComplaintForm() {
                 value={accessDate}
                 min={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setAccessDate(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ minWidth: 0 }}>
               <span className="form-label">Preferred inspection window</span>
               <div className="quick-pills">
                 {ACCESS_TIME_SLOTS.map((slot) => (
@@ -695,14 +788,14 @@ export default function NewComplaintForm() {
             </div>
           </div>
 
-          <div className="toggle-card" style={{ marginTop: 4 }}>
-            <div>
+          <div className="toggle-card" style={{ marginTop: 4, width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div className="toggle-title">Submit anonymously</div>
               <div className="toggle-subtitle">
-                Hide your name from department technicians handling this ticket.
+                Hide your identity from department technicians handling this ticket.
               </div>
             </div>
-            <label className="switch">
+            <label className="switch" style={{ flexShrink: 0 }}>
               <input
                 type="checkbox"
                 checked={isAnonymous}
@@ -716,28 +809,24 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Action Footer */}
-        <div className="form-footer" style={{ marginTop: 8 }}>
-          {(title.trim() || description.trim() || location.trim() || hasRestoredDraft) && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleDiscardDraft}
-              disabled={isSubmitting}
-              title="Clear all saved draft fields"
-            >
-              <RotateCcw size={14} />
-              Discard Draft
-            </button>
-          )}
+        <div
+          className="form-footer"
+          style={{
+            marginTop: 16,
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
           <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => navigate('/complaints')}
+            type="submit"
+            className="btn btn-primary btn-lg"
             disabled={isSubmitting}
+            style={{ width: '100%', minHeight: '44px', height: '44px' }}
           >
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary btn-lg" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <span className="spinner" />
@@ -750,6 +839,28 @@ export default function NewComplaintForm() {
               </>
             )}
           </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/complaints')}
+            disabled={isSubmitting}
+            style={{ width: '100%', minHeight: '42px', height: '42px' }}
+          >
+            Cancel
+          </button>
+          {(title.trim() || description.trim() || location.trim() || hasRestoredDraft) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleDiscardDraft}
+              disabled={isSubmitting}
+              title="Clear all saved draft fields"
+              style={{ width: '100%', padding: '8px 0' }}
+            >
+              <RotateCcw size={14} />
+              Discard Draft
+            </button>
+          )}
         </div>
       </form>
     </div>

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
   ChevronDown,
-  UserCheck,
   Menu,
   X,
   GraduationCap,
@@ -54,23 +53,37 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
   const orgRef = useRef(null);
   const profileRef = useRef(null);
 
+  // Close profile dropdown whenever mobile sidebar menu is opened to prevent visual clash
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    if (isMobileMenuOpen) {
+      setOpenMenu(null);
+    }
+  }, [isMobileMenuOpen]);
+
+  // Handle outside click & mobile touchstart + Escape key dismissal
+  useEffect(() => {
+    const handleOutsideInteraction = (event) => {
       const refs = [orgRef, profileRef];
       const insideAny = refs.some((ref) => ref.current?.contains(event.target));
       if (!insideAny) setOpenMenu(null);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setOpenMenu(null);
+    };
+
+    document.addEventListener('mousedown', handleOutsideInteraction);
+    document.addEventListener('touchstart', handleOutsideInteraction, { passive: true });
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideInteraction);
+      document.removeEventListener('touchstart', handleOutsideInteraction);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const toggleMenu = (menu) => setOpenMenu((prev) => (prev === menu ? null : menu));
-
-  const handleOrgSelect = (targetOrgKey) => {
-    switchOrgTemplate(targetOrgKey);
-    setOpenMenu(null);
-    showToast(`Organization set to ${orgTemplates[targetOrgKey]?.name || targetOrgKey}`, 'success');
-  };
 
   function getRoleLabel(roleName) {
     if (!currentOrg) return roleName;
@@ -85,19 +98,24 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
         <button
           type="button"
           className="mobile-menu-toggle"
-          onClick={onToggleMobileMenu}
-          aria-label="Toggle navigation menu"
+          onClick={() => {
+            setOpenMenu(null);
+            onToggleMobileMenu();
+          }}
+          aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={isMobileMenuOpen}
         >
-          {isMobileMenuOpen ? <X size={19} /> : <Menu size={19} />}
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <Link to="/dashboard" className="header-brand">
+        <Link to="/dashboard" className="header-brand" onClick={() => setOpenMenu(null)}>
           <span className="brand-logo-icon">
-            <ShieldCheck size={17} />
+            <ShieldCheck size={18} />
           </span>
           <span className="brand-text">
-            <span className="brand-title">{currentOrg?.name || 'ResolveX'}</span>
+            <span className="brand-title" title={currentOrg?.name || 'ResolveX'}>
+              {currentOrg?.name || 'ResolveX'}
+            </span>
             {currentOrg?.type && <span className="brand-badge">{currentOrg.type}</span>}
           </span>
         </Link>
@@ -123,6 +141,7 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
             className="user-profile-card"
             onClick={() => toggleMenu('profile')}
             aria-expanded={openMenu === 'profile'}
+            aria-haspopup="true"
             title={`Signed in as ${user?.name || user?.email} (${getRoleLabel(role)})`}
           >
             <span className={`profile-role-badge role-${role}`}>
@@ -138,17 +157,18 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
           </button>
 
           {openMenu === 'profile' && (
-            <div className="profile-dropdown-menu">
+            <div className="profile-dropdown-menu" role="menu">
               <div className="profile-menu-header">
                 <p className="profile-menu-name">{user?.name || 'User'}</p>
                 <p className="profile-menu-email">{user?.email}</p>
                 <span className="profile-role-pill">
-                  {currentOrg?.name} • {getRoleLabel(role)}
+                  {currentOrg?.name || 'ResolveX'} • {getRoleLabel(role)}
                 </span>
               </div>
               <button
                 type="button"
                 className="profile-menu-item"
+                role="menuitem"
                 onClick={async () => {
                   setOpenMenu(null);
                   await logout();

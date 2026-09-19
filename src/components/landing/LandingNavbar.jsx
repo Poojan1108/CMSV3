@@ -1,9 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Menu, X } from 'lucide-react';
 
 export default function LandingNavbar({ setView, onScrollToSection }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeLink, setActiveLink] = useState('home');
+
+  // Prevent background scroll bleed when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
 
   const handleNavClick = (sectionId, linkKey) => {
     setActiveLink(linkKey || sectionId);
@@ -17,7 +29,8 @@ export default function LandingNavbar({ setView, onScrollToSection }) {
   };
 
   return (
-    <header className="rx-navbar">
+    <>
+      <header className="rx-navbar">
       <div className="rx-container rx-nav-inner">
         {/* Brand Logo */}
         <div className="rx-brand-logo" onClick={() => handleNavClick('top', 'home')}>
@@ -107,52 +120,53 @@ export default function LandingNavbar({ setView, onScrollToSection }) {
           </button>
         </div>
       </div>
-
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="rx-mobile-drawer">
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('top', 'home')}>
-            Home
-          </button>
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('features', 'features')}>
-            Features
-          </button>
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('campuses', 'campuses')}>
-            For Campuses
-          </button>
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('communities', 'communities')}>
-            For Communities
-          </button>
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('pricing', 'pricing')}>
-            Pricing
-          </button>
-          <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('resources', 'resources')}>
-            Resources
-          </button>
-          <div className="rx-mobile-action-bar">
-            <button
-              type="button"
-              className="rx-mobile-login"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setView('login');
-              }}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              className="rx-mobile-demo"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setView('signup');
-              }}
-            >
-              Request a Demo ➔
-            </button>
-          </div>
-        </div>
-      )}
     </header>
-  );
+
+    {/* Mobile Drawer */}
+    {mobileMenuOpen && (
+      <div className="rx-mobile-drawer">
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('top', 'home')}>
+          Home
+        </button>
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('features', 'features')}>
+          Features
+        </button>
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('campuses', 'campuses')}>
+          For Campuses
+        </button>
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('communities', 'communities')}>
+          For Communities
+        </button>
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('pricing', 'pricing')}>
+          Pricing
+        </button>
+        <button type="button" className="rx-mobile-link" onClick={() => handleNavClick('resources', 'resources')}>
+          Resources
+        </button>
+        <div className="rx-mobile-action-bar">
+          <button
+            type="button"
+            className="rx-mobile-login"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setView('login');
+            }}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className="rx-mobile-demo"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setView('signup');
+            }}
+          >
+            Request a Demo ➔
+          </button>
+        </div>
+      </div>
+    )}
+  </>
+);
 }

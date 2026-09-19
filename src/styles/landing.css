@@ -106,7 +106,7 @@
 .rx-navbar {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--rx-border-subtle);
@@ -230,50 +230,101 @@
 }
 
 .rx-mobile-drawer {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100dvh - 72px);
+  max-height: calc(100vh - 72px);
+  width: 100%;
+  background: #ffffff;
+  z-index: 999;
   display: flex;
   flex-direction: column;
-  padding: 18px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid var(--rx-border);
+  padding: 24px 20px 40px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  animation: rx-drawer-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rx-drawer-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .rx-mobile-link {
   background: transparent;
   border: none;
-  text-align: left;
-  font-size: 15px;
-  font-weight: 500;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--rx-text);
-  padding: 10px 0;
+  padding: 13px 0;
   border-bottom: 1px solid var(--rx-border-subtle);
+  width: 100%;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.rx-mobile-link:hover,
+.rx-mobile-link:active {
+  color: var(--rx-green);
+  background: #f8fafc;
 }
 
 .rx-mobile-action-bar {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 22px;
+  align-items: center;
+  width: 100%;
 }
 
 .rx-mobile-login,
 .rx-mobile-demo {
-  height: 42px;
-  border-radius: 8px;
-  font-size: 14px;
+  width: 100%;
+  max-width: 320px;
+  height: 46px;
+  border-radius: 9999px;
+  font-size: 15px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .rx-mobile-login {
-  background: #f3f4f6;
+  background: #f1f5f9;
   border: 1px solid var(--rx-border);
   color: var(--rx-text);
+}
+
+.rx-mobile-login:hover {
+  background: #e2e8f0;
 }
 
 .rx-mobile-demo {
   background: var(--rx-green);
   border: none;
   color: #ffffff;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+}
+
+.rx-mobile-demo:hover {
+  background: var(--rx-green-hover);
+  transform: translateY(-1px);
 }
 
 /* ==========================================================================
@@ -367,6 +418,7 @@
   align-items: center;
   gap: 16px;
   margin-bottom: 48px;
+  flex-wrap: wrap;
 }
 
 .rx-btn-primary {
@@ -1754,11 +1806,11 @@
     display: none;
   }
   .rx-pipeline-stages-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px;
   }
   .rx-ticket-tracker-card {
-    padding: 24px 18px;
+    padding: 24px 20px;
   }
   .rx-owner-grid {
     grid-template-columns: 1fr;
@@ -1786,6 +1838,226 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
+  }
+}
+
+/* ==========================================================================
+   Mobile Phone Optimizations (<= 640px):
+   Hero Action Buttons & Polished Live Ticket Tracker Timeline
+   ========================================================================== */
+@media (max-width: 640px) {
+  /* 1. Hero Buttons Stacking & Touch-Ergonomics */
+  .rx-hero-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 36px;
+  }
+
+  .rx-hero-actions .rx-btn-primary {
+    width: 100%;
+    max-width: 320px;
+    justify-content: center;
+    padding: 13px 24px;
+    font-size: 15px;
+  }
+
+  .rx-hero-actions .rx-btn-secondary {
+    width: 100%;
+    max-width: 320px;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 15px;
+  }
+
+  .rx-hero-stats-strip {
+    gap: 14px;
+    justify-content: space-around;
+    width: 100%;
+  }
+
+  .rx-stat-num {
+    font-size: 22px;
+  }
+
+  .rx-stat-label {
+    font-size: 11px;
+  }
+
+  /* 2. Live Ticket Tracker Card Mobile Polish */
+  .rx-ticket-tracker-card {
+    padding: 20px 16px;
+    border-radius: 20px;
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.06);
+  }
+
+  .rx-ticket-tracker-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding-bottom: 18px;
+  }
+
+  .rx-ticket-name {
+    font-size: 17px;
+    line-height: 1.35;
+  }
+
+  .rx-ticket-tags {
+    gap: 6px;
+  }
+
+  .rx-tag-pill {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .rx-sla-integrated-box {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    gap: 12px;
+    box-sizing: border-box;
+  }
+
+  .rx-sla-clock-wrap {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  .rx-sla-label {
+    font-size: 10px;
+  }
+
+  .rx-sla-value {
+    font-size: 16px;
+  }
+
+  .rx-sla-target {
+    font-size: 11px;
+  }
+
+  /* 3. Pipeline: Streamlined Vertical Stepper Timeline on Mobile */
+  .rx-pipeline-container {
+    padding: 18px 0 16px;
+  }
+
+  .rx-pipeline-rail-track {
+    display: none;
+  }
+
+  .rx-pipeline-stages-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    padding-left: 2px;
+  }
+
+  /* Continuous vertical connector track running between nodes */
+  .rx-pipeline-stages-grid::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    bottom: 24px;
+    left: 13px;
+    width: 2px;
+    background: #e2e8f0;
+    z-index: 1;
+  }
+
+  .rx-pipeline-column {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    gap: 12px;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+  }
+
+  .rx-pipeline-node-anchor {
+    margin-bottom: 0;
+    margin-top: 8px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .rx-pipeline-node-circle {
+    width: 22px;
+    height: 22px;
+    box-shadow: 0 0 0 3px #ffffff;
+  }
+
+  .rx-pipeline-card {
+    flex: 1;
+    min-width: 0;
+    align-items: flex-start;
+    text-align: left;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 12px;
+    gap: 2px;
+  }
+
+  .col-active .rx-pipeline-card {
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.08);
+  }
+
+  .rx-pipeline-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 2px;
+  }
+
+  .rx-pipeline-step-badge {
+    font-size: 9.5px;
+  }
+
+  .rx-pipeline-stage-name {
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+
+  .rx-pipeline-stage-sub {
+    font-size: 11.5px;
+    color: #64748b;
+  }
+
+  .rx-pipeline-status-row {
+    margin-top: 4px;
+  }
+
+  /* 4. Bottom Trust Pillars on Mobile */
+  .rx-tracker-guarantees-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 18px;
+  }
+
+  .rx-guarantee-card {
+    padding: 12px 14px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .rx-guarantee-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 }
 

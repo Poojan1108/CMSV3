@@ -27,17 +27,24 @@
   --rx-sage-subtle:  var(--rx-obsidian-subtle);
   --rx-sage-border:  var(--rx-obsidian-border);
 
-  /* 5% Balanced Multi-Color Semantic Accents (Isolated from Buttons) */
-  --rx-indigo:       #2563eb;   /* Blue 600 / In Progress */
-  --rx-indigo-subtle:#dbeafe;
-  --rx-amber:        #b45309;   /* Amber 700 / Pending */
-  --rx-amber-subtle: #fef3c7;
-  --rx-emerald:      #15803d;   /* Emerald 700 / Resolved */
-  --rx-emerald-subtle:#dcfce7;
-  --rx-terracotta:   #c2410c;   /* Hostel / Facility */
-  --rx-terracotta-subtle:#ffedd5;
-  --rx-crimson:      #be123c;   /* Urgent / SLA Breach */
-  --rx-crimson-subtle:#ffe4e6;
+  /* --- 3 Signature Monochrome Shades (Obsidian, Slate & Zinc Minimalist Standard) --- */
+  --rx-shade-1:        #0f172a;   /* Primary Deep Obsidian / Charcoal Black */
+  --rx-shade-2:        #334155;   /* Secondary Slate Charcoal (Body Copy & Active State) */
+  --rx-shade-3:        #64748b;   /* Tertiary Muted Metadata Slate */
+  --rx-shade-inset:    #f1f5f9;   /* Soft Neutral Inset / Pill Fill */
+  --rx-shade-subtle:   rgba(15, 23, 42, 0.05);
+
+  /* Unified spectrum mapping to the 3 shades */
+  --rx-indigo:         var(--rx-shade-2);
+  --rx-indigo-subtle:  var(--rx-shade-inset);
+  --rx-amber:          var(--rx-shade-2);
+  --rx-amber-subtle:   var(--rx-shade-inset);
+  --rx-emerald:        var(--rx-shade-1);
+  --rx-emerald-subtle: #f8fafc;
+  --rx-terracotta:     var(--rx-shade-3);
+  --rx-terracotta-subtle: var(--rx-shade-inset);
+  --rx-crimson:        #be123c;   /* Preserved exclusively for critical destructive actions */
+  --rx-crimson-subtle: #fef2f2;
 }
 
 .app-shell {
@@ -63,17 +70,17 @@
   --app-accent-subtle: var(--rx-obsidian-subtle);
   --app-accent-border: var(--rx-obsidian-border);
 
-  /* --- 5% Multi-Color Functional Spectrum --- */
-  --app-success: var(--rx-emerald);
-  --app-success-subtle: var(--rx-emerald-subtle);
-  --app-warning: var(--rx-amber);
-  --app-warning-subtle: var(--rx-amber-subtle);
+  /* --- Functional Spectrum: Harmonized with the 3 Shades of Black --- */
+  --app-success: var(--rx-shade-1);
+  --app-success-subtle: #f8fafc;
+  --app-warning: var(--rx-shade-2);
+  --app-warning-subtle: var(--rx-shade-inset);
   --app-danger: var(--rx-crimson);
   --app-danger-subtle: var(--rx-crimson-subtle);
-  --app-info: var(--rx-indigo);
-  --app-info-subtle: var(--rx-indigo-subtle);
-  --app-terracotta: var(--rx-terracotta);
-  --app-terracotta-subtle: var(--rx-terracotta-subtle);
+  --app-info: var(--rx-shade-2);
+  --app-info-subtle: var(--rx-shade-inset);
+  --app-terracotta: var(--rx-shade-3);
+  --app-terracotta-subtle: var(--rx-shade-inset);
 
   /* --- Geometry --- */
   --app-radius-sm: 6px;
@@ -504,20 +511,20 @@ button.app-shell-metric-active,
   margin-top: 2px;
 }
 
-/* Tone helpers for icons/values */
+/* Tone helpers for icons/values - 3 Shades of Black/Slate */
 .app-shell .tone-accent { color: var(--app-accent-text); }
-.app-shell .tone-success { color: var(--app-success); }
-.app-shell .tone-warning { color: var(--app-warning); }
-.app-shell .tone-danger { color: var(--app-danger); }
-.app-shell .tone-info { color: var(--app-info); }
+.app-shell .tone-success { color: var(--rx-shade-1); }
+.app-shell .tone-warning { color: var(--rx-shade-2); }
+.app-shell .tone-danger { color: var(--rx-shade-1); }
+.app-shell .tone-info { color: var(--rx-shade-2); }
 .app-shell .tone-neutral { color: var(--app-text-secondary); }
 
-.app-shell .bg-tone-accent { background: var(--app-accent-subtle); color: var(--app-accent-text); }
-.app-shell .bg-tone-success { background: var(--app-success-subtle); color: var(--app-success); }
-.app-shell .bg-tone-warning { background: var(--app-warning-subtle); color: var(--app-warning); }
-.app-shell .bg-tone-danger { background: var(--app-danger-subtle); color: var(--app-danger); }
-.app-shell .bg-tone-info { background: var(--app-info-subtle); color: var(--app-info); }
-.app-shell .bg-tone-neutral { background: var(--app-raised); color: var(--app-text-secondary); }
+.app-shell .bg-tone-accent { background: var(--app-accent); color: #ffffff; }
+.app-shell .bg-tone-success { background: #f8fafc; color: var(--rx-shade-1); border: 1px solid var(--app-border-strong); }
+.app-shell .bg-tone-warning { background: var(--app-inset); color: var(--rx-shade-2); border: 1px solid var(--app-border-soft); }
+.app-shell .bg-tone-danger { background: #f8fafc; color: var(--rx-shade-1); border: 1px solid var(--app-border-strong); }
+.app-shell .bg-tone-info { background: var(--app-inset); color: var(--rx-shade-2); border: 1px solid var(--app-border-soft); }
+.app-shell .bg-tone-neutral { background: var(--app-raised); color: var(--app-text-secondary); border: 1px solid var(--app-border-soft); }
 
 /* ==========================================================================
    Badges & chips
@@ -545,35 +552,35 @@ button.app-shell-metric-active,
   flex-shrink: 0;
 }
 
-/* Status tones */
-.app-shell .status-pending { background: var(--app-warning-subtle); color: var(--app-warning); border-color: rgba(180, 83, 9, 0.25); }
-.app-shell .status-pending .badge-dot { background: var(--app-warning); }
+/* Status tones - Refined 3 Shades of Black/Slate */
+.app-shell .status-pending { background: #f8fafc; color: var(--rx-shade-3); border-color: var(--app-border); }
+.app-shell .status-pending .badge-dot { background: var(--rx-shade-3); }
 
-.app-shell .status-in_progress { background: var(--app-info-subtle); color: var(--app-info); border-color: rgba(37, 99, 235, 0.25); }
-.app-shell .status-in_progress .badge-dot { background: var(--app-info); }
+.app-shell .status-in_progress { background: #f1f5f9; color: var(--rx-shade-1); border-color: var(--app-border-strong); font-weight: 600; }
+.app-shell .status-in_progress .badge-dot { background: var(--rx-shade-2); }
 
-.app-shell .status-pending_confirmation { background: #fef3c7; color: #b45309; border-color: rgba(180, 83, 9, 0.25); }
-.app-shell .status-pending_confirmation .badge-dot { background: #b45309; }
+.app-shell .status-pending_confirmation { background: #f8fafc; color: var(--rx-shade-2); border-color: var(--app-border); }
+.app-shell .status-pending_confirmation .badge-dot { background: var(--rx-shade-3); }
 
-.app-shell .status-resolved { background: var(--app-success-subtle); color: var(--app-success); border-color: rgba(21, 128, 61, 0.25); }
-.app-shell .status-resolved .badge-dot { background: var(--app-success); }
+.app-shell .status-resolved { background: #ffffff; color: var(--rx-shade-1); border-color: var(--rx-shade-1); font-weight: 600; }
+.app-shell .status-resolved .badge-dot { background: var(--rx-shade-1); }
 
-.app-shell .status-rejected { background: var(--app-danger-subtle); color: var(--app-danger); border-color: rgba(190, 18, 60, 0.25); }
-.app-shell .status-rejected .badge-dot { background: var(--app-danger); }
+.app-shell .status-rejected { background: #f4f4f5; color: #94a3b8; border-color: var(--app-border-soft); }
+.app-shell .status-rejected .badge-dot { background: #cbd5e1; }
 
-.app-shell .status-default { background: #f5f5f4; color: var(--app-text-secondary); border-color: var(--app-border); }
+.app-shell .status-default { background: #f8fafc; color: var(--app-text-secondary); border-color: var(--app-border); }
 .app-shell .status-default .badge-dot { background: var(--app-text-muted); }
 
-/* Priority tones */
-.app-shell .priority-low { background: #f5f5f4; color: #78716c; border-color: #e7e5e4; }
-.app-shell .priority-medium { background: #f5f5f4; color: #57534e; border-color: #d6d3d1; }
-.app-shell .priority-high { background: var(--app-warning-subtle); color: var(--app-warning); border-color: rgba(180, 83, 9, 0.25); }
-.app-shell .priority-urgent { background: var(--app-danger-subtle); color: var(--app-danger); border-color: rgba(190, 18, 60, 0.3); }
+/* Priority tones - Hierarchical Shades of Black */
+.app-shell .priority-low { background: #f8fafc; color: var(--rx-shade-3); border-color: var(--app-border-soft); }
+.app-shell .priority-medium { background: #f1f5f9; color: var(--rx-shade-2); border-color: var(--app-border); font-weight: 600; }
+.app-shell .priority-high { background: #e2e8f0; color: var(--rx-shade-1); border-color: var(--rx-shade-3); font-weight: 700; }
+.app-shell .priority-urgent { background: var(--rx-shade-1); color: #ffffff; border-color: var(--rx-shade-1); font-weight: 700; }
 
 /* SLA tones */
-.app-shell .sla-ok { background: var(--app-success-subtle); color: var(--app-success); border-color: rgba(52, 179, 127, 0.3); }
-.app-shell .sla-warning { background: var(--app-warning-subtle); color: var(--app-warning); border-color: rgba(217, 154, 43, 0.3); }
-.app-shell .sla-breached { background: var(--app-danger-subtle); color: var(--app-danger); border-color: rgba(224, 93, 111, 0.35); }
+.app-shell .sla-ok { background: #ffffff; color: var(--rx-shade-1); border-color: var(--app-border); }
+.app-shell .sla-warning { background: #f1f5f9; color: var(--rx-shade-2); border-color: var(--app-border-strong); font-weight: 600; }
+.app-shell .sla-breached { background: var(--rx-shade-1); color: #ffffff; border-color: var(--rx-shade-1); font-weight: 700; }
 
 /* Ticket ID chip */
 .app-shell .ticket-id {
@@ -776,14 +783,14 @@ button.app-shell-metric-active,
 }
 
 .app-shell .status-segment-pill.is-review-pill:not(.is-active) {
-  color: #15803d;
-  border-color: #bbf7d0;
-  background: #f0fdf4;
+  color: var(--app-text);
+  border-color: var(--app-border-strong);
+  background: var(--app-surface);
 }
 
 .app-shell .status-segment-pill.is-review-pill:not(.is-active) .segment-count {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--app-inset);
+  color: var(--app-text);
 }
 
 /* Status pills row */
@@ -3737,9 +3744,12 @@ body .toast-icon.error { color: #e05d6f; }
   color: var(--app-text-secondary);
 }
 
-.app-shell .sx-role-card.tone-info .sx-role-icon { background: var(--app-info-subtle); color: var(--app-info); }
-.app-shell .sx-role-card.tone-warning .sx-role-icon { background: var(--app-warning-subtle); color: var(--app-warning); }
-.app-shell .sx-role-card.tone-success .sx-role-icon { background: var(--app-success-subtle); color: var(--app-success); }
+.app-shell .sx-role-card.tone-info .sx-role-icon,
+.app-shell .sx-role-card.tone-warning .sx-role-icon,
+.app-shell .sx-role-card.tone-success .sx-role-icon {
+  background: var(--app-accent, #18181b);
+  color: #ffffff;
+}
 
 .app-shell .sx-role-text {
   display: flex;
@@ -3962,6 +3972,179 @@ body .toast-icon.error { color: #e05d6f; }
   .app-shell .user-profile-card {
     padding: 4px 6px;
     gap: 4px;
+  }
+
+  /* Centered, properly fitted mobile navigation card (replaces awkward left-half panel) */
+  .app-shell .sx-sidebar {
+    width: calc(100% - 24px) !important;
+    max-width: 360px;
+    left: 50% !important;
+    right: auto !important;
+    top: 68px !important;
+    bottom: auto !important;
+    max-height: calc(100dvh - 84px);
+    border-radius: 20px;
+    border: 1px solid var(--app-border-strong, #e4e4e7);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    transform: translate(-50%, -12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    overflow-y: auto;
+    z-index: 960;
+  }
+
+  .app-shell .sx-sidebar.is-mobile-open {
+    transform: translate(-50%, 0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-shell .sx-sidebar-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--app-border-soft);
+    text-align: center;
+  }
+
+  .app-shell .sx-collapse-btn {
+    display: none;
+  }
+
+  .app-shell .sx-mobile-close-btn {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--app-text-muted, #71717a);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .app-shell .sx-mobile-close-btn:hover {
+    background: var(--app-inset, #f4f4f5);
+    color: var(--app-text, #0f172a);
+  }
+
+  .app-shell .sx-role-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .app-shell .sx-role-icon {
+    display: none !important;
+  }
+
+  .app-shell .sx-role-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .app-shell .sx-role-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--app-text, #0f172a);
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    text-align: center;
+  }
+
+  .app-shell .sx-role-org {
+    display: none !important;
+  }
+
+  .app-shell .sx-sidebar-nav {
+    padding: 16px 20px;
+  }
+
+  .app-shell .sx-nav-caption {
+    text-align: center;
+    padding: 0;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--app-text-muted, #71717a);
+  }
+
+  .app-shell .sx-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .app-shell .sx-nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    padding: 12px 16px;
+    font-size: 14.5px;
+    font-weight: 600;
+    border-radius: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+
+  .app-shell .sx-nav-item.is-active::before {
+    display: none;
+  }
+
+  .app-shell .sx-sidebar-foot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px 20px;
+    border-top: 1px solid var(--app-border-soft);
+  }
+
+  .app-shell .sx-nav-home {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--app-text-muted, #71717a);
+    padding: 6px 12px;
+    border-radius: 8px;
+    text-align: center;
+    transition: all 0.15s ease;
+  }
+
+  .app-shell .sx-nav-home:hover {
+    color: var(--app-text, #0f172a);
+    background: var(--app-inset, #f4f4f5);
   }
 }
 

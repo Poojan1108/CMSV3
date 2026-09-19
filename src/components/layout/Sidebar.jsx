@@ -116,17 +116,6 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
               className="sx-mobile-close-btn"
               onClick={onCloseMobile}
               aria-label="Close navigation menu"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--app-text-muted, #71717a)',
-                cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
             >
               <X size={18} />
             </button>

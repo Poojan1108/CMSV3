@@ -1,0 +1,132 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/landing/LandingTrustBar.jsx");const React = __vite__cjsImport0_react;const _jsxDEV = __vite__cjsImport2_react_jsxDevRuntime["jsxDEV"];import __vite__cjsImport0_react from "/node_modules/.vite/deps/react.js?v=d1bb8e57";
+import { School, Building, Landmark } from "/node_modules/.vite/deps/lucide-react.js?v=d1bb8e57";
+var _jsxFileName = "C:/CMS_V2/src/components/landing/LandingTrustBar.jsx";
+import __vite__cjsImport2_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=d1bb8e57";
+const TRUST_SECTORS = [
+	{
+		icon: Landmark,
+		iconColor: "#059669",
+		bgColor: "#ecfdf5",
+		title: "Educational Campuses",
+		subtitle: "Students · Faculty · Staff"
+	},
+	{
+		icon: Building,
+		iconColor: "#2563eb",
+		bgColor: "#eff6ff",
+		title: "Residential Communities",
+		subtitle: "Residents · Management"
+	},
+	{
+		icon: School,
+		iconColor: "#059669",
+		bgColor: "#ecfdf5",
+		title: "Facilities & Commercial",
+		subtitle: "Tenants · Operations"
+	}
+];
+export default function LandingTrustBar() {
+	return /* @__PURE__ */ _jsxDEV("section", {
+		className: "rx-trust-bar-section",
+		children: /* @__PURE__ */ _jsxDEV("div", {
+			className: "rx-container",
+			children: [/* @__PURE__ */ _jsxDEV("h3", {
+				className: "rx-trust-header",
+				children: "TRUSTED BY CAMPUSES, COMMUNITIES AND FACILITIES"
+			}, void 0, false, {
+				fileName: _jsxFileName,
+				lineNumber: 32,
+				columnNumber: 9
+			}, this), /* @__PURE__ */ _jsxDEV("div", {
+				className: "rx-trust-grid",
+				children: TRUST_SECTORS.map((item, idx) => {
+					const Icon = item.icon;
+					return /* @__PURE__ */ _jsxDEV("div", {
+						className: "rx-trust-card",
+						children: [/* @__PURE__ */ _jsxDEV("div", {
+							className: "rx-trust-icon-box",
+							style: {
+								backgroundColor: item.bgColor,
+								color: item.iconColor
+							},
+							children: /* @__PURE__ */ _jsxDEV(Icon, { size: 24 }, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 43,
+								columnNumber: 19
+							}, this)
+						}, void 0, false, {
+							fileName: _jsxFileName,
+							lineNumber: 39,
+							columnNumber: 17
+						}, this), /* @__PURE__ */ _jsxDEV("div", {
+							className: "rx-trust-card-text",
+							children: [/* @__PURE__ */ _jsxDEV("h4", {
+								className: "rx-trust-card-title",
+								children: item.title
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 46,
+								columnNumber: 19
+							}, this), /* @__PURE__ */ _jsxDEV("p", {
+								className: "rx-trust-card-sub",
+								children: item.subtitle
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 47,
+								columnNumber: 19
+							}, this)]
+						}, void 0, true, {
+							fileName: _jsxFileName,
+							lineNumber: 45,
+							columnNumber: 17
+						}, this)]
+					}, idx, true, {
+						fileName: _jsxFileName,
+						lineNumber: 38,
+						columnNumber: 15
+					}, this);
+				})
+			}, void 0, false, {
+				fileName: _jsxFileName,
+				lineNumber: 34,
+				columnNumber: 9
+			}, this)]
+		}, void 0, true, {
+			fileName: _jsxFileName,
+			lineNumber: 31,
+			columnNumber: 7
+		}, this)
+	}, void 0, false, {
+		fileName: _jsxFileName,
+		lineNumber: 30,
+		columnNumber: 5
+	}, this);
+}
+_c = LandingTrustBar;
+var _c;
+$RefreshReg$(_c, "LandingTrustBar");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+import * as __vite_react_currentExports from "/src/components/landing/LandingTrustBar.jsx";
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+
+  const currentExports = __vite_react_currentExports;
+  queueMicrotask(() => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/CMS_V2/src/components/landing/LandingTrustBar.jsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/CMS_V2/src/components/landing/LandingTrustBar.jsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+function $RefreshReg$(type, id) { return RefreshRuntime.register(type, "C:/CMS_V2/src/components/landing/LandingTrustBar.jsx" + ' ' + id); }
+function $RefreshSig$() { return RefreshRuntime.createSignatureFunctionForTransform(); }
+
+//# sourceMappingURL=data:application/json;base64,eyJtYXBwaW5ncyI6IkFBQUEsT0FBTyxXQUFXO0FBQ2xCLFNBQVMsUUFBUSxVQUFVLGdCQUFnQjs7O0FBRTNDLE1BQU0sZ0JBQWdCO0NBQ3BCO0VBQ0UsTUFBTTtFQUNOLFdBQVc7RUFDWCxTQUFTO0VBQ1QsT0FBTztFQUNQLFVBQVU7Q0FDWjtDQUNBO0VBQ0UsTUFBTTtFQUNOLFdBQVc7RUFDWCxTQUFTO0VBQ1QsT0FBTztFQUNQLFVBQVU7Q0FDWjtDQUNBO0VBQ0UsTUFBTTtFQUNOLFdBQVc7RUFDWCxTQUFTO0VBQ1QsT0FBTztFQUNQLFVBQVU7Q0FDWjtBQUNGO0FBRUEsZUFBZSxTQUFTLGtCQUFrQjtDQUN4QyxPQUNFLHdCQUFDLFdBQUQ7RUFBUyxXQUFVO1lBQ2pCLHdCQUFDLE9BQUQ7R0FBSyxXQUFVO2FBQWYsQ0FDRSx3QkFBQyxNQUFEO0lBQUksV0FBVTtjQUFrQjtHQUFtRDs7OzthQUVuRix3QkFBQyxPQUFEO0lBQUssV0FBVTtjQUNaLGNBQWMsS0FBSyxNQUFNLFFBQVE7S0FDaEMsTUFBTSxPQUFPLEtBQUs7S0FDbEIsT0FDRSx3QkFBQyxPQUFEO01BQWUsV0FBVTtnQkFBekIsQ0FDRSx3QkFBQyxPQUFEO09BQ0UsV0FBVTtPQUNWLE9BQU87UUFBRSxpQkFBaUIsS0FBSztRQUFTLE9BQU8sS0FBSztPQUFVO2lCQUU5RCx3QkFBQyxNQUFELEVBQU0sTUFBTSxHQUFLOzs7OztNQUNkOzs7O2dCQUNMLHdCQUFDLE9BQUQ7T0FBSyxXQUFVO2lCQUFmLENBQ0Usd0JBQUMsTUFBRDtRQUFJLFdBQVU7a0JBQXVCLEtBQUs7T0FBVTs7OztpQkFDcEQsd0JBQUMsS0FBRDtRQUFHLFdBQVU7a0JBQXFCLEtBQUs7T0FBWTs7OztlQUNoRDs7Ozs7Y0FDRjtRQVhLOzs7O1lBV0w7SUFFVCxDQUFDO0dBQ0U7Ozs7V0FDRjs7Ozs7O0NBQ0U7Ozs7O0FBRWIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiTGFuZGluZ1RydXN0QmFyLmpzeCJdLCJ2ZXJzaW9uIjozLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgU2Nob29sLCBCdWlsZGluZywgTGFuZG1hcmsgfSBmcm9tICdsdWNpZGUtcmVhY3QnO1xuXG5jb25zdCBUUlVTVF9TRUNUT1JTID0gW1xuICB7XG4gICAgaWNvbjogTGFuZG1hcmssXG4gICAgaWNvbkNvbG9yOiAnIzA1OTY2OScsXG4gICAgYmdDb2xvcjogJyNlY2ZkZjUnLFxuICAgIHRpdGxlOiAnRWR1Y2F0aW9uYWwgQ2FtcHVzZXMnLFxuICAgIHN1YnRpdGxlOiAnU3R1ZGVudHMgwrcgRmFjdWx0eSDCtyBTdGFmZicsXG4gIH0sXG4gIHtcbiAgICBpY29uOiBCdWlsZGluZyxcbiAgICBpY29uQ29sb3I6ICcjMjU2M2ViJyxcbiAgICBiZ0NvbG9yOiAnI2VmZjZmZicsXG4gICAgdGl0bGU6ICdSZXNpZGVudGlhbCBDb21tdW5pdGllcycsXG4gICAgc3VidGl0bGU6ICdSZXNpZGVudHMgwrcgTWFuYWdlbWVudCcsXG4gIH0sXG4gIHtcbiAgICBpY29uOiBTY2hvb2wsXG4gICAgaWNvbkNvbG9yOiAnIzA1OTY2OScsXG4gICAgYmdDb2xvcjogJyNlY2ZkZjUnLFxuICAgIHRpdGxlOiAnRmFjaWxpdGllcyAmIENvbW1lcmNpYWwnLFxuICAgIHN1YnRpdGxlOiAnVGVuYW50cyDCtyBPcGVyYXRpb25zJyxcbiAgfSxcbl07XG5cbmV4cG9ydCBkZWZhdWx0IGZ1bmN0aW9uIExhbmRpbmdUcnVzdEJhcigpIHtcbiAgcmV0dXJuIChcbiAgICA8c2VjdGlvbiBjbGFzc05hbWU9XCJyeC10cnVzdC1iYXItc2VjdGlvblwiPlxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJyeC1jb250YWluZXJcIj5cbiAgICAgICAgPGgzIGNsYXNzTmFtZT1cInJ4LXRydXN0LWhlYWRlclwiPlRSVVNURUQgQlkgQ0FNUFVTRVMsIENPTU1VTklUSUVTIEFORCBGQUNJTElUSUVTPC9oMz5cblxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInJ4LXRydXN0LWdyaWRcIj5cbiAgICAgICAgICB7VFJVU1RfU0VDVE9SUy5tYXAoKGl0ZW0sIGlkeCkgPT4ge1xuICAgICAgICAgICAgY29uc3QgSWNvbiA9IGl0ZW0uaWNvbjtcbiAgICAgICAgICAgIHJldHVybiAoXG4gICAgICAgICAgICAgIDxkaXYga2V5PXtpZHh9IGNsYXNzTmFtZT1cInJ4LXRydXN0LWNhcmRcIj5cbiAgICAgICAgICAgICAgICA8ZGl2XG4gICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJyeC10cnVzdC1pY29uLWJveFwiXG4gICAgICAgICAgICAgICAgICBzdHlsZT17eyBiYWNrZ3JvdW5kQ29sb3I6IGl0ZW0uYmdDb2xvciwgY29sb3I6IGl0ZW0uaWNvbkNvbG9yIH19XG4gICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgPEljb24gc2l6ZT17MjR9IC8+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJyeC10cnVzdC1jYXJkLXRleHRcIj5cbiAgICAgICAgICAgICAgICAgIDxoNCBjbGFzc05hbWU9XCJyeC10cnVzdC1jYXJkLXRpdGxlXCI+e2l0ZW0udGl0bGV9PC9oND5cbiAgICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInJ4LXRydXN0LWNhcmQtc3ViXCI+e2l0ZW0uc3VidGl0bGV9PC9wPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICk7XG4gICAgICAgICAgfSl9XG4gICAgICAgIDwvZGl2PlxuICAgICAgPC9kaXY+XG4gICAgPC9zZWN0aW9uPlxuICApO1xufVxuIl19

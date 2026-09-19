@@ -1834,18 +1834,80 @@ button.app-shell-metric-active,
   box-shadow: var(--app-shadow-sm);
 }
 
-.app-shell .tracker-milestones-header {
+.app-shell .tracker-milestones-header-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.app-shell .tracker-milestones-kicker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.app-shell .tracker-milestones-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-text-muted);
+}
+
+.app-shell .tracker-milestones-pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--app-text);
+  background: var(--app-inset, #f1f5f9);
+  border: 1px solid var(--app-border, #e2e8f0);
+  border-radius: 999px;
+  padding: 2px 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.app-shell .tracker-milestones-stage-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--app-text);
+  margin: 0;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  width: 100%;
+}
+
+.app-shell .tracker-milestones-progress-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.app-shell .tracker-milestones-progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+
+.app-shell .tracker-milestones-progress-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text);
+  white-space: nowrap;
 }
 
 .app-shell .milestone-progress-bar-track {
   width: 100%;
-  height: 6px;
-  background: var(--app-inset);
+  height: 7px;
+  background: var(--app-inset, #f1f5f9);
+  border: 1px solid var(--app-border-soft, #e2e8f0);
   border-radius: 999px;
   overflow: hidden;
   position: relative;
@@ -1853,9 +1915,9 @@ button.app-shell-metric-active,
 
 .app-shell .milestone-progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--app-success) 0%, var(--app-accent) 100%);
+  background: var(--app-accent, #18181b);
   border-radius: 999px;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell .milestone-stages-grid {
@@ -1882,25 +1944,24 @@ button.app-shell-metric-active,
 
 .app-shell .milestone-stage-cell.is-completed {
   background: #ffffff;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #e2e8f0;
 }
 
 .app-shell .milestone-stage-cell.is-current {
   background: #ffffff;
-  border: 1.5px solid #18181b;
-  box-shadow: 0 4px 12px rgba(24, 24, 27, 0.08);
-  transform: translateY(-1px);
+  border: 1.5px solid var(--app-accent, #18181b);
+  box-shadow: 0 3px 10px rgba(24, 24, 27, 0.06);
 }
 
 .app-shell .milestone-stage-cell.is-upcoming {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  opacity: 0.75;
+  opacity: 0.65;
 }
 
 .app-shell .milestone-node-badge {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1912,20 +1973,28 @@ button.app-shell-metric-active,
 }
 
 .milestone-stage-cell.is-completed .milestone-node-badge {
-  background: #15803d;
+  background: var(--app-accent, #18181b);
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(21, 128, 61, 0.25);
+  box-shadow: 0 1px 3px rgba(24, 24, 27, 0.18);
 }
 
 .milestone-stage-cell.is-current .milestone-node-badge {
-  background: #18181b;
-  color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
+  background: #ffffff;
+  border: 2px solid var(--app-accent, #18181b);
+  color: var(--app-accent, #18181b);
+  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.08);
+}
+
+.milestone-stage-cell.is-current .milestone-node-badge span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--app-accent, #18181b) !important;
 }
 
 .milestone-stage-cell.is-upcoming .milestone-node-badge {
   background: #ffffff;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #e2e8f0;
   color: var(--app-text-muted);
 }
 
@@ -1959,17 +2028,17 @@ button.app-shell-metric-active,
 }
 
 .milestone-stage-cell.is-completed .milestone-time-desc {
-  color: #15803d;
-  font-weight: 600;
+  color: var(--app-text-muted, #64748b);
+  font-weight: 500;
 }
 
 .milestone-stage-cell.is-current .milestone-title {
-  color: #18181b;
+  color: var(--app-text, #0f172a);
   font-weight: 700;
 }
 
 .milestone-stage-cell.is-current .milestone-time-desc {
-  color: #18181b;
+  color: var(--app-text, #0f172a);
   font-weight: 600;
 }
 
@@ -1987,8 +2056,9 @@ button.app-shell-metric-active,
   .app-shell .milestone-stage-cell {
     flex-direction: row;
     text-align: left;
-    padding: 10px 14px;
+    padding: 12px 14px;
     gap: 12px;
+    border-radius: 12px;
   }
 }
 
@@ -3127,15 +3197,8 @@ body .toast-icon.error { color: #e05d6f; }
     min-width: 0 !important;
   }
 
-  .app-shell .tracker-milestones-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .app-shell .tracker-milestones-header-card {
     gap: 8px;
-  }
-
-  .app-shell .tracker-milestones-header > div:last-child {
-    width: 100%;
-    justify-content: space-between;
   }
 
   .app-shell .tracker-milestones-card {

@@ -608,7 +608,9 @@ export const complaintService = {
     const index = list.findIndex((item) => item.id === id);
     if (index === -1) return null;
 
-    const updaterName = typeof updatedBy === 'object' ? updatedBy.name : updatedBy;
+    const updaterName = typeof updatedBy === 'object' && updatedBy ? updatedBy.name : updatedBy;
+    const updaterRole = typeof updatedBy === 'object' && updatedBy ? updatedBy.role : '';
+    const updaterId = typeof updatedBy === 'object' && updatedBy ? updatedBy.id : '';
     const now = new Date().toISOString();
 
     const complaint = list[index];
@@ -625,6 +627,8 @@ export const complaintService = {
     complaint.statusHistory.push({
       status: newStatus,
       updatedBy: updaterName || 'System',
+      updatedById: updaterId || '',
+      updatedByRole: updaterRole || '',
       note: note || `Status changed to ${newStatus}`,
       timestamp: now,
     });
@@ -661,18 +665,24 @@ export const complaintService = {
     }
 
     const now = new Date().toISOString();
-    const senderName = typeof sender === 'object' ? sender.name : sender;
-    const senderRole = typeof sender === 'object' ? sender.role : ROLES.STUDENT;
-    const senderId = typeof sender === 'object' ? sender.id : '';
+    const senderName = typeof sender === 'object' && sender ? sender.name : sender;
+    const senderRole = typeof sender === 'object' && sender ? sender.role : ROLES.STUDENT;
+    const senderId = typeof sender === 'object' && sender ? sender.id : '';
 
     const newComment = {
       id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       senderName: senderName || 'Anonymous',
       senderRole: senderRole || 'user',
-      senderId,
+      senderId: senderId || '',
+      sender: {
+        id: senderId || '',
+        name: senderName || 'Anonymous',
+        role: senderRole || 'user',
+      },
       text,
       timestamp: now,
-      isInternal,
+      createdAt: now,
+      isInternal: Boolean(isInternal),
     };
 
     const complaint = list[index];
@@ -707,6 +717,7 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const reassignerName = typeof reassignedBy === 'object' && reassignedBy ? reassignedBy.name : reassignedBy;
+    const reassignerId = typeof reassignedBy === 'object' && reassignedBy ? reassignedBy.id : '';
     const complaint = list[index];
 
     complaint.assignedTo = targetAssignee;
@@ -735,11 +746,18 @@ export const complaintService = {
       id: `c_${Date.now()}`,
       senderName: reassignerName || 'Staff',
       senderRole: ROLES.STAFF,
-      senderId: typeof reassignedBy === 'object' && reassignedBy ? reassignedBy.id : '',
+      senderId: reassignerId || '',
+      sender: {
+        id: reassignerId || '',
+        name: reassignerName || 'Staff',
+        role: ROLES.STAFF,
+      },
+      eventType: 'reassign',
       text: `[Internal Reassignment] Transferred ticket to ${targetAssignee.name} (${targetAssignee.department}).${
         reason ? ` Reason: ${reason}` : ''
       }`,
       timestamp: now,
+      createdAt: now,
       isInternal: true,
     };
 
@@ -767,6 +785,7 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const staffName = typeof staffUser === 'object' && staffUser ? staffUser.name : staffUser || 'Staff';
+    const staffId = typeof staffUser === 'object' && staffUser ? staffUser.id : '';
 
     const complaint = list[index];
     complaint.status = STATUSES.PENDING_CONFIRMATION;
@@ -790,8 +809,16 @@ export const complaintService = {
       id: `c_${Date.now()}`,
       senderName: staffName,
       senderRole: ROLES.STAFF,
+      senderId: staffId || '',
+      sender: {
+        id: staffId || '',
+        name: staffName,
+        role: ROLES.STAFF,
+      },
+      eventType: 'resolution_proposed',
       text: `[Resolution Proposed] ${resolutionNotes || 'Issue has been addressed. Please review and confirm resolution.'}`,
       timestamp: now,
+      createdAt: now,
       isInternal: false,
     };
     complaint.comments.push(propComment);
@@ -826,6 +853,7 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const userName = typeof user === 'object' && user ? user.name : user || 'User';
+    const userId = typeof user === 'object' && user ? user.id : '';
 
     const complaint = list[index];
     complaint.status = STATUSES.RESOLVED;
@@ -849,8 +877,16 @@ export const complaintService = {
       id: `c_${Date.now()}`,
       senderName: userName,
       senderRole: ROLES.STUDENT,
+      senderId: userId || '',
+      sender: {
+        id: userId || '',
+        name: userName,
+        role: ROLES.STUDENT,
+      },
+      eventType: 'resolution_confirmed',
       text: `[Ticket Closed & Confirmed Resolved] ${feedbackNote || 'Confirmed issue is completely resolved. Thank you!'}`,
       timestamp: now,
+      createdAt: now,
       isInternal: false,
     };
     complaint.comments.push(confComment);
@@ -885,6 +921,7 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const userName = typeof user === 'object' && user ? user.name : user || 'User';
+    const userId = typeof user === 'object' && user ? user.id : '';
 
     const complaint = list[index];
     complaint.status = STATUSES.IN_PROGRESS;
@@ -907,8 +944,16 @@ export const complaintService = {
       id: `c_${Date.now()}`,
       senderName: userName,
       senderRole: ROLES.STUDENT,
+      senderId: userId || '',
+      sender: {
+        id: userId || '',
+        name: userName,
+        role: ROLES.STUDENT,
+      },
+      eventType: 'resolution_rejected',
       text: `[Resolution Rejected / Reopened] ${rejectionReason || 'The issue is not completely fixed yet. Please inspect further.'}`,
       timestamp: now,
+      createdAt: now,
       isInternal: false,
     };
     complaint.comments.push(rejComment);

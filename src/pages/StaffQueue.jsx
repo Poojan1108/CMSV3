@@ -1141,34 +1141,82 @@ function TicketDetailModal({
           {displayedComments.length === 0 ? (
             <p className="no-comments">No comments in this tab.</p>
           ) : (
-            displayedComments.map((c) => (
-              <div key={c.id || `${c.senderName}-${c.timestamp}`} className="comment-row">
-                <span className={`comment-avatar ${c.isInternal ? 'staff' : 'user'}`} style={{ flexShrink: 0 }}>
-                  {c.isInternal ? <Lock size={13} /> : <MessageSquare size={13} />}
-                </span>
-                <div
-                  className="comment-bubble"
-                  style={{
-                    minWidth: 0,
-                    wordBreak: 'break-word',
-                    ...(c.isInternal
-                      ? { borderColor: 'var(--app-accent-border)', background: 'var(--app-warning-subtle)' }
-                      : {}),
-                  }}
-                >
-                  <div className="comment-meta" style={{ flexWrap: 'wrap', gap: 4 }}>
-                    <span className="comment-author">{c.senderName}</span>
-                    {c.isInternal && (
-                      <span className="comment-role" style={{ color: 'var(--app-warning)' }}>
-                        INTERNAL
+            displayedComments.map((c) => {
+              const authorName = c.senderName || c.sender?.name || 'User';
+              const authorRole = (c.senderRole || c.sender?.role || 'user').toLowerCase();
+              const timeVal = c.timestamp || c.createdAt;
+              const isStaffOrAdmin = authorRole === ROLES.STAFF || authorRole === ROLES.ADMIN || authorRole === 'staff' || authorRole === 'admin';
+              const roleDisplay = authorRole === ROLES.ADMIN || authorRole === 'admin' ? 'ADMIN' : isStaffOrAdmin ? 'STAFF' : 'REPORTER';
+
+              return (
+                <div key={c.id || `${authorName}-${timeVal}`} className="comment-row">
+                  <span
+                    className={`comment-avatar ${c.isInternal || isStaffOrAdmin ? 'staff' : 'user'}`}
+                    style={{
+                      flexShrink: 0,
+                      background: c.isInternal ? '#0f172a' : isStaffOrAdmin ? '#334155' : '#f1f5f9',
+                      color: isStaffOrAdmin || c.isInternal ? '#ffffff' : '#334155',
+                    }}
+                  >
+                    {c.isInternal ? <Lock size={13} /> : <MessageSquare size={13} />}
+                  </span>
+                  <div
+                    className="comment-bubble"
+                    style={{
+                      minWidth: 0,
+                      wordBreak: 'break-word',
+                      ...(c.isInternal
+                        ? { borderColor: '#94a3b8', background: '#f8fafc' }
+                        : { borderColor: '#e2e8f0', background: '#ffffff' }),
+                    }}
+                  >
+                    <div className="comment-meta" style={{ flexWrap: 'wrap', gap: 6 }}>
+                      <span className="comment-author" style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {authorName}
                       </span>
-                    )}
-                    <span className="comment-time">{formatRelativeTime(c.timestamp)}</span>
+                      <span
+                        className="comment-role"
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                          background: isStaffOrAdmin ? '#0f172a' : '#f1f5f9',
+                          color: isStaffOrAdmin ? '#ffffff' : '#475569',
+                          border: isStaffOrAdmin ? 'none' : '1px solid #cbd5e1',
+                        }}
+                      >
+                        {roleDisplay}
+                      </span>
+                      {c.isInternal && (
+                        <span
+                          className="comment-role"
+                          style={{
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: '#334155',
+                            color: '#ffffff',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                          }}
+                        >
+                          <Lock size={8} /> INTERNAL NOTE
+                        </span>
+                      )}
+                      <span className="comment-time" style={{ color: '#64748b' }}>
+                        {formatRelativeTime(timeVal)}
+                      </span>
+                    </div>
+                    <p className="comment-text" style={{ wordBreak: 'break-word', margin: 0, color: '#1e293b' }}>
+                      {c.text}
+                    </p>
                   </div>
-                  <p className="comment-text" style={{ wordBreak: 'break-word', margin: 0 }}>{c.text}</p>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

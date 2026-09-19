@@ -493,6 +493,8 @@ describe('6. Complaint Service: addComment()', () => {
     expect(addedComment.senderName).toBe('Alex Chen');
     expect(addedComment.senderRole).toBe(ROLES.STUDENT);
     expect(addedComment.senderId).toBe('usr_student_1');
+    expect(addedComment.sender).toEqual({ id: 'usr_student_1', name: 'Alex Chen', role: ROLES.STUDENT });
+    expect(addedComment.createdAt).toBeTruthy();
     expect(addedComment.text).toBe('Any update on the plumber?');
     expect(addedComment.isInternal).toBe(false);
   });

@@ -21,6 +21,9 @@ import {
   Camera,
   Maximize2,
   FileText,
+  ArrowRightLeft,
+  RotateCcw,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -65,6 +68,7 @@ export default function TicketTracker() {
   const [lookupId, setLookupId] = useState(ticketIdParam);
   const [complaint, setComplaint] = useState(null);
   const [newCommentText, setNewCommentText] = useState('');
+  const [isInternalNote, setIsInternalNote] = useState(false);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [userComplaintsList, setUserComplaintsList] = useState([]);
@@ -225,35 +229,170 @@ export default function TicketTracker() {
     }
   }, [complaint]);
 
+  const isStaffOrAdmin = user?.role === ROLES.STAFF || user?.role === ROLES.ADMIN;
+
   const handleAddComment = (e) => {
     e.preventDefault();
     if (!newCommentText.trim() || !complaint) return;
 
     setIsPostingComment(true);
     try {
+      const isInternal = Boolean(isInternalNote && isStaffOrAdmin);
       const updated = complaintService.addComment(
         complaint.id,
         actorProfile,
         newCommentText.trim(),
-        false
+        isInternal
       );
       if (updated) {
         setComplaint({ ...updated });
         setNewCommentText('');
-        showToast('Comment posted', 'success');
+        setIsInternalNote(false);
+        showToast(isInternal ? 'Internal note logged' : 'Message posted', 'success');
       }
     } catch (err) {
       console.error('Failed to post comment:', err);
-      showToast('Failed to post comment. Please try again.', 'error');
+      showToast('Failed to post message. Please try again.', 'error');
     } finally {
       setIsPostingComment(false);
     }
   };
 
-  const publicComments = useMemo(
-    () => (complaint?.comments || []).filter((c) => !c.isInternal),
-    [complaint]
-  );
+  const renderEventIcon = (category) => {
+    switch (category) {
+      case 'reassign':
+        return <ArrowRightLeft size={12} style={{ color: '#0f172a', flexShrink: 0 }} />;
+      case 'proposal':
+        return <AlertCircle size={12} style={{ color: '#334155', flexShrink: 0 }} />;
+      case 'confirmed':
+        return <CheckCircle2 size={12} style={{ color: '#0f172a', flexShrink: 0 }} />;
+      case 'reopened':
+        return <RotateCcw size={12} style={{ color: '#0f172a', flexShrink: 0 }} />;
+      case 'created':
+        return <Activity size={12} style={{ color: '#64748b', flexShrink: 0 }} />;
+      default:
+        return <Clock size={12} style={{ color: '#64748b', flexShrink: 0 }} />;
+    }
+  };
+
+  const timelineFeed = useMemo(() => {
+    if (!complaint) return [];
+
+    const items = [];
+
+    // 1. Process comments
+    const commentsList = complaint.comments || [];
+    commentsList.forEach((c) => {
+      // Hide internal comments from student/public viewers
+      if (c.isInternal && !isStaffOrAdmin) {
+        return;
+      }
+
+      const text = c.text || '';
+      const isReassign = c.eventType === 'reassign' || text.startsWith('[Internal Reassignment]');
+      const isPropRes = c.eventType === 'resolution_proposed' || text.startsWith('[Resolution Proposed]');
+      const isConfRes = c.eventType === 'resolution_confirmed' || text.startsWith('[Ticket Closed & Confirmed Resolved]');
+      const isRejRes = c.eventType === 'resolution_rejected' || text.startsWith('[Resolution Rejected / Reopened]');
+
+      if (isReassign || isPropRes || isConfRes || isRejRes) {
+        let cleanText = text;
+        let eventCategory = 'system';
+        if (isReassign) {
+          cleanText = text.replace(/^\[Internal Reassignment\]\s*/, '');
+          eventCategory = 'reassign';
+        } else if (isPropRes) {
+          cleanText = text.replace(/^\[Resolution Proposed\]\s*/, '');
+          eventCategory = 'proposal';
+        } else if (isConfRes) {
+          cleanText = text.replace(/^\[Ticket Closed & Confirmed Resolved\]\s*/, '');
+          eventCategory = 'confirmed';
+        } else if (isRejRes) {
+          cleanText = text.replace(/^\[Resolution Rejected \/ Reopened\]\s*/, '');
+          eventCategory = 'reopened';
+        }
+
+        items.push({
+          id: c.id,
+          type: 'event',
+          eventCategory,
+          title: cleanText,
+          actorName: c.senderName || c.sender?.name || 'Staff',
+          actorRole: c.senderRole || c.sender?.role || ROLES.STAFF,
+          actorId: c.senderId || c.sender?.id || '',
+          timestamp: c.timestamp || c.createdAt || complaint.updatedAt,
+          isInternal: Boolean(c.isInternal),
+        });
+      } else {
+        items.push({
+          id: c.id,
+          type: 'comment',
+          text: c.text,
+          senderName:
+            c.senderName ||
+            c.sender?.name ||
+            (complaint.student?.id === (c.senderId || c.sender?.id) ? complaint.student?.name : 'User'),
+          senderRole:
+            c.senderRole ||
+            c.sender?.role ||
+            (complaint.student?.id === (c.senderId || c.sender?.id) ? ROLES.STUDENT : 'user'),
+          senderId: c.senderId || c.sender?.id || '',
+          timestamp: c.timestamp || c.createdAt || complaint.updatedAt,
+          isInternal: Boolean(c.isInternal),
+        });
+      }
+    });
+
+    // 2. Process statusHistory for status transitions not already captured
+    const historyList = complaint.statusHistory || [];
+    historyList.forEach((h, idx) => {
+      const note = h.note || '';
+      const isAlreadyInFeed = items.some((item) => {
+        if (item.type !== 'event') return false;
+        const timeDiff = Math.abs(new Date(item.timestamp).getTime() - new Date(h.timestamp).getTime());
+        return timeDiff < 4000 && (item.title.includes(note) || note.includes(item.title));
+      });
+
+      if (!isAlreadyInFeed) {
+        let eventCategory = 'status_change';
+        if (h.status === STATUSES.RESOLVED) eventCategory = 'confirmed';
+        else if (h.status === STATUSES.PENDING_CONFIRMATION) eventCategory = 'proposal';
+        else if (h.status === STATUSES.IN_PROGRESS && note.toLowerCase().includes('reopen')) eventCategory = 'reopened';
+        else if (note.toLowerCase().includes('reassign')) eventCategory = 'reassign';
+
+        items.push({
+          id: `sh_${idx}_${h.timestamp}`,
+          type: 'event',
+          eventCategory,
+          title: h.note || `Status changed to ${h.status}`,
+          status: h.status,
+          actorName: h.updatedBy || 'System',
+          actorRole: h.updatedByRole || (h.updatedBy === 'System' ? 'system' : ROLES.STAFF),
+          actorId: h.updatedById || '',
+          timestamp: h.timestamp,
+          isInternal: false,
+        });
+      }
+    });
+
+    // 3. Ensure ticket creation event is at the beginning if not present
+    if (complaint.createdAt && !items.some((it) => it.eventCategory === 'created' || it.title?.toLowerCase().includes('registered in system'))) {
+      items.push({
+        id: `created_${complaint.id}`,
+        type: 'event',
+        eventCategory: 'created',
+        title: `Ticket registered in system`,
+        actorName: complaint.isAnonymous ? 'Anonymous' : (complaint.student?.name || 'Reporter'),
+        actorRole: ROLES.STUDENT,
+        actorId: complaint.student?.id || '',
+        timestamp: complaint.createdAt,
+        isInternal: false,
+      });
+    }
+
+    // Sort chronologically ascending
+    items.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return items;
+  }, [complaint, isStaffOrAdmin]);
 
   return (
     <div
@@ -338,36 +477,40 @@ export default function TicketTracker() {
               boxSizing: 'border-box',
             }}
           >
-            <div
-              className="tracker-milestones-header"
-              style={{
-                width: '100%',
-                maxWidth: '100%',
-                minWidth: 0,
-                boxSizing: 'border-box',
-              }}
-            >
-              <div>
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--app-text-muted)' }}>
+            <div className="tracker-milestones-header-card">
+              {/* Row 1: Kicker on Left, Stage Pill Badge on Right */}
+              <div className="tracker-milestones-kicker-row">
+                <span className="tracker-milestones-kicker">
                   Resolution Journey
                 </span>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--app-text)', marginTop: 2 }}>
-                  Stage {currentStageIndex + 1} of 6: <span style={{ color: 'var(--app-accent)' }}>{TIMELINE_STAGES[currentStageIndex]?.label}</span>
-                </div>
+                <span className="tracker-milestones-pill">
+                  Stage {currentStageIndex + 1} of 6
+                </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--app-text-secondary)', flexShrink: 0 }}>
+              {/* Row 2: Dedicated Full-Width Stage Name (Safely wraps for any length) */}
+              <h2 className="tracker-milestones-stage-name">
+                {TIMELINE_STAGES[currentStageIndex]?.label}
+              </h2>
+
+              {/* Row 3: Progress Info (Unbroken label and single string percentage) */}
+              <div className="tracker-milestones-progress-info">
+                <span className="tracker-milestones-progress-label">
+                  Resolution Progress
+                </span>
+                <span className="tracker-milestones-progress-pct">
                   {Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}% Complete
                 </span>
-                <div style={{ width: 110, maxWidth: '100%' }} className="milestone-progress-bar-track">
-                  <div
-                    className="milestone-progress-bar-fill"
-                    style={{
-                      width: `${Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}%`,
-                    }}
-                  />
-                </div>
+              </div>
+
+              {/* Row 4: Sleek Full-Width Progress Bar */}
+              <div className="milestone-progress-bar-track">
+                <div
+                  className="milestone-progress-bar-fill"
+                  style={{
+                    width: `${Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}%`,
+                  }}
+                />
               </div>
             </div>
 
@@ -708,56 +851,204 @@ export default function TicketTracker() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <MessageSquare size={16} className="tone-accent" style={{ flexShrink: 0 }} />
                     <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      Discussion & Updates
+                      Discussion & Activity Feed
                     </h2>
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--app-text-muted)', flexShrink: 0 }}>
-                    {complaint.comments?.length || 0} messages
+                    {timelineFeed.length} updates
                   </span>
                 </div>
 
-                <div className="discussion-thread" style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12, width: '100%', boxSizing: 'border-box' }}>
-                  {(!complaint.comments || complaint.comments.length === 0) ? (
+                <div className="discussion-thread" style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 14, width: '100%', boxSizing: 'border-box' }}>
+                  {timelineFeed.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--app-text-muted)', fontSize: 13 }}>
-                      No messages yet. Post an update or question below.
+                      No messages or activity logged yet.
                     </div>
                   ) : (
-                    complaint.comments.map((c) => {
-                      const isStaff = c.sender?.role === ROLES.STAFF || c.sender?.role === ROLES.ADMIN;
-                      const isMe = user?.id && c.sender?.id === user.id;
-                      const senderName = isMe
-                        ? `${user?.name || 'You'} (You)`
-                        : isStaff
-                        ? `${c.sender?.name || 'Staff Resolver'} (Staff)`
-                        : `${c.sender?.name || complaint.student?.name || 'Reporter'}`;
+                    timelineFeed.map((item) => {
+                      if (item.type === 'event') {
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              margin: '4px 0',
+                              position: 'relative',
+                              width: '100%',
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                height: 1,
+                                background: 'var(--app-border-soft)',
+                                zIndex: 1,
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: 'relative',
+                                zIndex: 2,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 12px',
+                                borderRadius: 999,
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                fontSize: 11.5,
+                                color: '#334155',
+                                maxWidth: '96%',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                wordBreak: 'break-word',
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              {renderEventIcon(item.eventCategory)}
+                              <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                                {item.actorName}
+                              </span>
+                              <span>{item.title}</span>
+                              <span style={{ color: '#94a3b8', fontSize: 10.5 }}>
+                                • {formatRelativeTime(item.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Regular comment bubble
+                      const isMe = Boolean(user?.id && item.senderId && String(item.senderId) === String(user.id));
+                      const roleLower = (item.senderRole || '').toLowerCase();
+                      const isStaff = roleLower === ROLES.STAFF || roleLower === 'staff';
+                      const isAdmin = roleLower === ROLES.ADMIN || roleLower === 'admin';
+                      const roleLabel = isAdmin ? 'Admin' : isStaff ? 'Staff Resolver' : 'Reporter';
 
                       return (
                         <div
-                          key={c.id}
+                          key={item.id}
                           style={{
-                            padding: '12px 14px',
-                            borderRadius: 10,
-                            background: isStaff ? '#f5f5f4' : '#ffffff',
-                            border: `1px solid ${isStaff ? '#e7e5e4' : '#e7e5e4'}`,
-                            boxShadow: isStaff ? 'none' : '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                            maxWidth: '90%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxWidth: '85%',
                             minWidth: 0,
-                            alignSelf: isStaff ? 'flex-start' : 'flex-end',
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
                             boxSizing: 'border-box',
-                            wordBreak: 'break-word',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 5, flexWrap: 'wrap' }}>
-                            <strong style={{ fontSize: 12.5, fontWeight: 600, color: '#18181b', minWidth: 0, wordBreak: 'break-word' }}>
-                              {senderName}
-                            </strong>
-                            <span style={{ fontSize: 11, color: '#78716c', flexShrink: 0 }}>
-                              {formatRelativeTime(c.createdAt)}
-                            </span>
+                          <div
+                            style={{
+                              padding: '12px 14px',
+                              borderRadius: 10,
+                              background: isMe ? '#0f172a' : item.isInternal ? '#f8fafc' : '#ffffff',
+                              border: `1px solid ${isMe ? '#1e293b' : item.isInternal ? '#94a3b8' : '#e2e8f0'}`,
+                              boxShadow: isMe
+                                ? '0 2px 4px rgba(15, 23, 42, 0.12)'
+                                : '0 1px 3px rgba(0, 0, 0, 0.04)',
+                              boxSizing: 'border-box',
+                              wordBreak: 'break-word',
+                              color: isMe ? '#f8fafc' : '#0f172a',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                marginBottom: 6,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <strong
+                                  style={{
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    color: isMe ? '#f8fafc' : '#0f172a',
+                                  }}
+                                >
+                                  {isMe ? `${user?.name || 'You'} (You)` : item.senderName}
+                                </strong>
+
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.03em',
+                                    textTransform: 'uppercase',
+                                    padding: '1px 6px',
+                                    borderRadius: 999,
+                                    background: isMe
+                                      ? '#1e293b'
+                                      : isAdmin
+                                      ? '#0f172a'
+                                      : isStaff
+                                      ? '#334155'
+                                      : '#f1f5f9',
+                                    color: isMe
+                                      ? '#cbd5e1'
+                                      : (isAdmin || isStaff)
+                                      ? '#ffffff'
+                                      : '#475569',
+                                    border: isMe
+                                      ? '1px solid #334155'
+                                      : (isAdmin || isStaff)
+                                      ? 'none'
+                                      : '1px solid #cbd5e1',
+                                  }}
+                                >
+                                  {roleLabel}
+                                </span>
+
+                                {item.isInternal && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                      padding: '1px 6px',
+                                      borderRadius: 999,
+                                      background: isMe ? '#334155' : '#e2e8f0',
+                                      color: isMe ? '#f1f5f9' : '#1e293b',
+                                    }}
+                                  >
+                                    <Lock size={9} />
+                                    INTERNAL NOTE
+                                  </span>
+                                )}
+                              </div>
+
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: isMe ? '#94a3b8' : '#64748b',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {formatRelativeTime(item.timestamp)}
+                              </span>
+                            </div>
+
+                            <p
+                              style={{
+                                fontSize: 13,
+                                color: isMe ? '#f1f5f9' : '#1e293b',
+                                margin: 0,
+                                lineHeight: 1.5,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {item.text}
+                            </p>
                           </div>
-                          <p style={{ fontSize: 13, color: '#27272a', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {c.text}
-                          </p>
                         </div>
                       );
                     })
@@ -768,6 +1059,7 @@ export default function TicketTracker() {
                   onSubmit={handleAddComment}
                   style={{
                     display: 'flex',
+                    flexDirection: 'column',
                     gap: 8,
                     borderTop: '1px solid var(--app-border-soft)',
                     paddingTop: 12,
@@ -775,24 +1067,66 @@ export default function TicketTracker() {
                     boxSizing: 'border-box',
                   }}
                 >
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Type a message or inquiry..."
-                    value={newCommentText}
-                    onChange={(e) => setNewCommentText(e.target.value)}
-                    style={{ flex: 1, minWidth: 0, height: 42 }}
-                    disabled={isPostingComment}
-                  />
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ flexShrink: 0, height: 42, padding: '0 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                    disabled={isPostingComment || !newCommentText.trim()}
-                  >
-                    <Send size={14} />
-                    <span>Send</span>
-                  </button>
+                  {isStaffOrAdmin && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsInternalNote(!isInternalNote)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          background: isInternalNote ? '#0f172a' : '#f8fafc',
+                          color: isInternalNote ? '#ffffff' : '#64748b',
+                          border: `1px solid ${isInternalNote ? '#0f172a' : '#e2e8f0'}`,
+                        }}
+                      >
+                        <Lock size={11} />
+                        <span>{isInternalNote ? 'Internal Note (Staff only)' : 'Public Reply (Visible to student)'}</span>
+                      </button>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>
+                        Posting as <strong>{user?.name || 'Staff'}</strong> ({user?.role || 'staff'})
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, width: '100%', boxSizing: 'border-box' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder={
+                        isInternalNote
+                          ? "Log internal diagnostic or dispatch note..."
+                          : "Type a message or inquiry..."
+                      }
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      style={{ flex: 1, minWidth: 0, height: 42 }}
+                      disabled={isPostingComment}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{
+                        flexShrink: 0,
+                        height: 42,
+                        padding: '0 16px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: isInternalNote ? '#334155' : '#0f172a',
+                      }}
+                      disabled={isPostingComment || !newCommentText.trim()}
+                    >
+                      <Send size={14} />
+                      <span>{isInternalNote ? 'Log Note' : 'Send'}</span>
+                    </button>
+                  </div>
                 </form>
               </section>
             </div>

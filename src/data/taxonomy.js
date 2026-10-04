@@ -93,33 +93,33 @@ export const getSubCategories = (category) =>
 export const KB_ARTICLES = [
   {
     keywords: ['wifi', 'wi-fi', 'internet', 'network', 'connect', 'latency', 'disconnect'],
-    title: 'Self-Help: Resolving Campus Wi-Fi & SSID Disconnections',
+    title: 'Self-Help: Resolving Network & Wi-Fi Disconnections',
     solution:
-      'Try forgetting "Campus_Student_5G" on your device, clearing saved credentials, and re-authenticating. If in a lab, verify if neighbor desks are connected.',
+      'Try forgetting the organization Wi-Fi network on your device, clearing saved credentials, and re-authenticating. Verify if adjacent devices in your area are also affected.',
   },
   {
     keywords: ['water', 'pipe', 'leak', 'sink', 'plumb', 'tap', 'restroom', 'drain'],
     title: 'Emergency Checklist: Pipe Leakage & Stopcock Location',
     solution:
-      'In case of active pipe leakage, shut off the main brass stopcock located directly under the sink counter to prevent floor damage while maintenance arrives.',
+      'In case of active pipe leakage, shut off the main isolation valve or stopcock located under the sink counter or utility riser to prevent water damage while maintenance arrives.',
   },
   {
     keywords: ['ac', 'cooling', 'air condition', 'hvac', 'warm air', 'temperature', 'fan'],
     title: 'Quick Check: HVAC Controller & Thermostat Mode',
     solution:
-      'Ensure the AC remote control mode is set to "Cool" (snowflake icon) with fan speed set to "Auto" or "High" and setpoint set between 20°C - 22°C.',
+      'Ensure the AC control mode is set to "Cool" (snowflake icon) with fan speed set to "Auto" or "High" and setpoint adjusted between 20°C - 22°C.',
   },
   {
-    keywords: ['food', 'canteen', 'mess', 'lunch', 'snack', 'meal', 'catering'],
-    title: 'Food Committee Feedback Protocol',
+    keywords: ['food', 'canteen', 'mess', 'lunch', 'snack', 'meal', 'catering', 'cafeteria'],
+    title: 'Cafeteria & Dining Services Feedback Protocol',
     solution:
-      'For urgent meal quality issues, notify the shift mess manager on-duty immediately so raw batch samples can be impounded for testing.',
+      'For urgent meal or dining service quality issues, notify the facility supervisor or dining manager on-duty immediately so raw batch samples can be inspected.',
   },
   {
     keywords: ['password', 'login', 'portal', 'account', 'auth'],
     title: 'Account & Credentials Self-Service Reset',
     solution:
-      'You can reset your single sign-on password using the Self-Service IAM Portal without waiting for manual IT queue processing.',
+      'You can reset your account password using the Self-Service Portal without waiting for manual IT queue processing.',
   },
 ];
 
@@ -153,11 +153,26 @@ export const FALLBACK_LOCATIONS = [
 ];
 
 /**
- * Resolves quick-location presets for an org key with a safe fallback.
- * @param {string} orgKey
+ * Resolves quick-location presets for an org key, archetype type, or organization object.
+ * Checks archetype type (college, society, corporate) first, then key, then safe fallbacks.
+ * @param {string|object} orgKeyOrOrg
  * @returns {string[]}
  */
-export const getQuickLocations = (orgKey) => QUICK_LOCATIONS[orgKey] || FALLBACK_LOCATIONS;
+export const getQuickLocations = (orgKeyOrOrg) => {
+  if (!orgKeyOrOrg) return FALLBACK_LOCATIONS;
+  if (typeof orgKeyOrOrg === 'object') {
+    const typeKey = (orgKeyOrOrg.type || '').toUpperCase();
+    return QUICK_LOCATIONS[typeKey] || FALLBACK_LOCATIONS;
+  }
+  const key = String(orgKeyOrOrg).toUpperCase();
+  return (
+    QUICK_LOCATIONS[key] ||
+    (key.includes('COLLEGE') || key.includes('IIT') || key.includes('UNIV') ? QUICK_LOCATIONS.COLLEGE : null) ||
+    (key.includes('SOCIETY') || key.includes('RESIDENCY') || key.includes('RWA') ? QUICK_LOCATIONS.SOCIETY : null) ||
+    (key.includes('CORP') || key.includes('TCS') || key.includes('OFFICE') ? QUICK_LOCATIONS.CORPORATE : null) ||
+    FALLBACK_LOCATIONS
+  );
+};
 
 /** Inspection access time windows offered on the intake form. */
 export const ACCESS_TIME_SLOTS = [

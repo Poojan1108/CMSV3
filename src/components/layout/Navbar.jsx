@@ -87,9 +87,12 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
 
   function getRoleLabel(roleName) {
     if (!currentOrg) return roleName;
-    if (roleName === ROLES.ADMIN) return currentOrg.adminTerm || 'Admin';
+    if (roleName === ROLES.ADMIN) {
+      const term = currentOrg.adminTerm || 'Admin';
+      return (term === 'Operations / HR Admin' || term === 'Admin & HR') ? 'Workspace Admin' : term;
+    }
     if (roleName === ROLES.STAFF) return currentOrg.staffTerm || 'Staff';
-    return currentOrg.userTerm || 'Student';
+    return currentOrg.userTerm || 'Member';
   }
 
   return (
@@ -113,10 +116,7 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
             <ShieldCheck size={18} />
           </span>
           <span className="brand-text">
-            <span className="brand-title" title={currentOrg?.name || 'ResolveX'}>
-              {currentOrg?.name || 'ResolveX'}
-            </span>
-            {currentOrg?.type && <span className="brand-badge">{currentOrg.type}</span>}
+            <span className="brand-title">ResolveX</span>
           </span>
         </Link>
       </div>
@@ -161,9 +161,6 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
               <div className="profile-menu-header">
                 <p className="profile-menu-name">{user?.name || 'User'}</p>
                 <p className="profile-menu-email">{user?.email}</p>
-                <span className="profile-role-pill">
-                  {currentOrg?.name || 'ResolveX'} • {getRoleLabel(role)}
-                </span>
               </div>
               <button
                 type="button"

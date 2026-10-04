@@ -97,12 +97,12 @@ CREATE TABLE public.profiles (
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     role user_role NOT NULL DEFAULT 'student',
-    org_key TEXT NOT NULL DEFAULT 'COLLEGE',
+    org_key TEXT NOT NULL REFERENCES public.organizations(org_key) ON UPDATE CASCADE,
     department_id UUID,
     avatar_url TEXT,
     phone TEXT,
-    roll_no TEXT,
-    room_no TEXT,
+    roll_no TEXT, -- Universal Member Identifier (Roll No / Employee ID / Flat No)
+    room_no TEXT, -- Universal Space Identifier (Room / Desk / Unit)
     assigned_categories TEXT[] DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -251,21 +251,55 @@ This PostgreSQL trigger guarantees that whenever a user registers through `supab
 ```sql
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  resolved_org VARCHAR(50);
+  resolved_role public.user_role;
 BEGIN
+  resolved_org := NEW.raw_user_meta_data->>'orgKey';
+
+  -- Universal Dynamic Binding: If metadata lacks orgKey, dynamically bind to the first active organization
+  IF resolved_org IS NULL OR resolved_org = '' THEN
+    SELECT org_key INTO resolved_org 
+    FROM public.organizations 
+    WHERE is_active = TRUE 
+    ORDER BY created_at ASC 
+    LIMIT 1;
+  END IF;
+
+  -- Safe enum cast
+  BEGIN
+    resolved_role := COALESCE(
+      (NEW.raw_user_meta_data->>'role')::public.user_role, 
+      'student'::public.user_role
+    );
+  EXCEPTION WHEN OTHERS THEN
+    resolved_role := 'student'::public.user_role;
+  END;
+
   INSERT INTO public.profiles (
     id,
     name,
     email,
     role,
-    org_key
+    org_key,
+    created_at,
+    updated_at
   )
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email,
-    COALESCE((NEW.raw_user_meta_data->>'role')::public.user_role, 'student'::public.user_role),
-    COALESCE(NEW.raw_user_meta_data->>'orgKey', 'COLLEGE')
-  );
+    resolved_role,
+    resolved_org,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    name = COALESCE(EXCLUDED.name, public.profiles.name),
+    role = COALESCE(EXCLUDED.role, public.profiles.role),
+    org_key = COALESCE(EXCLUDED.org_key, public.profiles.org_key),
+    updated_at = NOW();
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -317,25 +351,32 @@ CREATE POLICY "Admins can manage organizations" ON public.organizations
 CREATE POLICY "Complaints read policy" ON public.complaints
     FOR SELECT TO authenticated
     USING (
-        student_id = auth.uid()
+        student_id::text = auth.uid()::text
         OR EXISTS (
             SELECT 1 FROM public.profiles 
-            WHERE profiles.id = auth.uid() AND profiles.role IN ('staff', 'admin')
+            WHERE profiles.id::text = auth.uid()::text 
+              AND profiles.role IN ('staff', 'admin')
+              AND profiles.org_key = complaints.org_key
         )
     );
 
 CREATE POLICY "Students can create complaints" ON public.complaints
     FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() = student_id OR student_id IS NULL);
+    WITH CHECK (student_id::text = auth.uid()::text OR student_id IS NULL);
 
 CREATE POLICY "Staff and Admins can update complaints" ON public.complaints
     FOR UPDATE TO authenticated
     USING (
         EXISTS (
             SELECT 1 FROM public.profiles 
-            WHERE profiles.id = auth.uid() AND profiles.role IN ('staff', 'admin')
+            WHERE profiles.id::text = auth.uid()::text AND profiles.role IN ('staff', 'admin')
         )
     );
+
+CREATE POLICY "Students can confirm or reject resolution" ON public.complaints
+    FOR UPDATE TO authenticated
+    USING (student_id::text = auth.uid()::text AND status::text = 'pending_confirmation')
+    WITH CHECK (student_id::text = auth.uid()::text AND status::text IN ('resolved', 'in_progress'));
 
 -- 4. Comments: Non-internal visible to student; all visible to staff/admin
 CREATE POLICY "Comments read policy" ON public.complaint_comments
@@ -353,13 +394,11 @@ CREATE POLICY "Authenticated users can insert comments" ON public.complaint_comm
     WITH CHECK (auth.uid() = sender_id OR sender_id IS NULL);
 
 -- 5. History: Read-only audit log for ticket participants
+-- NOTE: No client INSERT policy exists. History entries are written EXCLUSIVELY
+-- by database triggers (trg_complaint_history_insert and trg_complaint_history_update).
 CREATE POLICY "History read policy" ON public.complaint_history
     FOR SELECT TO authenticated
     USING (true);
-
-CREATE POLICY "History insert policy" ON public.complaint_history
-    FOR INSERT TO authenticated
-    WITH CHECK (true);
 ```
 
 ---

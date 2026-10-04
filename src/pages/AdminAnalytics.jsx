@@ -290,7 +290,7 @@ export default function AdminAnalytics() {
   const handleExportCSV = () => {
     const dateStamp = new Date().toISOString().split('T')[0];
     downloadFile(
-      generateComplaintsCSV(complaints),
+      generateComplaintsCSV(complaints, currentOrg),
       `complaints_report_${dateStamp}.csv`,
       'text/csv;charset=utf-8;'
     );
@@ -320,12 +320,26 @@ export default function AdminAnalytics() {
     { key: PRIORITIES.LOW, label: PRIORITY_LABELS[PRIORITIES.LOW], cls: 'tone-neutral', icon: CheckCircle2 },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="page-stack">
+        <PageHeader
+          eyebrow="Executive Analytics"
+          icon={<ShieldAlert size={12} />}
+          title="Institutional Telemetry & Governance"
+          description="Comprehensive grievance metrics, resolution performance, and live staff reassignment controls."
+        />
+        <LoadingState label="Loading analytics telemetry…" />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow={`${currentOrg?.name || ''} Executive Admin`}
+        eyebrow="Executive Analytics"
         icon={<ShieldAlert size={12} />}
-        title="Telemetry & Institutional Governance"
+        title="Institutional Telemetry & Governance"
         description="Comprehensive grievance metrics, resolution performance, and live staff reassignment controls."
         actions={
           <div className="export-toolbar no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%' }}>
@@ -723,7 +737,7 @@ export default function AdminAnalytics() {
                     <td>
                       <div>{item.student?.name || 'Anonymous'}</div>
                       <div className="cell-sub">
-                        {item.isAnonymous ? 'Identity protected' : item.student?.rollNo || '—'}
+                        {item.isAnonymous ? 'Identity protected' : (item.student?.identifier || item.student?.rollNo || item.student?.empId || item.student?.unit || '—')}
                       </div>
                     </td>
                     <td>
@@ -885,8 +899,6 @@ export default function AdminAnalytics() {
           </p>
         </Modal>
       )}
-
-      {isLoading && <LoadingState label="Loading analytics…" />}
     </div>
   );
 }

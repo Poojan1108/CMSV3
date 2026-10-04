@@ -21,6 +21,7 @@ server/dist
 .env.local
 server/.env
 *.local
+.agents/mcp_config.json
 
 # Archive
 _archive

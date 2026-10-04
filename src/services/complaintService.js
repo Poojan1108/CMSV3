@@ -1,5 +1,4 @@
 import { generateComplaintsCSV } from '../utils/formatters.js';
-import { ticketApi } from './api.js';
 import {
   supabase,
   isSupabaseConfigured,
@@ -54,29 +53,82 @@ function notifyLiveChange(detail = {}) {
 }
 
 /**
- * Background upsert of complaint record into Supabase
+ * Auto-routes a category to its responsible department.
+ */
+export const getCategoryDepartment = (category) => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('hostel') || cat.includes('mess') || cat.includes('sanitation') || cat.includes('warden')) {
+    return { id: null, name: 'Hostel & Residential Welfare' };
+  }
+  if (cat.includes('it') || cat.includes('wifi') || cat.includes('lab') || cat.includes('computer') || cat.includes('network') || cat.includes('switch')) {
+    return { id: null, name: 'IT & Digital Infrastructure' };
+  }
+  return { id: null, name: 'Maintenance & Estate Services' };
+};
+
+/**
+ * Computes official SLA response and resolution deadlines based on ticket priority.
+ */
+export const calculateSlaDeadlines = (priority, fromDate = new Date()) => {
+  const p = (priority || 'medium').toLowerCase();
+  const baseTime = fromDate instanceof Date ? fromDate.getTime() : new Date(fromDate).getTime();
+
+  // Explicit SLA configuration in hours
+  const slaConfigs = {
+    urgent: { responseHours: 2, resolveHours: 12 },
+    high: { responseHours: 6, resolveHours: 24 },
+    medium: { responseHours: 12, resolveHours: 48 },
+    low: { responseHours: 24, resolveHours: 72 },
+  };
+
+  const config = slaConfigs[p] || slaConfigs.medium;
+  return {
+    slaResponseDue: new Date(baseTime + config.responseHours * 3600000).toISOString(),
+    slaResolveDue: new Date(baseTime + config.resolveHours * 3600000).toISOString(),
+  };
+};
+
+/**
+ * Background upsert of complaint record into Supabase with all relational columns
  */
 async function syncComplaintToSupabase(complaint) {
   if (!isSupabaseConfigured || !supabase || !complaint) return { success: false };
   try {
+    const priority = (complaint.priority || 'medium').toLowerCase();
+    const status = (complaint.status || 'pending').toLowerCase();
+    const autoDept = getCategoryDepartment(complaint.category);
+
+    const rawDeptId = complaint.departmentId || complaint.department_id;
+    const isUuid = typeof rawDeptId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawDeptId);
+    const rawAssignedId = complaint.assignedTo?.id || complaint.assigned_to_id;
+    const isAssignedUuid = typeof rawAssignedId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAssignedId);
+    const departmentName = complaint.assignedTo?.department || complaint.assigned_to_department || autoDept.name;
+
     const payload = {
       id: complaint.id,
       title: complaint.title,
       description: complaint.description,
       category: complaint.category,
-      priority: complaint.priority,
-      status: complaint.status,
+      priority,
+      status,
       location: complaint.location || '',
-      created_at: complaint.createdAt,
+      created_at: complaint.createdAt || new Date().toISOString(),
       updated_at: complaint.updatedAt || new Date().toISOString(),
       resolved_at: complaint.resolvedAt || null,
-      student_id: complaint.student?.id || 'anonymous',
-      student_name: complaint.student?.name || 'Anonymous',
-      student_email: complaint.student?.email || '',
-      student_meta: complaint.student || {},
+      student_id: (complaint.student?.id || complaint.studentId) === 'anonymous' ? null : (complaint.student?.id || complaint.studentId || null),
+      student_name: complaint.student?.name || complaint.studentName || 'Anonymous',
+      student_email: complaint.student?.email || complaint.studentEmail || '',
+      student_meta: complaint.student_meta || complaint.student || {},
       assigned_to: complaint.assignedTo || null,
+      assigned_to_id: isAssignedUuid ? rawAssignedId : null,
+      assigned_to_name: complaint.assignedTo?.name || complaint.assigned_to_name || null,
+      assigned_to_department: departmentName,
+      department_id: isUuid ? rawDeptId : null,
+      sla_response_due: complaint.slaResponseDue || complaint.sla_response_due || null,
+      sla_resolve_due: complaint.slaResolveDue || complaint.sla_resolve_due || null,
+      sla_breached: Boolean(complaint.slaBreached || complaint.sla_breached),
       resolution_details: complaint.resolutionDetails || null,
-      org_key: complaint.org || complaint.currentOrg || 'COLLEGE',
+      org_key: complaint.org || complaint.currentOrg || complaint.org_key || '',
       attachments: complaint.attachments || [],
     };
     const { data, error } = await supabase.from('complaints').upsert([payload], { onConflict: 'id' }).select();
@@ -92,24 +144,33 @@ async function syncComplaintToSupabase(complaint) {
 }
 
 /**
- * Background insert of status transition history into Supabase
+ * Atomic partial update of complaint fields in Supabase.
+ * Avoids overwriting unmodified columns or clobbering concurrent staff edits.
  */
-async function recordStatusHistoryToSupabase(complaintId, status, updatedBy, note = '') {
-  if (!isSupabaseConfigured || !supabase || !complaintId) return;
+async function updateComplaintFieldsInSupabase(id, fields) {
+  if (!isSupabaseConfigured || !supabase || !id) return { success: false };
   try {
-    await supabase.from('complaint_history').insert([
-      {
-        complaint_id: complaintId,
-        status,
-        updated_by: updatedBy || 'System',
-        note: note || `Status changed to ${status}`,
-        created_at: new Date().toISOString(),
-      },
-    ]);
+    const payload = {
+      ...fields,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('complaints')
+      .update(payload)
+      .eq('id', id)
+      .select();
+    if (error) {
+      console.warn('[Supabase Update Complaint Error]:', error.message || error);
+      return { success: false, error };
+    }
+    return { success: true, data };
   } catch (err) {
-    console.warn('[Supabase History Insert Error]:', err);
+    console.warn('[Supabase Update Complaint Exception]:', err);
+    return { success: false, error: err };
   }
 }
+
+// Note: Audit history is handled atomically in PostgreSQL via the log_complaint_status_audit trigger.
 
 /**
  * Background insert of comment record into Supabase
@@ -142,7 +203,6 @@ const initStorage = () => {
   const existing = localStorage.getItem(STORAGE_KEY);
   if (!existing) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-    localStorage.setItem(ID_COUNTER_KEY, '1000');
   }
 };
 
@@ -175,16 +235,14 @@ const saveComplaints = (complaints) => {
 };
 
 /**
- * Generates next sequential complaint ticket ID (e.g., CMS-2026-1006).
+ * Generates collision-free complaint ticket ID (e.g., CMS-2026-8492).
+ * Eliminates cross-device overwrite hazards.
  * @returns {string}
  */
 const getNextId = () => {
-  initStorage();
-  let currentCounter = parseInt(localStorage.getItem(ID_COUNTER_KEY) || '1005', 10);
-  currentCounter += 1;
-  localStorage.setItem(ID_COUNTER_KEY, currentCounter.toString());
   const year = new Date().getFullYear();
-  return `CMS-${year}-${currentCounter}`;
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `CMS-${year}-${rand}`;
 };
 
 // Wire Supabase Realtime WebSocket listener for remote multi-device mutations
@@ -206,7 +264,7 @@ if (typeof window !== 'undefined') {
           priority: row.priority,
           status: row.status,
           location: row.location,
-          org: row.org_key || 'COLLEGE',
+          org: row.org_key || '',
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           resolvedAt: row.resolved_at,
@@ -216,7 +274,11 @@ if (typeof window !== 'undefined') {
             name: row.student_name,
             email: row.student_email,
           },
-          assignedTo: row.assigned_to || null,
+          assignedTo: row.assigned_to || (row.assigned_to_id ? {
+            id: row.assigned_to_id,
+            name: row.assigned_to_name || 'Staff Member',
+            department: row.assigned_to_department || '',
+          } : null),
           resolutionDetails: row.resolution_details || null,
           statusHistory: index !== -1 ? (list[index].statusHistory || []) : [],
           comments: index !== -1 ? (list[index].comments || []) : [],
@@ -260,6 +322,35 @@ if (typeof window !== 'undefined') {
             });
           }
         }
+      } else if (payload.type === 'history') {
+        const historyRow = payload.new;
+        if (!historyRow || !historyRow.complaint_id) return;
+
+        const list = getRawComplaints();
+        const index = list.findIndex((c) => c.id === historyRow.complaint_id);
+        if (index !== -1) {
+          const complaint = list[index];
+          if (!complaint.statusHistory) complaint.statusHistory = [];
+
+          const exists = complaint.statusHistory.some(
+            (h) => h.timestamp === historyRow.created_at && h.status === historyRow.status
+          );
+          if (!exists) {
+            complaint.statusHistory.push({
+              status: historyRow.status,
+              updatedBy: historyRow.updated_by || 'System',
+              note: historyRow.note || `Status: ${historyRow.status}`,
+              timestamp: historyRow.created_at,
+            });
+            list[index] = complaint;
+            saveComplaints(list);
+            notifyLiveChange({
+              type: 'remote_history',
+              id: historyRow.complaint_id,
+              complaint,
+            });
+          }
+        }
       }
     } catch (err) {
       console.warn('[Supabase Realtime Live Error]:', err);
@@ -271,11 +362,11 @@ export const complaintService = {
   /**
    * Helper methods to dynamically resolve organization template attributes
    */
-  getCategories: (org = 'COLLEGE') => getOrgCategories(org),
-  getLocationLabel: (org = 'COLLEGE') => getOrgLocationLabel(org),
-  getUserLabel: (org = 'COLLEGE') => getOrgUserLabel(org),
-  getRoleTerm: (role, org = 'COLLEGE') => getRoleTerm(role, org),
-  resolveOrg: (org = 'COLLEGE') => resolveOrg(org),
+  getCategories: (org, registry) => getOrgCategories(org, registry),
+  getLocationLabel: (org, registry) => getOrgLocationLabel(org, registry),
+  getUserLabel: (org, registry) => getOrgUserLabel(org, registry),
+  getRoleTerm: (role, org, registry) => getRoleTerm(role, org, registry),
+  resolveOrg: (org, registry) => resolveOrg(org, registry),
 
   /**
    * Subscribe to real-time live updates (both local actions, cross-tab, and Supabase WebSocket).
@@ -349,7 +440,7 @@ export const complaintService = {
                 timestamp: c.created_at,
               }));
 
-            const statusHistory = (dbHistory || [])
+            const dbTimeline = (dbHistory || [])
               .filter((h) => h.complaint_id === row.id)
               .map((h) => ({
                 status: h.status,
@@ -358,40 +449,63 @@ export const complaintService = {
                 timestamp: h.created_at,
               }));
 
+            // Ensure initial submission event is always anchored at inception of timeline
+            const hasInitialEntry = dbTimeline.some(
+              (h) => (h.status || '').toLowerCase() === STATUSES.PENDING
+            );
+            const statusHistory = hasInitialEntry
+              ? dbTimeline
+              : [
+                  {
+                    status: STATUSES.PENDING,
+                    updatedBy: row.student_name || 'User',
+                    note: 'Complaint registered in system.',
+                    timestamp: row.created_at,
+                  },
+                  ...dbTimeline,
+                ];
+
             return {
               id: row.id,
               title: row.title,
               description: row.description,
               category: row.category,
-              priority: row.priority,
-              status: row.status,
+              priority: (row.priority || 'medium').toLowerCase(),
+              status: (row.status || 'pending').toLowerCase(),
               location: row.location,
-              org: row.org_key || 'COLLEGE',
+              org: row.org_key || '',
               createdAt: row.created_at,
               updatedAt: row.updated_at,
               resolvedAt: row.resolved_at,
+              slaResponseDue: row.sla_response_due,
+              slaResolveDue: row.sla_resolve_due,
+              slaBreached: Boolean(row.sla_breached),
+              departmentId: row.department_id,
+              departmentName: row.assigned_to_department || (row.assigned_to && row.assigned_to.department) || '',
               attachments: row.attachments || [],
               student: row.student_meta || {
                 id: row.student_id,
                 name: row.student_name,
                 email: row.student_email,
               },
-              assignedTo: row.assigned_to || null,
+              student_meta: row.student_meta || {},
+              assignedTo: row.assigned_to || (row.assigned_to_id ? {
+                id: row.assigned_to_id,
+                name: row.assigned_to_name || 'Staff Member',
+                department: row.assigned_to_department || (row.assigned_to && row.assigned_to.department) || '',
+              } : null),
               resolutionDetails: row.resolution_details || null,
-              statusHistory: statusHistory.length > 0 ? statusHistory : [
-                {
-                  status: row.status,
-                  updatedBy: row.student_name || 'User',
-                  note: 'Complaint registered.',
-                  timestamp: row.created_at,
-                },
-              ],
+              statusHistory,
               comments,
             };
           });
 
-          saveComplaints(mappedList);
-          notifyLiveChange({ type: 'sync_supabase', count: mappedList.length });
+          const existingList = getRawComplaints();
+          const existingMap = new Map(existingList.map((c) => [c.id, c]));
+          mappedList.forEach((c) => existingMap.set(c.id, c));
+          const mergedList = Array.from(existingMap.values());
+          saveComplaints(mergedList);
+          notifyLiveChange({ type: 'sync_supabase', count: mergedList.length });
           return mappedList;
         }
       } catch (err) {
@@ -399,16 +513,6 @@ export const complaintService = {
       }
     }
 
-    try {
-      const res = await ticketApi.list();
-      if (res && res.tickets && Array.isArray(res.tickets) && res.tickets.length > 0) {
-        saveComplaints(res.tickets);
-        notifyLiveChange({ type: 'sync_api', count: res.tickets.length });
-        return res.tickets;
-      }
-    } catch {
-      // Remote API unreachable: serve local storage smoothly
-    }
     return getRawComplaints();
   },
 
@@ -534,34 +638,50 @@ export const complaintService = {
   create: (data) => {
     const list = getRawComplaints();
     const now = new Date().toISOString();
-    const newId = getNextId();
-    const activeOrg = data.currentOrg || data.org || 'COLLEGE';
+    const newId = data.id || getNextId();
+    const activeOrg = data.currentOrg || data.org || data.org_key || '';
     const userLabel = getOrgUserLabel(activeOrg);
     const locationLabel = getOrgLocationLabel(activeOrg);
+    const priority = (data.priority || PRIORITIES.MEDIUM).toLowerCase();
+
+    // Auto-calculate SLA response and resolve deadlines based on priority
+    const { slaResponseDue, slaResolveDue } = calculateSlaDeadlines(priority, now);
+
+    // Auto-route category to respective department
+    const autoDept = getCategoryDepartment(data.category);
+
+    const studentMeta = {
+      id: data.student?.id || data.studentId || 'anonymous',
+      name: data.student?.name || data.studentName || userLabel,
+      email: data.student?.email || data.studentEmail || '',
+      rollNo: data.student?.rollNo || data.student?.roll_no || '',
+      room: data.student?.room || data.location || locationLabel,
+      phone: data.student?.phone || '',
+    };
 
     const newComplaint = {
       id: newId,
       title: data.title,
       description: data.description,
       category: data.category,
-      priority: data.priority || PRIORITIES.MEDIUM,
-      status: STATUSES.PENDING,
+      priority,
+      status: (data.status || STATUSES.PENDING).toLowerCase(),
       location: data.location || locationLabel,
       org: activeOrg,
       createdAt: now,
       updatedAt: now,
-      student: data.student || {
-        id: 'usr_student_1',
-        name: userLabel,
-        email: '',
-        rollNo: '',
-        room: data.location || locationLabel,
-      },
-      assignedTo: null,
+      slaResponseDue,
+      slaResolveDue,
+      slaBreached: false,
+      departmentId: data.departmentId || autoDept.id,
+      departmentName: autoDept.name,
+      student: studentMeta,
+      student_meta: studentMeta,
+      assignedTo: data.assignedTo || null,
       statusHistory: [
         {
-          status: STATUSES.PENDING,
-          updatedBy: data.student?.name || userLabel,
+          status: (data.status || STATUSES.PENDING).toLowerCase(),
+          updatedBy: studentMeta.name || userLabel,
           note: 'Complaint registered in system.',
           timestamp: now,
         },
@@ -574,24 +694,12 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'create', complaint: newComplaint, id: newId });
 
-    // Sync to Supabase & history in background while attaching promise for awaiters
-    const syncPromise = Promise.all([
-      syncComplaintToSupabase(newComplaint),
-      recordStatusHistoryToSupabase(
-        newId,
-        STATUSES.PENDING,
-        data.student?.name || userLabel,
-        'Complaint registered in system.'
-      ),
-    ]).catch((err) => {
+    // Sync to Supabase in background while attaching promise for awaiters
+    const syncPromise = syncComplaintToSupabase(newComplaint).catch((err) => {
       console.warn('[complaintService.create] Sync warning:', err);
     });
 
     newComplaint._syncPromise = syncPromise;
-
-    // Background sync to API backend
-    ticketApi.create(newComplaint).catch(() => {});
-
     return newComplaint;
   },
 
@@ -609,9 +717,15 @@ export const complaintService = {
     if (index === -1) return null;
 
     const updaterName = typeof updatedBy === 'object' && updatedBy ? updatedBy.name : updatedBy;
-    const updaterRole = typeof updatedBy === 'object' && updatedBy ? updatedBy.role : '';
+    const updaterRole = typeof updatedBy === 'object' && updatedBy ? (updatedBy.role || '').toLowerCase() : '';
     const updaterId = typeof updatedBy === 'object' && updatedBy ? updatedBy.id : '';
     const now = new Date().toISOString();
+
+    // Enforce RBAC: Students cannot arbitrarily update status or bypass workflow
+    if (updaterRole === ROLES.STUDENT) {
+      console.warn(`[RBAC] Student "${updaterName}" is not authorized to update ticket status directly.`);
+      return null;
+    }
 
     const complaint = list[index];
     complaint.status = newStatus;
@@ -637,12 +751,13 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'status_change', id, status: newStatus, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordStatusHistoryToSupabase(id, newStatus, updaterName || 'System', note);
-
-    // Background sync to API backend
-    ticketApi.updateStatus(id, newStatus, note).catch(() => {});
+    // Sync to Supabase in background (atomically sync partial status fields; history logged by PostgreSQL trigger)
+    updateComplaintFieldsInSupabase(id, {
+      status: newStatus,
+      resolved_at: newStatus === STATUSES.RESOLVED ? now : null,
+    }).catch((err) => {
+      console.warn('[complaintService.updateStatus] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -669,6 +784,8 @@ export const complaintService = {
     const senderRole = typeof sender === 'object' && sender ? sender.role : ROLES.STUDENT;
     const senderId = typeof sender === 'object' && sender ? sender.id : '';
 
+    const cleanIsInternal = senderRole === ROLES.STUDENT ? false : Boolean(isInternal);
+
     const newComment = {
       id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       senderName: senderName || 'Anonymous',
@@ -682,7 +799,7 @@ export const complaintService = {
       text,
       timestamp: now,
       createdAt: now,
-      isInternal: Boolean(isInternal),
+      isInternal: cleanIsInternal,
     };
 
     const complaint = list[index];
@@ -697,12 +814,13 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'new_comment', id, comment: newComment, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordCommentToSupabase(id, newComment);
-
-    // Background sync to API backend
-    ticketApi.addComment(id, text, isInternal).catch(() => {});
+    // Sync to Supabase in background (atomically sync complaint state + comment record)
+    Promise.all([
+      syncComplaintToSupabase(complaint),
+      recordCommentToSupabase(id, newComment),
+    ]).catch((err) => {
+      console.warn('[complaintService.addComment] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -717,9 +835,16 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const reassignerName = typeof reassignedBy === 'object' && reassignedBy ? reassignedBy.name : reassignedBy;
+    const reassignerRole = typeof reassignedBy === 'object' && reassignedBy ? (reassignedBy.role || '').toLowerCase() : '';
     const reassignerId = typeof reassignedBy === 'object' && reassignedBy ? reassignedBy.id : '';
-    const complaint = list[index];
 
+    // Enforce RBAC: Students cannot reassign tickets
+    if (reassignerRole === ROLES.STUDENT) {
+      console.warn(`[RBAC] Student "${reassignerName}" is not authorized to reassign tickets.`);
+      return null;
+    }
+
+    const complaint = list[index];
     complaint.assignedTo = targetAssignee;
     complaint.updatedAt = now;
 
@@ -767,10 +892,21 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'reassign', id, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordStatusHistoryToSupabase(id, complaint.status, reassignerName, note);
-    recordCommentToSupabase(id, reassignmentComment);
+    // Sync to Supabase in background (atomically sync assignment fields + comment; history logged by PostgreSQL trigger)
+    const targetId = targetAssignee?.id;
+    const isTargetUuid = typeof targetId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+    Promise.all([
+      updateComplaintFieldsInSupabase(id, {
+        assigned_to_id: isTargetUuid ? targetId : null,
+        assigned_to_name: targetAssignee.name,
+        assigned_to_department: targetAssignee.department,
+        department_id: targetAssignee.departmentId || null,
+      }),
+      recordCommentToSupabase(id, reassignmentComment),
+    ]).catch((err) => {
+      console.warn('[complaintService.reassign] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -785,7 +921,14 @@ export const complaintService = {
 
     const now = new Date().toISOString();
     const staffName = typeof staffUser === 'object' && staffUser ? staffUser.name : staffUser || 'Staff';
+    const staffRole = typeof staffUser === 'object' && staffUser ? (staffUser.role || '').toLowerCase() : '';
     const staffId = typeof staffUser === 'object' && staffUser ? staffUser.id : '';
+
+    // Enforce RBAC: Only Staff / Admin can propose resolution
+    if (staffRole === ROLES.STUDENT) {
+      console.warn(`[RBAC] Student "${staffName}" is not authorized to propose ticket resolution.`);
+      return null;
+    }
 
     const complaint = list[index];
     complaint.status = STATUSES.PENDING_CONFIRMATION;
@@ -827,18 +970,16 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'resolution_proposed', id, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordStatusHistoryToSupabase(
-      id,
-      STATUSES.PENDING_CONFIRMATION,
-      staffName,
-      `Resolution proposed: ${resolutionNotes}`
-    );
-    recordCommentToSupabase(id, propComment);
-
-    // Background sync to API backend
-    ticketApi.proposeResolution(id, resolutionNotes).catch(() => {});
+    // Sync to Supabase in background (atomically sync resolution proposal + comment; history logged by PostgreSQL trigger)
+    Promise.all([
+      updateComplaintFieldsInSupabase(id, {
+        status: STATUSES.PENDING_CONFIRMATION,
+        resolution_details: complaint.resolutionDetails,
+      }),
+      recordCommentToSupabase(id, propComment),
+    ]).catch((err) => {
+      console.warn('[complaintService.proposeResolution] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -895,18 +1036,17 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'resolution_confirmed', id, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordStatusHistoryToSupabase(
-      id,
-      STATUSES.RESOLVED,
-      userName,
-      `Resolution confirmed: ${feedbackNote}`
-    );
-    recordCommentToSupabase(id, confComment);
-
-    // Background sync to API backend
-    ticketApi.confirmResolution(id, feedbackNote).catch(() => {});
+    // Sync to Supabase in background (atomically sync confirmation fields + comment; history logged by PostgreSQL trigger)
+    Promise.all([
+      updateComplaintFieldsInSupabase(id, {
+        status: STATUSES.RESOLVED,
+        resolved_at: now,
+        resolution_details: complaint.resolutionDetails,
+      }),
+      recordCommentToSupabase(id, confComment),
+    ]).catch((err) => {
+      console.warn('[complaintService.confirmResolution] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -962,18 +1102,16 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'resolution_rejected', id, complaint });
 
-    // Sync to Supabase in background
-    syncComplaintToSupabase(complaint);
-    recordStatusHistoryToSupabase(
-      id,
-      STATUSES.IN_PROGRESS,
-      userName,
-      `Resolution rejected: ${rejectionReason}`
-    );
-    recordCommentToSupabase(id, rejComment);
-
-    // Background sync to API backend
-    ticketApi.rejectResolution(id, rejectionReason).catch(() => {});
+    // Sync to Supabase in background (atomically sync reopened state + rejection comment; history logged by PostgreSQL trigger)
+    Promise.all([
+      updateComplaintFieldsInSupabase(id, {
+        status: STATUSES.IN_PROGRESS,
+        resolution_details: complaint.resolutionDetails,
+      }),
+      recordCommentToSupabase(id, rejComment),
+    ]).catch((err) => {
+      console.warn('[complaintService.rejectResolution] Sync warning:', err);
+    });
 
     return complaint;
   },
@@ -995,8 +1133,10 @@ export const complaintService = {
   getStats: (org) => {
     let list = getRawComplaints();
     if (org) {
-      const allowedCategories = getOrgCategories(org);
-      list = list.filter((c) => allowedCategories.includes(c.category));
+      const orgKeyStr = typeof org === 'object' ? (org.orgKey || org.key || org.type) : org;
+      if (orgKeyStr && orgKeyStr !== 'ALL') {
+        list = list.filter((c) => !c.org || String(c.org).toUpperCase() === String(orgKeyStr).toUpperCase());
+      }
     }
     return {
       total: list.length,

@@ -1,22 +1,17 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  PlusCircle,
   FileText,
+  PlusCircle,
   Search,
   Inbox,
   CheckSquare,
   History,
   BarChart3,
-  TrendingUp,
   Building2,
   ArrowLeft,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ShieldAlert,
-  Wrench,
-  GraduationCap,
+  ChevronLeft,
+  ChevronRight,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -44,22 +39,14 @@ const NAV_CONFIG = {
   ],
 };
 
-const ROLE_META = {
-  [ROLES.STUDENT]: { label: 'Student Portal', icon: GraduationCap, tone: 'info' },
-  [ROLES.STAFF]: { label: 'Staff Workspace', icon: Wrench, tone: 'warning' },
-  [ROLES.ADMIN]: { label: 'Admin Console', icon: ShieldAlert, tone: 'success' },
-};
-
 export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleCollapse }) {
   const { pathname } = useLocation();
-  const { role, currentOrg } = useAuth();
+  const { role } = useAuth();
 
   const userRole = (role || ROLES.STUDENT).toLowerCase();
   const navItems = NAV_CONFIG[userRole] || NAV_CONFIG[ROLES.STUDENT];
-  const meta = ROLE_META[userRole] || ROLE_META[ROLES.STUDENT];
-  const RoleIcon = meta.icon;
 
-  // On mobile drawer mode, always show full labels and org info even if desktop sidebar was collapsed
+  // On mobile drawer mode, always show full labels even if desktop sidebar was collapsed
   const showLabels = isMobileOpen || !isCollapsed;
 
   const isItemActive = (item) => {
@@ -85,28 +72,19 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
         }`}
         aria-label="Sidebar Navigation"
       >
-        {/* Role / workspace identity */}
+        {/* Sidebar Header & Toggle */}
         <div className="sx-sidebar-head">
-          <div className={`sx-role-card tone-${meta.tone}`}>
-            <span className="sx-role-icon">
-              <RoleIcon size={15} />
-            </span>
-            {showLabels && (
-              <span className="sx-role-text">
-                <span className="sx-role-title">{meta.label}</span>
-                <span className="sx-role-org">{currentOrg?.name || 'ResolveX'}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Desktop collapse toggle */}
+          {showLabels && (
+            <span className="sx-sidebar-head-title">Menu</span>
+          )}
           <button
             type="button"
             className="sx-collapse-btn"
             onClick={onToggleCollapse}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
 
           {/* Mobile close button inside the drawer header */}
@@ -124,7 +102,6 @@ export default function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onTo
 
         {/* Navigation */}
         <nav className="sx-sidebar-nav" aria-label="Primary">
-          {showLabels && <p className="sx-nav-caption">Menu</p>}
           <ul className="sx-nav-list">
             {navItems.map((item) => {
               const Icon = item.icon;

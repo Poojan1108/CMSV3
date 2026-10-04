@@ -4,14 +4,20 @@ export const ROLES = {
   ADMIN: 'admin',
 };
 
-export const ORG_TEMPLATES = {
+/**
+ * 3 Pure Archetype Blueprints for Creator Registration
+ * These define domain semantics (roles, terms, categories, location labels)
+ * without any hardcoded organization brand names.
+ */
+export const ORG_ARCHETYPES = {
   COLLEGE: {
-    name: 'Springfield University',
+    id: 'COLLEGE',
+    label: 'College / University',
     type: 'college',
-    userLabel: 'Student',
-    userTerm: 'Student',
-    staffTerm: 'Staff',
-    adminTerm: 'Admin',
+    defaultUserTerm: 'Student',
+    defaultStaffTerm: 'Faculty & Warden',
+    defaultAdminTerm: 'Dean / Administrator',
+    defaultLocationLabel: 'Hostel Block / Room No',
     categories: [
       'Hostel & Mess',
       'Academics',
@@ -19,111 +25,198 @@ export const ORG_TEMPLATES = {
       'Sanitation',
       'Library',
       'Campus Security',
-      'General',
+      'General Maintenance',
     ],
-    locationLabel: 'Hostel Block / Room No',
   },
   SOCIETY: {
-    name: 'Green Valley Society',
+    id: 'SOCIETY',
+    label: 'Housing Society / Residential',
     type: 'society',
-    userLabel: 'Resident',
-    userTerm: 'Resident',
-    staffTerm: 'Staff',
-    adminTerm: 'Admin',
+    defaultUserTerm: 'Resident',
+    defaultStaffTerm: 'Facility Staff',
+    defaultAdminTerm: 'Society Secretary / Admin',
+    defaultLocationLabel: 'Block & Flat / Unit No',
     categories: [
-      'Plumbing',
-      'Electrical',
-      'Elevator',
-      'Security',
+      'Plumbing & Water',
+      'Electrical & Power',
+      'Elevators & Lifts',
+      'Clubhouse & Amenities',
       'Waste Management',
-      'Clubhouse & Gym',
-      'General',
+      'Security & Gate',
+      'General Maintenance',
     ],
-    locationLabel: 'Block & Flat / Unit No',
   },
   CORPORATE: {
-    name: 'Apex Tech Solutions',
+    id: 'CORPORATE',
+    label: 'Corporate / Workplace',
     type: 'corporate',
-    userLabel: 'Employee',
-    userTerm: 'Employee',
-    staffTerm: 'Staff',
-    adminTerm: 'Admin',
+    defaultUserTerm: 'Employee',
+    defaultStaffTerm: 'IT & Facilities',
+    defaultAdminTerm: 'Workspace Admin',
+    defaultLocationLabel: 'Floor / Workstation Desk ID',
     categories: [
-      'IT Infrastructure',
-      'HR Services',
-      'Facilities & AC',
       'Workstation Hardware',
-      'Cafeteria',
-      'Security',
-      'General',
-    ],
-    locationLabel: 'Floor / Workstation Desk No',
-  },
-  CUSTOM: {
-    name: 'Custom Organization',
-    type: 'custom',
-    userLabel: 'User',
-    userTerm: 'User',
-    staffTerm: 'Staff',
-    adminTerm: 'Admin',
-    categories: [
+      'Facility & AC',
+      'Network & VPN',
+      'Cafeteria & Pantry',
+      'Meeting Rooms',
+      'HR & Operations',
       'General Maintenance',
-      'IT Support',
-      'Administrative',
-      'Facility Management',
-      'Other',
     ],
-    locationLabel: 'Location / Address',
   },
 };
 
 /**
- * Dynamically resolves org template object from string key or template object.
+ * Backward-compatible template registry with generic archetypes
  */
-export const resolveOrg = (org) => {
-  if (!org) return ORG_TEMPLATES.COLLEGE;
+export const ORG_TEMPLATES = {
+  COLLEGE: {
+    name: 'College / University Template',
+    type: 'college',
+    userLabel: 'Student',
+    userTerm: 'Student',
+    staffTerm: 'Faculty & Warden',
+    adminTerm: 'Dean / Administrator',
+    categories: ORG_ARCHETYPES.COLLEGE.categories,
+    locationLabel: ORG_ARCHETYPES.COLLEGE.defaultLocationLabel,
+  },
+  SOCIETY: {
+    name: 'Housing Society Template',
+    type: 'society',
+    userLabel: 'Resident',
+    userTerm: 'Resident',
+    staffTerm: 'Facility Staff',
+    adminTerm: 'Society Secretary / Admin',
+    categories: ORG_ARCHETYPES.SOCIETY.categories,
+    locationLabel: ORG_ARCHETYPES.SOCIETY.defaultLocationLabel,
+  },
+  CORPORATE: {
+    name: 'Corporate Workplace Template',
+    type: 'corporate',
+    userLabel: 'Employee',
+    userTerm: 'Employee',
+    staffTerm: 'IT & Facilities',
+    adminTerm: 'Workspace Admin',
+    categories: ORG_ARCHETYPES.CORPORATE.categories,
+    locationLabel: ORG_ARCHETYPES.CORPORATE.defaultLocationLabel,
+  },
+};
+
+
+/**
+ * Default Indian archetype organizations matching database seeds
+ */
+export const SEEDED_ORGS = {
+  IIT_BOMBAY: {
+    name: 'IIT Bombay',
+    type: 'college',
+    userLabel: 'Student',
+    userTerm: 'Student',
+    staffTerm: 'Faculty & Warden',
+    adminTerm: 'Dean of Student Affairs',
+    categories: ORG_ARCHETYPES.COLLEGE.categories,
+    locationLabel: 'Hostel Wing & Room No (e.g. Hostel 16, B-312)',
+  },
+  PRESTIGE_RESIDENCY: {
+    name: 'Prestige Shantiniketan RWA',
+    type: 'society',
+    userLabel: 'Resident',
+    userTerm: 'Resident',
+    staffTerm: 'Facility Staff',
+    adminTerm: 'Society Secretary & MC',
+    categories: ORG_ARCHETYPES.SOCIETY.categories,
+    locationLabel: 'Tower & Flat No (e.g. Tower 7, Flat 1402)',
+  },
+  TCS_OLYMPUS: {
+    name: 'TCS Olympus Center',
+    type: 'corporate',
+    userLabel: 'Employee',
+    userTerm: 'Employee',
+    staffTerm: 'Facilities & IT Support',
+    adminTerm: 'Workplace Operations Admin',
+    categories: ORG_ARCHETYPES.CORPORATE.categories,
+    locationLabel: 'Wing, Floor & Desk ID (e.g. B-Wing, 4th Floor, Desk W-412)',
+  },
+};
+
+/**
+ * Universal neutral fallback blueprint when no organization context or registry is matched.
+ * Never hardcodes any specific campus or organization brand name.
+ */
+export const UNIVERSAL_FALLBACK_ORG = {
+  name: 'Organization Workspace',
+  type: 'general',
+  userLabel: 'Member',
+  userTerm: 'Member',
+  staffTerm: 'Staff Resolver',
+  adminTerm: 'Administrator',
+  locationLabel: 'Location / Room / Desk',
+  categories: [
+    'Facilities & Maintenance',
+    'IT & Technical Support',
+    'Operations & Administration',
+    'Security & Access',
+    'General Queries',
+  ],
+};
+
+/**
+ * Dynamically resolves org template object from string key, object, or registry.
+ * @param {string|object} org - Organization key or object
+ * @param {object} [registry={}] - Optional live organization registry map
+ * @returns {object} Resolved organization configuration
+ */
+export const resolveOrg = (org, registry = {}) => {
+  if (!org) return UNIVERSAL_FALLBACK_ORG;
+  if (typeof org === 'object' && org !== null) return org;
   if (typeof org === 'string') {
     const key = org.toUpperCase();
-    return ORG_TEMPLATES[key] || ORG_TEMPLATES.COLLEGE;
+    return (
+      registry[key] ||
+      registry[org] ||
+      SEEDED_ORGS[key] ||
+      ORG_TEMPLATES[key] ||
+      UNIVERSAL_FALLBACK_ORG
+    );
   }
-  return org;
+  return UNIVERSAL_FALLBACK_ORG;
 };
 
 /**
  * Dynamically resolves categories for an org template or org key.
  */
-export const getOrgCategories = (org = 'COLLEGE') => {
-  const resolved = resolveOrg(org);
-  return resolved.categories;
+export const getOrgCategories = (org, registry) => {
+  const resolved = resolveOrg(org, registry);
+  return resolved.categories || UNIVERSAL_FALLBACK_ORG.categories;
 };
 
 /**
  * Dynamically resolves location label for an org template or org key.
  */
-export const getOrgLocationLabel = (org = 'COLLEGE') => {
-  const resolved = resolveOrg(org);
-  return resolved.locationLabel;
+export const getOrgLocationLabel = (org, registry) => {
+  const resolved = resolveOrg(org, registry);
+  return resolved.locationLabel || UNIVERSAL_FALLBACK_ORG.locationLabel;
 };
 
 /**
  * Dynamically resolves user label for an org template or org key.
  */
-export const getOrgUserLabel = (org = 'COLLEGE') => {
-  const resolved = resolveOrg(org);
-  return resolved.userLabel || resolved.userTerm || 'Student';
+export const getOrgUserLabel = (org, registry) => {
+  const resolved = resolveOrg(org, registry);
+  return resolved.userLabel || resolved.userTerm || UNIVERSAL_FALLBACK_ORG.userTerm;
 };
 
 /**
  * Dynamically resolves role terminology based on role and currentOrg.
  */
-export const getRoleTerm = (role, org = 'COLLEGE') => {
-  const resolved = resolveOrg(org);
-  if (role === ROLES.ADMIN) return resolved.adminTerm || 'Admin';
-  if (role === ROLES.STAFF) return resolved.staffTerm || 'Staff';
-  return resolved.userLabel || resolved.userTerm || 'Student';
+export const getRoleTerm = (role, org, registry) => {
+  const resolved = resolveOrg(org, registry);
+  if (role === ROLES.ADMIN) return resolved.adminTerm || UNIVERSAL_FALLBACK_ORG.adminTerm;
+  if (role === ROLES.STAFF) return resolved.staffTerm || UNIVERSAL_FALLBACK_ORG.staffTerm;
+  return resolved.userLabel || resolved.userTerm || UNIVERSAL_FALLBACK_ORG.userTerm;
 };
 
-export const CATEGORIES = ORG_TEMPLATES.COLLEGE.categories;
+export const CATEGORIES = UNIVERSAL_FALLBACK_ORG.categories;
 
 export const PRIORITIES = {
   LOW: 'low',

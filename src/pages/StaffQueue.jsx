@@ -48,10 +48,10 @@ const STATUS_FILTER_OPTIONS = [
 ];
 
 const PRIORITY_FILTER_OPTIONS = [
-  { value: PRIORITIES.URGENT, label: `${PRIORITY_LABELS[PRIORITIES.URGENT]} (4h SLA)` },
+  { value: PRIORITIES.URGENT, label: `${PRIORITY_LABELS[PRIORITIES.URGENT]} (12h SLA)` },
   { value: PRIORITIES.HIGH, label: `${PRIORITY_LABELS[PRIORITIES.HIGH]} (24h SLA)` },
   { value: PRIORITIES.MEDIUM, label: `${PRIORITY_LABELS[PRIORITIES.MEDIUM]} (48h SLA)` },
-  { value: PRIORITIES.LOW, label: `${PRIORITY_LABELS[PRIORITIES.LOW]} (48h SLA)` },
+  { value: PRIORITIES.LOW, label: `${PRIORITY_LABELS[PRIORITIES.LOW]} (72h SLA)` },
 ];
 
 const chipStyle = {
@@ -964,11 +964,11 @@ function TicketDetailModal({
         <div style={{ minWidth: 0 }}>
           <span className="meta-cell-label">Reporter</span>
           <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>
-            {ticket.isAnonymous || ticket.anonymous ? 'Anonymous' : ticket.student?.name || '—'}
+            {ticket.isAnonymous || ticket.anonymous ? 'Anonymous' : (ticket.student?.name || ticket.reporter?.name || '—')}
           </span>
-          {ticket.student?.rollNo && !ticket.isAnonymous && (
+          {(ticket.student?.identifier || ticket.student?.rollNo || ticket.student?.empId || ticket.student?.unit) && !ticket.isAnonymous && (
             <span className="cell-sub" style={{ display: 'block', wordBreak: 'break-word' }}>
-              {ticket.student.rollNo}
+              {ticket.student?.identifier || ticket.student?.rollNo || ticket.student?.empId || ticket.student?.unit}
             </span>
           )}
         </div>
@@ -1112,11 +1112,22 @@ function TicketDetailModal({
             Activity ({comments.length})
           </h4>
 
-          <div className="segmented" style={{ maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex' }}>
+          <div className="segmented" style={{ maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', display: 'inline-flex', alignItems: 'center', gap: 3, background: 'var(--app-inset, #f1f5f9)', padding: 3, borderRadius: 8, border: '1px solid var(--app-border-soft, #e2e8f0)' }}>
             <button
               type="button"
               className={commentTab === 'all' ? 'is-active' : ''}
               onClick={() => setCommentTab('all')}
+              style={{
+                background: commentTab === 'all' ? '#0f172a' : 'transparent',
+                color: commentTab === 'all' ? '#ffffff' : '#64748b',
+                fontWeight: commentTab === 'all' ? 600 : 500,
+                border: 'none',
+                borderRadius: 6,
+                padding: '4px 11px',
+                fontSize: 11.5,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
             >
               All ({comments.length})
             </button>
@@ -1124,6 +1135,17 @@ function TicketDetailModal({
               type="button"
               className={commentTab === 'public' ? 'is-active' : ''}
               onClick={() => setCommentTab('public')}
+              style={{
+                background: commentTab === 'public' ? '#0f172a' : 'transparent',
+                color: commentTab === 'public' ? '#ffffff' : '#64748b',
+                fontWeight: commentTab === 'public' ? 600 : 500,
+                border: 'none',
+                borderRadius: 6,
+                padding: '4px 11px',
+                fontSize: 11.5,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
             >
               Public ({publicComments.length})
             </button>
@@ -1131,6 +1153,17 @@ function TicketDetailModal({
               type="button"
               className={commentTab === 'internal' ? 'is-active' : ''}
               onClick={() => setCommentTab('internal')}
+              style={{
+                background: commentTab === 'internal' ? '#0f172a' : 'transparent',
+                color: commentTab === 'internal' ? '#ffffff' : '#64748b',
+                fontWeight: commentTab === 'internal' ? 600 : 500,
+                border: 'none',
+                borderRadius: 6,
+                padding: '4px 11px',
+                fontSize: 11.5,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
             >
               Internal ({internalComments.length})
             </button>

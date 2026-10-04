@@ -1,21 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Eye,
   EyeOff,
-  Mail,
-  Lock,
-  User,
-  ShieldCheck,
-  ArrowRight,
   ArrowLeft,
-  KeyRound,
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Search,
+  ChevronDown,
+  Check,
+  Building2,
+  GraduationCap,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { ROLES } from '../utils/constants';
+import { ROLES, ORG_ARCHETYPES } from '../utils/constants';
+
+const ARCHETYPE_OPTIONS = [
+  {
+    id: 'COLLEGE',
+    label: 'College',
+    icon: GraduationCap,
+    userTerm: 'Student',
+    locationLabel: 'Hostel Block / Room No',
+  },
+  {
+    id: 'SOCIETY',
+    label: 'Housing Society',
+    icon: Building2,
+    userTerm: 'Resident',
+    locationLabel: 'Block & Flat / Unit No',
+  },
+  {
+    id: 'CORPORATE',
+    label: 'Corporate',
+    icon: Briefcase,
+    userTerm: 'Employee',
+    locationLabel: 'Floor / Workstation Desk ID',
+  },
+];
+
+const getOrgIcon = (type) => {
+  switch ((type || '').toLowerCase()) {
+    case 'college':
+      return GraduationCap;
+    case 'society':
+      return Building2;
+    case 'corporate':
+      return Briefcase;
+    default:
+      return Building2;
+  }
+};
 
 export default function Auth({ initialView = 'login', onBackToHome, onSuccess }) {
   const [authMode, setAuthMode] = useState(initialView); // 'login' | 'signup' | 'forgot-password'
@@ -23,21 +60,135 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [selectedRole, setSelectedRole] = useState(ROLES.STUDENT);
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [resetSuccessMessage, setResetSuccessMessage] = useState('');
 
-  const { login, signup, resetPassword, userLabel, getRoleTerm, orgTemplates, orgKey } = useAuth();
+  const { login, signup, resetPassword, orgTemplates, orgKey } = useAuth();
   const { showToast } = useToast();
 
   // Multi-Tenant Organization Registration State
-  const [selectedOrgKey, setSelectedOrgKey] = useState(orgKey || 'COLLEGE');
+  const [selectedOrgKey, setSelectedOrgKey] = useState(orgKey || '');
   const [isCreatingNewOrg, setIsCreatingNewOrg] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgBaseTemplate, setNewOrgBaseTemplate] = useState('COLLEGE');
-  const [newOrgUserTerm, setNewOrgUserTerm] = useState('');
-  const [newOrgLocationLabel, setNewOrgLocationLabel] = useState('');
+  const [newOrgBaseTemplate, setNewOrgBaseTemplate] = useState('CORPORATE');
+  const [newOrgUserTerm, setNewOrgUserTerm] = useState('Member');
+  const [newOrgLocationLabel, setNewOrgLocationLabel] = useState('Location / Room / Area');
+
+  // Searchable Combobox State
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  const comboboxRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Sanitize, clean, and deduplicate organizations from templates/database
+  const sanitizedOrgs = useMemo(() => {
+    const list = [];
+    const seenNames = new Set();
+
+    const clean = (str) => {
+      if (!str) return '';
+      return str.replace(/<[^>]*>?/gm, '').trim();
+    };
+
+    Object.entries(orgTemplates || {}).forEach(([key, org]) => {
+      if (!org || !org.name) return;
+      if (org.name.includes('Template')) return; // exclude base archetypes
+
+      const cleanName = clean(org.name);
+      if (!cleanName || cleanName.length < 2) return;
+
+      const lower = cleanName.toLowerCase();
+      if (seenNames.has(lower)) return;
+      seenNames.add(lower);
+
+      list.push({
+        key,
+        name: cleanName,
+        type: (org.type || 'organization').toLowerCase(),
+        userTerm: org.userTerm || org.userLabel || 'Member',
+      });
+    });
+
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [orgTemplates]);
+
+  // Active selected org object
+  const activeSelectedOrg = useMemo(() => {
+    if (!sanitizedOrgs.length) return null;
+    return sanitizedOrgs.find((o) => o.key === selectedOrgKey) || sanitizedOrgs[0];
+  }, [sanitizedOrgs, selectedOrgKey]);
+
+  // Sync selected key if uninitialized or points to non-existent org
+  useEffect(() => {
+    if (sanitizedOrgs.length > 0) {
+      const match = sanitizedOrgs.find((o) => o.key === selectedOrgKey);
+      if (!match) {
+        setSelectedOrgKey(sanitizedOrgs[0].key);
+      }
+    }
+  }, [sanitizedOrgs, selectedOrgKey]);
+
+  // Filtered organizations based on search input
+  const filteredOrgs = useMemo(() => {
+    if (!orgSearchQuery.trim()) return sanitizedOrgs;
+    const q = orgSearchQuery.toLowerCase().trim();
+    return sanitizedOrgs.filter((o) =>
+      o.name.toLowerCase().includes(q) || o.type.toLowerCase().includes(q)
+    );
+  }, [sanitizedOrgs, orgSearchQuery]);
+
+  // Click outside listener for combobox
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (comboboxRef.current && !comboboxRef.current.contains(event.target)) {
+        setIsOrgDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Auto focus search input when combobox opens
+  useEffect(() => {
+    if (isOrgDropdownOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOrgDropdownOpen]);
+
+  const handleComboboxKeyDown = (e) => {
+    if (!isOrgDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        e.preventDefault();
+        setIsOrgDropdownOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1 < filteredOrgs.length ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 >= 0 ? prev - 1 : filteredOrgs.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredOrgs[highlightedIndex]) {
+        handleSelectOrg(filteredOrgs[highlightedIndex].key);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOrgDropdownOpen(false);
+    }
+  };
+
+  const handleSelectOrg = (key) => {
+    setSelectedOrgKey(key);
+    setOrgSearchQuery('');
+    setIsOrgDropdownOpen(false);
+  };
 
   const resetFormState = () => {
     setFormError('');
@@ -45,6 +196,11 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
     setShowPassword(false);
     setIsCreatingNewOrg(false);
     setNewOrgName('');
+    setOrgSearchQuery('');
+    setIsOrgDropdownOpen(false);
+    setNewOrgBaseTemplate('CORPORATE');
+    setNewOrgUserTerm('Member');
+    setNewOrgLocationLabel('Location / Room / Area');
   };
 
   const handleSwitchMode = (mode) => {
@@ -80,7 +236,10 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
         let signupRes;
         if (isCreatingNewOrg) {
           if (!newOrgName.trim()) {
-            throw new Error('Please provide an organization name.');
+            throw new Error('Please declare an organization or institution name.');
+          }
+          if (newOrgName.trim().length < 3) {
+            throw new Error('Organization name must be at least 3 characters long.');
           }
           signupRes = await signup(email.trim(), password, name.trim(), ROLES.ADMIN, null, {
             name: newOrgName.trim(),
@@ -88,9 +247,10 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
             userTerm: newOrgUserTerm.trim() || undefined,
             locationLabel: newOrgLocationLabel.trim() || undefined,
           });
-          showToast(`Organization "${newOrgName}" created! Welcome Admin.`, 'success');
+          showToast(`Organization "${newOrgName}" registered! Welcome Administrator.`, 'success');
         } else {
-          signupRes = await signup(email.trim(), password, name.trim(), selectedRole, selectedOrgKey);
+          const targetKey = activeSelectedOrg?.key || selectedOrgKey;
+          signupRes = await signup(email.trim(), password, name.trim(), ROLES.STUDENT, targetKey);
           showToast('Account created successfully! Welcome to ResolveX.', 'success');
         }
 
@@ -147,12 +307,15 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
 
               <h1 className="auth-main-title">
                 {authMode === 'login' && 'Welcome back!'}
-                {authMode === 'signup' && 'Create account'}
+                {authMode === 'signup' && (isCreatingNewOrg ? 'Create Organization' : 'Create account')}
                 {authMode === 'forgot-password' && 'Reset password'}
               </h1>
               <p className="auth-main-subtitle">
-                {authMode === 'login' && "Simplify your workflow and boost your productivity with ResolveX. Get started for free."}
-                {authMode === 'signup' && 'Join the ResolveX network to manage community and campus resolutions.'}
+                {authMode === 'login' && 'Simplify your workflow and boost your productivity with ResolveX. Get started for free.'}
+                {authMode === 'signup' &&
+                  (isCreatingNewOrg
+                    ? 'Launch a branded resolution hub for your campus, company, or residential society.'
+                    : 'Join your organization on ResolveX to submit and track community requests.')}
                 {authMode === 'forgot-password' && 'Enter your institutional email to receive a secure password recovery link.'}
               </p>
             </div>
@@ -173,6 +336,38 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
               </div>
             )}
 
+            {/* Signup Persona Tabs: Join vs Create */}
+            {authMode === 'signup' && (
+              <div className="auth-segmented-tabs" role="tablist" aria-label="Registration type">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!isCreatingNewOrg}
+                  className={`auth-tab-btn ${!isCreatingNewOrg ? 'active' : ''}`}
+                  onClick={() => {
+                    setIsCreatingNewOrg(false);
+                    setFormError('');
+                  }}
+                >
+                  <GraduationCap size={15} />
+                  <span>Join Organization</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isCreatingNewOrg}
+                  className={`auth-tab-btn ${isCreatingNewOrg ? 'active' : ''}`}
+                  onClick={() => {
+                    setIsCreatingNewOrg(true);
+                    setFormError('');
+                  }}
+                >
+                  <Building2 size={15} />
+                  <span>Create Organization</span>
+                </button>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="auth-form-pill-group">
               {/* Full Name (Sign Up only) */}
@@ -182,7 +377,7 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
                     id="auth-name"
                     type="text"
                     className="auth-pill-input"
-                    placeholder="Full Name"
+                    placeholder={isCreatingNewOrg ? 'Administrator Full Name' : 'Full Name'}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -192,121 +387,170 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
                 </div>
               )}
 
-              {/* Role Selection (Sign Up only) */}
-              {authMode === 'signup' && (
-                <div className="auth-pill-field">
-                  <select
-                    id="auth-role"
-                    className="auth-pill-input auth-pill-select"
-                    value={selectedRole}
-                    onChange={(e) => {
-                      const newRole = e.target.value;
-                      setSelectedRole(newRole);
-                      if (newRole !== ROLES.ADMIN) {
-                        setIsCreatingNewOrg(false);
-                      }
-                    }}
-                    disabled={isLoading}
+              {/* TAB 1: JOIN EXISTING ORGANIZATION - Searchable Combobox */}
+              {authMode === 'signup' && !isCreatingNewOrg && (
+                <div className="auth-combobox-wrapper" ref={comboboxRef}>
+                  <div
+                    role="combobox"
+                    aria-expanded={isOrgDropdownOpen}
+                    aria-haspopup="listbox"
+                    tabIndex={0}
+                    className={`auth-combobox-trigger ${isOrgDropdownOpen ? 'open' : ''}`}
+                    onClick={() => setIsOrgDropdownOpen((prev) => !prev)}
+                    onKeyDown={handleComboboxKeyDown}
                   >
-                    <option value={ROLES.STUDENT}>{userLabel || 'Student / Resident / Member'}</option>
-                    <option value={ROLES.STAFF}>{getRoleTerm(ROLES.STAFF) || 'Staff / Field Technician'}</option>
-                    <option value={ROLES.ADMIN}>{getRoleTerm(ROLES.ADMIN) || 'System Administrator'}</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Organization Selection (Sign Up only) */}
-              {authMode === 'signup' && (
-                <>
-                  <div className="auth-pill-field">
-                    <select
-                      id="auth-org-select"
-                      className="auth-pill-input auth-pill-select"
-                      value={isCreatingNewOrg ? 'CREATE_NEW' : selectedOrgKey}
-                      onChange={(e) => {
-                        if (e.target.value === 'CREATE_NEW') {
-                          setIsCreatingNewOrg(true);
-                          setSelectedRole(ROLES.ADMIN);
-                        } else {
-                          setIsCreatingNewOrg(false);
-                          setSelectedOrgKey(e.target.value);
-                        }
-                      }}
-                      disabled={isLoading}
-                    >
-                      <optgroup label="Join Existing Organization">
-                        {Object.keys(orgTemplates).map((key) => (
-                          <option key={key} value={key}>
-                            {orgTemplates[key]?.name || key} ({orgTemplates[key]?.type || 'organization'})
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Create Organization">
-                        <option value="CREATE_NEW">➕ Register New Organization (Admin)</option>
-                      </optgroup>
-                    </select>
+                    <div className="auth-combobox-selected-content">
+                      {activeSelectedOrg ? (
+                        <>
+                          {React.createElement(getOrgIcon(activeSelectedOrg.type), {
+                            size: 16,
+                            className: 'auth-combobox-type-icon',
+                          })}
+                          <span className="auth-combobox-selected-name">{activeSelectedOrg.name}</span>
+                          <span className="auth-combobox-type-badge">{activeSelectedOrg.type}</span>
+                        </>
+                      ) : (
+                        <span className="auth-combobox-placeholder">Select your organization</span>
+                      )}
+                    </div>
+                    <ChevronDown
+                      size={16}
+                      className={`auth-combobox-arrow ${isOrgDropdownOpen ? 'rotated' : ''}`}
+                    />
                   </div>
 
-                  {/* New Custom Organization Creation Fields */}
-                  {isCreatingNewOrg && (
-                    <>
-                      <div className="auth-pill-field">
+                  {isOrgDropdownOpen && (
+                    <div className="auth-combobox-dropdown" role="listbox">
+                      <div className="auth-combobox-search-box">
+                        <Search size={14} className="auth-combobox-search-icon" />
                         <input
-                          id="auth-new-org-name"
+                          ref={searchInputRef}
                           type="text"
-                          className="auth-pill-input"
-                          placeholder="Organization Name (e.g. St. Xavier's University)"
-                          value={newOrgName}
-                          onChange={(e) => setNewOrgName(e.target.value)}
-                          required={isCreatingNewOrg}
-                          disabled={isLoading}
+                          className="auth-combobox-search-input"
+                          placeholder="Type to filter organizations..."
+                          value={orgSearchQuery}
+                          onChange={(e) => {
+                            setOrgSearchQuery(e.target.value);
+                            setHighlightedIndex(0);
+                          }}
+                          onKeyDown={handleComboboxKeyDown}
+                          onClick={(e) => e.stopPropagation()}
                         />
                       </div>
 
-                      <div className="auth-pill-field">
-                        <select
-                          id="auth-new-org-template"
-                          className="auth-pill-input auth-pill-select"
-                          value={newOrgBaseTemplate}
-                          onChange={(e) => setNewOrgBaseTemplate(e.target.value)}
-                          disabled={isLoading}
-                        >
-                          <option value="COLLEGE">🎓 College / University Template</option>
-                          <option value="SOCIETY">🏢 Housing Society Template</option>
-                          <option value="CORPORATE">💼 Corporate Workplace Template</option>
-                          <option value="CUSTOM">⚙️ Custom Setup (Custom terms)</option>
-                        </select>
+                      <div className="auth-combobox-list">
+                        {filteredOrgs.length > 0 ? (
+                          filteredOrgs.map((org, idx) => {
+                            const Icon = getOrgIcon(org.type);
+                            const isSelected = org.key === activeSelectedOrg?.key;
+                            const isHighlighted = idx === highlightedIndex;
+                            return (
+                              <div
+                                key={org.key}
+                                role="option"
+                                aria-selected={isSelected}
+                                className={`auth-combobox-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectOrg(org.key);
+                                }}
+                                onMouseEnter={() => setHighlightedIndex(idx)}
+                              >
+                                <div className="auth-combobox-option-info">
+                                  <Icon size={15} className="auth-combobox-option-icon" />
+                                  <span className="auth-combobox-option-name">{org.name}</span>
+                                  <span className="auth-combobox-type-badge">{org.type}</span>
+                                </div>
+                                {isSelected && <Check size={14} className="auth-combobox-check" />}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="auth-combobox-empty">
+                            {orgSearchQuery.trim() ? (
+                              <>
+                                <p>No organization found matching &ldquo;{orgSearchQuery.trim()}&rdquo;</p>
+                                <button
+                                  type="button"
+                                  className="auth-combobox-switch-create-btn"
+                                  onClick={() => {
+                                    setNewOrgName(orgSearchQuery.trim());
+                                    setIsCreatingNewOrg(true);
+                                    setIsOrgDropdownOpen(false);
+                                  }}
+                                >
+                                  + Register &ldquo;{orgSearchQuery.trim()}&rdquo; as New Organization
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <p>No organizations available yet</p>
+                                <button
+                                  type="button"
+                                  className="auth-combobox-switch-create-btn"
+                                  onClick={() => {
+                                    setIsCreatingNewOrg(true);
+                                    setIsOrgDropdownOpen(false);
+                                  }}
+                                >
+                                  + Register New Organization
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
-
-                      {newOrgBaseTemplate === 'CUSTOM' && (
-                        <>
-                          <div className="auth-pill-field">
-                            <input
-                              id="auth-custom-user-term"
-                              type="text"
-                              className="auth-pill-input"
-                              placeholder="Member Term (e.g. Resident, Tenant, Client)"
-                              value={newOrgUserTerm}
-                              onChange={(e) => setNewOrgUserTerm(e.target.value)}
-                              disabled={isLoading}
-                            />
-                          </div>
-                          <div className="auth-pill-field">
-                            <input
-                              id="auth-custom-location-label"
-                              type="text"
-                              className="auth-pill-input"
-                              placeholder="Location Label (e.g. Flat No, Cabin No, Desk ID)"
-                              value={newOrgLocationLabel}
-                              onChange={(e) => setNewOrgLocationLabel(e.target.value)}
-                              disabled={isLoading}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </>
+                    </div>
                   )}
-                </>
+                </div>
+              )}
+
+              {/* TAB 2: CREATE NEW WORKSPACE - Dedicated Streamlined Fields */}
+              {authMode === 'signup' && isCreatingNewOrg && (
+                <div className="auth-creator-card-group">
+                  {/* Organization Name */}
+                  <div className="auth-pill-field">
+                    <input
+                      id="auth-new-org-name"
+                      type="text"
+                      className="auth-pill-input"
+                      placeholder="Organization Name * (e.g. Stanford University)"
+                      value={newOrgName}
+                      onChange={(e) => setNewOrgName(e.target.value)}
+                      required
+                      disabled={isLoading}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Archetype Selector (Pure Pills matching design system) */}
+                  <div className="auth-archetype-section">
+                    <label className="auth-archetype-heading">Select Organization Archetype</label>
+                    <div className="auth-archetype-pills" role="radiogroup" aria-label="Organization Archetype">
+                      {ARCHETYPE_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        const isSelected = newOrgBaseTemplate === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            className={`auth-archetype-pill-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => {
+                              setNewOrgBaseTemplate(opt.id);
+                              setNewOrgUserTerm(opt.userTerm);
+                              setNewOrgLocationLabel(opt.locationLabel);
+                            }}
+                          >
+                            <Icon size={14} className="auth-archetype-pill-icon" />
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Email / Username Field */}
@@ -315,7 +559,7 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
                   id="auth-email"
                   type="email"
                   className="auth-pill-input"
-                  placeholder={authMode === 'login' ? 'Username' : 'Institutional Email'}
+                  placeholder={authMode === 'login' ? 'Email or Username' : (isCreatingNewOrg ? 'Admin Email Address' : 'Institutional / Work Email')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -377,7 +621,7 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
                 ) : (
                   <>
                     {authMode === 'login' && 'Login'}
-                    {authMode === 'signup' && 'Register'}
+                    {authMode === 'signup' && (isCreatingNewOrg ? 'Create Organization & Account' : 'Register & Join')}
                     {authMode === 'forgot-password' && 'Send Recovery Link'}
                   </>
                 )}
@@ -455,3 +699,4 @@ export default function Auth({ initialView = 'login', onBackToHome, onSuccess })
     </div>
   );
 }
+

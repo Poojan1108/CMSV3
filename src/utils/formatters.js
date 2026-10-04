@@ -104,15 +104,23 @@ export const getSlaStatus = (complaint) => {
     complaint.status === STATUSES.PENDING_CONFIRMATION;
 
   let limitHours = 48;
-  if (complaint.priority === PRIORITIES.URGENT) {
-    limitHours = 4;
-  } else if (complaint.priority === PRIORITIES.HIGH) {
-    limitHours = 24;
-  } else if (complaint.priority === PRIORITIES.MEDIUM || complaint.priority === PRIORITIES.LOW) {
-    limitHours = 48;
-  }
-
+  const resolveDue = complaint.slaResolveDue || complaint.sla_resolve_due;
   const createdTime = new Date(complaint.createdAt).getTime();
+
+  if (resolveDue) {
+    const dueTime = new Date(resolveDue).getTime();
+    if (!isNaN(dueTime) && dueTime > createdTime) {
+      limitHours = Math.round((dueTime - createdTime) / (1000 * 60 * 60));
+    }
+  } else {
+    if (complaint.priority === PRIORITIES.URGENT) {
+      limitHours = 4;
+    } else if (complaint.priority === PRIORITIES.HIGH) {
+      limitHours = 24;
+    } else if (complaint.priority === PRIORITIES.MEDIUM || complaint.priority === PRIORITIES.LOW) {
+      limitHours = 48;
+    }
+  }
   const endTime = isCompleted && complaint.updatedAt ? new Date(complaint.updatedAt).getTime() : Date.now();
   const elapsedMs = endTime - createdTime;
   const elapsedHours = Math.max(0, elapsedMs / (1000 * 60 * 60));
@@ -151,7 +159,10 @@ export const getSlaStatus = (complaint) => {
  * @param {Array} complaints - Array of complaint objects
  * @returns {string} CSV formatted string with header and quoted/escaped values
  */
-export const generateComplaintsCSV = (complaints = []) => {
+export const generateComplaintsCSV = (complaints = [], orgConfig = null) => {
+  const userTerm = orgConfig?.userTerm || orgConfig?.userLabel;
+  const nameHeader = userTerm ? `${userTerm} Name` : 'Student Name';
+  const idHeader = userTerm ? `${userTerm} RollNo` : 'Student RollNo';
   const headers = [
     'Ticket ID',
     'Title',
@@ -161,8 +172,8 @@ export const generateComplaintsCSV = (complaints = []) => {
     'Location',
     'Created At',
     'Updated At',
-    'Student Name',
-    'Student RollNo',
+    nameHeader,
+    idHeader,
     'Assigned Staff',
   ];
 
@@ -178,7 +189,7 @@ export const generateComplaintsCSV = (complaints = []) => {
 
   const rows = complaints.map((c) => {
     const studentName = c.student?.name || '';
-    const studentRollNo = c.student?.rollNo || '';
+    const studentRollNo = c.student?.identifier || c.student?.rollNo || c.student?.empId || c.student?.unit || '';
     const assignedStaff = c.assignedTo?.name || 'Unassigned';
 
     return [

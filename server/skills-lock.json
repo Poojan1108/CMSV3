@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "postman": {
+      "source": "Postman-Devrel/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/postman/SKILL.md",
+      "computedHash": "7082acc242841b07bf18eb195cf0cedf07541e0af10c5f3b742e3a9475a37168"
+    }
+  }
+}

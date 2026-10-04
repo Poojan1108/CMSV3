@@ -2119,8 +2119,8 @@
   gap: 52px;
   width: 100%;
   max-width: 1060px;
-  height: 100%;
-  max-height: 590px;
+  min-height: 540px;
+  height: auto;
   align-items: center;
   justify-content: center;
   margin: auto;
@@ -2142,16 +2142,16 @@
 
 .auth-header-block {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 22px;
 }
 
 .auth-main-title {
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 800;
   color: #000000;
   letter-spacing: -0.035em;
   line-height: 1.12;
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   text-align: center;
 }
 
@@ -2160,9 +2160,351 @@
   color: #64748b;
   line-height: 1.5;
   margin: 0 auto;
-  max-width: 310px;
+  max-width: 330px;
   text-align: center;
 }
+
+/* Segmented Tabs (Join vs Create) */
+.auth-segmented-tabs {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 9999px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border: 1px solid #e2e8f0;
+  gap: 4px;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-tab-btn:hover:not(.active) {
+  color: #0f172a;
+}
+
+.auth-tab-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Combobox (Searchable Org Selector) */
+.auth-combobox-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.auth-combobox-trigger {
+  width: 100% !important;
+  height: 48px !important;
+  border-radius: 9999px !important;
+  border: 1.5px solid #000000 !important;
+  padding: 0 20px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  user-select: none;
+}
+
+.auth-combobox-trigger:hover {
+  border-color: #000000;
+}
+
+.auth-combobox-trigger.open,
+.auth-combobox-trigger:focus {
+  border-color: #000000 !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+.auth-combobox-selected-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 86%;
+}
+
+.auth-combobox-type-icon {
+  color: #0f172a;
+  flex-shrink: 0;
+}
+
+.auth-combobox-selected-name {
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+
+.auth-combobox-type-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.auth-combobox-placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.auth-combobox-arrow {
+  color: #000000;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.auth-combobox-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.auth-combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1.5px solid #000000;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  animation: authDropdownFade 0.15s ease-out;
+}
+
+@keyframes authDropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-combobox-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 6px;
+}
+
+.auth-combobox-search-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.auth-combobox-search-input {
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  width: 100% !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #0f172a !important;
+  height: auto !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.auth-combobox-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.auth-combobox-list {
+  max-height: 190px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overscroll-behavior: contain;
+}
+
+.auth-combobox-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.auth-combobox-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.auth-combobox-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.auth-combobox-option:hover,
+.auth-combobox-option.highlighted {
+  background: #f1f5f9;
+}
+
+.auth-combobox-option.selected {
+  background: #f8fafc;
+}
+
+.auth-combobox-option-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-combobox-option-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.auth-combobox-option-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.auth-combobox-check {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.auth-combobox-empty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.auth-combobox-empty p {
+  margin: 0 0 6px;
+}
+
+.auth-combobox-switch-create-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+
+.auth-combobox-switch-create-btn:hover {
+  color: #047857;
+}
+
+/* Creator Streamlined Form Elements */
+.auth-creator-card-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-archetype-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-archetype-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+.auth-archetype-pills {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.auth-archetype-pill-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 9999px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 0 8px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.auth-archetype-pill-btn:hover:not(.active) {
+  border-color: #000000;
+  color: #000000;
+  background: #f8fafc;
+}
+
+.auth-archetype-pill-btn.active {
+  border-color: #000000;
+  background: #000000;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
+}
+
+.auth-archetype-pill-icon {
+  flex-shrink: 0;
+}
+
 
 .auth-form-pill-group {
   display: flex;
@@ -2515,20 +2857,76 @@
 
 @media (max-width: 480px) {
   .auth-canvas {
-    padding: 72px 16px 32px;
+    padding: 64px 16px 32px;
+  }
+
+  .auth-floating-back-btn {
+    top: 16px;
+    left: 16px;
   }
 
   .auth-form-inner {
     max-width: 100%;
-    margin-top: 10px;
+    margin-top: 4px;
   }
 
   .auth-main-title {
-    font-size: 27px;
+    font-size: 26px;
+    margin-bottom: 6px;
   }
 
   .auth-main-subtitle {
-    font-size: 13px;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .auth-segmented-tabs {
+    margin-bottom: 14px;
+  }
+
+  .auth-tab-btn {
+    height: 36px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  .auth-archetype-pill-btn {
+    height: 40px;
+    font-size: 11.5px;
+    padding: 0 4px;
+    gap: 4px;
+  }
+
+  .auth-canvas input.auth-pill-input,
+  .auth-pill-field input[type="text"],
+  .auth-pill-field input[type="email"],
+  .auth-pill-field input[type="password"] {
+    height: 46px !important;
+    font-size: 13.5px !important;
+    padding: 0 18px !important;
+  }
+
+  .auth-combobox-trigger {
+    height: 46px !important;
+    font-size: 13.5px !important;
+    padding: 0 16px !important;
+  }
+
+  .auth-pill-submit-btn {
+    height: 46px;
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 370px) {
+  .auth-archetype-pills {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .auth-archetype-pill-btn {
+    width: 100%;
+    height: 38px;
   }
 }
 

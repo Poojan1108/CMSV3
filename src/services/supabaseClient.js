@@ -24,17 +24,53 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+let activeRealtimeChannel = null;
+
+/**
+ * Synchronizes user JWT with Supabase Realtime WebSocket transport.
+ * Required so PostgreSQL RLS evaluates authenticated SELECT policies for postgres_changes.
+ */
+export async function setRealtimeAuth(token) {
+  if (isSupabaseConfigured && supabase && supabase.realtime) {
+    try {
+      if (token) {
+        await supabase.realtime.setAuth(token);
+        console.info('[Supabase Realtime] Auth token synchronized with WebSocket transport.');
+      }
+    } catch (e) {
+      console.warn('[Supabase Realtime] setAuth notice:', e);
+    }
+  }
+}
+
 /**
  * Initializes a Supabase Realtime channel that listens for live database mutations.
- * Calls callback on any INSERT, UPDATE, or DELETE on complaints or comments.
+ * Calls callback on any INSERT, UPDATE, or DELETE on complaints, comments, or history.
  */
 export function initRealtimeSubscription(onPayload) {
   if (!isSupabaseConfigured || !supabase) {
     return () => {};
   }
 
+  if (activeRealtimeChannel) {
+    try {
+      supabase.removeChannel(activeRealtimeChannel);
+    } catch (e) {
+      console.warn('[Supabase Realtime] Channel cleanup warning:', e);
+    }
+    activeRealtimeChannel = null;
+  }
+
+  // Ensure active session JWT is passed to Realtime transport to satisfy RLS
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.access_token) {
+      setRealtimeAuth(session.access_token);
+    }
+  }).catch(() => {});
+
+  const channelId = `cms-live-${Date.now()}`;
   const channel = supabase
-    .channel('cms-live-realtime-channel')
+    .channel(channelId)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'complaints' },
@@ -53,13 +89,27 @@ export function initRealtimeSubscription(onPayload) {
         }
       }
     )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'complaint_history' },
+      (payload) => {
+        if (typeof onPayload === 'function') {
+          onPayload({ type: 'history', ...payload });
+        }
+      }
+    )
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         console.info('[Supabase Realtime] Connected to live WebSocket stream.');
       }
     });
 
+  activeRealtimeChannel = channel;
+
   return () => {
+    if (activeRealtimeChannel === channel) {
+      activeRealtimeChannel = null;
+    }
     supabase.removeChannel(channel);
   };
 }
@@ -183,7 +233,7 @@ export async function upsertUserProfile(profile) {
       name: profile.name,
       email: profile.email,
       role: (profile.role || 'student').toLowerCase(),
-      org_key: profile.org_key || profile.orgKey || 'COLLEGE',
+      org_key: profile.org_key || profile.orgKey || null,
       department_id: profile.department_id || profile.departmentId || null,
       avatar_url: profile.avatar_url || profile.avatar || null,
       phone: profile.phone || null,
@@ -192,6 +242,11 @@ export async function upsertUserProfile(profile) {
       assigned_categories: profile.assigned_categories || profile.assignedCategories || [],
       updated_at: new Date().toISOString(),
     };
+
+    if (!payload.org_key) {
+      console.warn('[Supabase upsertUserProfile Warning]: Missing org_key in profile, aborting broken profile write.');
+      return null;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -214,14 +269,18 @@ export async function upsertUserProfile(profile) {
  * Fetches all registered member profiles within a given organization.
  * Used to populate live staff reassignment dropdowns and department rosters.
  *
- * @param {string} [orgKey='COLLEGE'] - Organization key
+ * @param {string} orgKey - Organization key
  * @returns {Promise<Array>} Array of normalized profile objects
  */
-export async function fetchOrgProfiles(orgKey = 'COLLEGE') {
-  if (!isSupabaseConfigured || !supabase) return [];
+export async function fetchOrgProfiles(orgKey) {
+  if (!isSupabaseConfigured || !supabase || !orgKey) return [];
   try {
-    let query = supabase.from('profiles').select('*');
-    if (orgKey && orgKey !== 'ALL') {
+    let query = supabase
+      .from('profiles')
+      .select('*')
+      .in('role', ['staff', 'admin']);
+
+    if (orgKey !== 'ALL') {
       query = query.eq('org_key', orgKey);
     }
     const { data, error } = await query;
@@ -233,7 +292,7 @@ export async function fetchOrgProfiles(orgKey = 'COLLEGE') {
       id: p.id,
       name: p.name,
       email: p.email,
-      role: (p.role || 'student').toLowerCase(),
+      role: (p.role || 'staff').toLowerCase(),
       orgKey: p.org_key,
       department: p.department_name || '',
       departmentId: p.department_id,
@@ -248,4 +307,59 @@ export async function fetchOrgProfiles(orgKey = 'COLLEGE') {
     return [];
   }
 }
+
+/**
+ * Fetches all active organizations from Supabase public.organizations table.
+ */
+export async function fetchOrganizations() {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn('[Supabase Org] fetchOrganizations error:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('[Supabase Org] fetchOrganizations exception:', err);
+    return [];
+  }
+}
+
+/**
+ * Inserts a newly declared custom organization into Supabase public.organizations.
+ */
+export async function createOrganization(orgData) {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('organizations')
+      .insert({
+        org_key: orgData.org_key,
+        name: orgData.name,
+        type: orgData.type || 'college',
+        user_term: orgData.user_term || 'Member',
+        staff_term: orgData.staff_term || 'Staff',
+        admin_term: orgData.admin_term || 'Admin',
+        location_label: orgData.location_label || 'Location / Address',
+        categories: orgData.categories || [],
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Supabase Org] createOrganization error:', error.message);
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    console.error('[Supabase Org] createOrganization exception:', err);
+    throw err;
+  }
+}
+
 

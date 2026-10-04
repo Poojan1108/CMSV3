@@ -261,14 +261,23 @@ export default function NewComplaintForm() {
             id: user?.id,
             name: 'Anonymous',
             email: null,
+            identifier: null,
             rollNo: null,
           }
         : {
             id: user?.id,
             name: user?.name || 'User',
             email: user?.email || null,
-            rollNo: user?.rollNo || null,
+            identifier: user?.identifier || user?.empId || user?.rollNo || user?.unit || null,
+            rollNo: user?.rollNo || user?.identifier || user?.empId || null,
           };
+
+      const effectiveOrg = user?.orgKey || orgKey;
+      if (!effectiveOrg) {
+        showToast('Unable to determine organization context. Please ensure you are logged into an active organization.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
 
       const created = complaintService.create({
         title: title.trim(),
@@ -287,7 +296,9 @@ export default function NewComplaintForm() {
         attachmentNames: uploadedAttachments.map((a) => a.name),
         attachments: uploadedAttachments,
         student: { ...reporterProfile, room: location.trim() },
-        currentOrg: orgKey,
+        org: effectiveOrg,
+        org_key: effectiveOrg,
+        currentOrg: effectiveOrg,
       });
 
       if (created?._syncPromise) {

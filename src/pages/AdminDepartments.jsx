@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import {
   PageHeader,
   Modal,
@@ -98,11 +99,11 @@ export default function AdminDepartments() {
   const [complaints, setComplaints] = useState([]);
   useEffect(() => {
     try {
-      setComplaints(complaintService.getAll());
+      setComplaints(complaintService.getAll({ org: orgKey }));
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [orgKey]);
 
   // Default SLA targets derived from category names
   const defaultSlaTargets = useMemo(() => {
@@ -130,15 +131,72 @@ export default function AdminDepartments() {
 
   useEffect(() => {
     setSlaTargets(loadSavedSla());
+
+    let isMounted = true;
+    if (isSupabaseConfigured && supabase && orgKey) {
+      supabase
+        .from('departments')
+        .select('*')
+        .eq('org_key', orgKey)
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0 && isMounted) {
+            const remoteMap = {};
+            data.forEach((d) => {
+              if (d.name && d.sla_resolve_hours) {
+                remoteMap[d.name] = d.sla_resolve_hours;
+              }
+            });
+            if (Object.keys(remoteMap).length > 0) {
+              setSlaTargets((prev) => ({ ...prev, ...remoteMap }));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKey]);
 
-  const persistSlaTargets = (updated) => {
+  const persistSlaTargets = async (updated) => {
     setSlaTargets(updated);
     try {
       localStorage.setItem(`${SLA_STORAGE_PREFIX}${orgKey}`, JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to persist SLA targets', e);
+    }
+
+    if (isSupabaseConfigured && supabase && orgKey) {
+      try {
+        for (const [deptName, hours] of Object.entries(updated)) {
+          const { data: existing } = await supabase
+            .from('departments')
+            .select('id')
+            .eq('org_key', orgKey)
+            .ilike('name', deptName)
+            .maybeSingle();
+
+          if (existing?.id) {
+            await supabase
+              .from('departments')
+              .update({ sla_resolve_hours: hours, updated_at: new Date().toISOString() })
+              .eq('id', existing.id);
+          } else {
+            await supabase
+              .from('departments')
+              .insert({
+                org_key: orgKey,
+                name: deptName,
+                sla_resolve_hours: hours,
+                sla_response_hours: Math.max(2, Math.round(hours / 3)),
+              });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to sync SLA targets to Supabase:', err);
+      }
     }
   };
 

@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import {
   ROLES,
   ORG_TEMPLATES,
+  ORG_ARCHETYPES,
+  SEEDED_ORGS,
+  UNIVERSAL_FALLBACK_ORG,
   resolveOrg,
   getOrgCategories,
   getOrgLocationLabel,
@@ -9,21 +12,23 @@ import {
   getRoleTerm,
 } from '../utils/constants';
 
-import { authApi } from '../services/api';
 import {
   supabase,
   isSupabaseConfigured,
   getUserProfile,
   upsertUserProfile,
   fetchOrgProfiles,
+  fetchOrganizations,
+  createOrganization,
+  setRealtimeAuth,
 } from '../services/supabaseClient';
+
 
 const AuthContext = createContext(null);
 
 const STORAGE_USER_KEY = 'cms_active_user_v1';
 const STORAGE_ORG_KEY = 'cms_active_org_v1';
 const STORAGE_CUSTOM_ORGS_KEY = 'cms_custom_orgs_v1';
-const STORAGE_REGISTERED_USERS_KEY = 'cms_registered_users_v1';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -40,19 +45,6 @@ export const AuthProvider = ({ children }) => {
     return null;
   });
 
-  // Persistent registry of all users created on this browser/session
-  const [registeredUsers, setRegisteredUsers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(STORAGE_REGISTERED_USERS_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to load registered users', e);
-      }
-    }
-    return [];
-  });
-
   // Live organization member profiles fetched from Supabase
   const [orgProfiles, setOrgProfiles] = useState([]);
 
@@ -61,24 +53,40 @@ export const AuthProvider = ({ children }) => {
       try {
         const saved = localStorage.getItem(STORAGE_CUSTOM_ORGS_KEY);
         if (saved) {
-          return { ...ORG_TEMPLATES, ...JSON.parse(saved) };
+          const parsed = JSON.parse(saved);
+          const hasLegacyJunk = Object.keys(parsed).some(
+            (k) => parsed[k]?.name?.includes('<script') || parsed[k]?.name?.includes('Apex') || parsed[k]?.name?.includes('Safe Institute')
+          );
+          if (hasLegacyJunk) {
+            localStorage.removeItem(STORAGE_CUSTOM_ORGS_KEY);
+            return { ...ORG_TEMPLATES, ...SEEDED_ORGS };
+          }
+          return { ...ORG_TEMPLATES, ...SEEDED_ORGS, ...parsed };
         }
       } catch (e) {
         console.error('Failed to load custom orgs', e);
       }
     }
-    return { ...ORG_TEMPLATES };
+    return { ...ORG_TEMPLATES, ...SEEDED_ORGS };
   });
 
   const [currentOrgKey, setCurrentOrgKey] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedOrg = localStorage.getItem(STORAGE_ORG_KEY);
       if (savedOrg) return savedOrg.toUpperCase();
+      const savedUser = localStorage.getItem(STORAGE_USER_KEY);
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed?.orgKey) return parsed.orgKey.toUpperCase();
+        } catch (e) {}
+      }
     }
-    return 'COLLEGE';
+    return '';
   });
 
   const [loading, setLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [authError, setAuthError] = useState(null);
 
   // Sync current user to local storage for offline resilience
@@ -96,19 +104,12 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentOrgKey]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_REGISTERED_USERS_KEY, JSON.stringify(registeredUsers));
-    } catch (e) {
-      console.error('Failed to save registered users', e);
-    }
-  }, [registeredUsers]);
 
   useEffect(() => {
     try {
       const customOnly = {};
       Object.keys(orgTemplates).forEach((k) => {
-        if (!ORG_TEMPLATES[k] || k.startsWith('ORG_') || k === 'CUSTOM') {
+        if (!ORG_TEMPLATES[k] && !SEEDED_ORGS[k] && !orgTemplates[k]?.name?.includes('<script')) {
           customOnly[k] = orgTemplates[k];
         }
       });
@@ -118,11 +119,120 @@ export const AuthProvider = ({ children }) => {
     }
   }, [orgTemplates]);
 
-  // Fetch live organization profiles from Supabase for staff assignment
+  // Initial synchronization: fetch live organizations and session in parallel without rendering uninitialized fallbacks
   useEffect(() => {
     let isMounted = true;
+
+    const initializeAuthAndOrgs = async () => {
+      try {
+        const [orgListRes, sessionRes] = await Promise.allSettled([
+          fetchOrganizations(),
+          isSupabaseConfigured && supabase
+            ? supabase.auth.getSession()
+            : Promise.resolve({ data: { session: null } }),
+        ]);
+
+        if (!isMounted) return;
+
+        // 1. Process Organizations from Supabase
+        const liveOrgs = {};
+        if (orgListRes.status === 'fulfilled' && Array.isArray(orgListRes.value) && orgListRes.value.length > 0) {
+          orgListRes.value.forEach((o) => {
+            const rawAdmin = o.admin_term || 'Admin';
+            const adminTerm =
+              rawAdmin === 'Operations / HR Admin' || rawAdmin === 'Admin & HR'
+                ? 'Workspace Admin'
+                : rawAdmin;
+
+            // Self-heal legacy Supabase organization rows in background
+            if (rawAdmin === 'Operations / HR Admin' && isSupabaseConfigured && supabase) {
+              supabase
+                .from('organizations')
+                .update({ admin_term: 'Workspace Admin' })
+                .eq('org_key', o.org_key)
+                .then(() => {})
+                .catch(() => {});
+            }
+
+            liveOrgs[o.org_key] = {
+              name: o.name,
+              type: o.type,
+              userLabel: o.user_term || 'Member',
+              userTerm: o.user_term || 'Member',
+              staffTerm: o.staff_term || 'Staff',
+              adminTerm,
+              locationLabel: o.location_label || 'Location / Address',
+              categories: Array.isArray(o.categories) ? o.categories : [],
+            };
+          });
+          setOrgTemplates({ ...ORG_TEMPLATES, ...liveOrgs });
+        } else {
+          setOrgTemplates({ ...ORG_TEMPLATES, ...SEEDED_ORGS });
+        }
+
+        // 2. Process Session and User Profile
+        let userOrgKey = null;
+        if (sessionRes.status === 'fulfilled' && sessionRes.value?.data?.session?.user) {
+          const session = sessionRes.value.data.session;
+          if (session.access_token) {
+            setRealtimeAuth(session.access_token);
+          }
+          const profile = await getUserProfile(session.user.id);
+          const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+          const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
+          userOrgKey = org;
+          const resolvedUser = {
+            id: session.user.id,
+            email: session.user.email,
+            name: profile?.name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            role,
+            orgKey: org,
+            department: profile?.department || '',
+            avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
+          };
+          setCurrentUser(resolvedUser);
+          if (org) {
+            setCurrentOrgKey(org);
+          }
+        }
+
+        // 3. Reconcile Organization Key cleanly
+        setCurrentOrgKey((prev) => {
+          const target = userOrgKey || prev;
+          if (target && (liveOrgs[target] || ORG_TEMPLATES[target] || SEEDED_ORGS[target])) {
+            return target;
+          }
+          return Object.keys(liveOrgs)[0] || target || Object.keys(SEEDED_ORGS)[0] || '';
+        });
+      } catch (err) {
+        console.warn('[AuthContext] Initialization error:', err);
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false);
+        }
+      }
+    };
+
+    initializeAuthAndOrgs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fetch live organization staff profiles from Supabase for staff assignment & admin rosters
+  useEffect(() => {
+    let isMounted = true;
+    const userRole = (currentUser?.role || ROLES.STUDENT).toLowerCase();
+
+    // Only staff and admin require the active member roster; students are shielded
+    if (userRole !== ROLES.STAFF && userRole !== ROLES.ADMIN) {
+      setOrgProfiles([]);
+      return;
+    }
+
     const loadProfiles = async () => {
-      if (isSupabaseConfigured && supabase) {
+      if (isSupabaseConfigured && supabase && currentOrgKey) {
         const profiles = await fetchOrgProfiles(currentOrgKey);
         if (isMounted && profiles && profiles.length > 0) {
           setOrgProfiles(profiles);
@@ -133,32 +243,13 @@ export const AuthProvider = ({ children }) => {
     return () => {
       isMounted = false;
     };
-  }, [currentOrgKey]);
+  }, [currentOrgKey, currentUser?.role]);
 
-  // Synchronize Supabase Auth session on mount and live auth changes
+  // Synchronize Supabase Auth session on live auth changes
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
     let isMounted = true;
-
-    // Check active session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted || !session?.user) return;
-      const profile = await getUserProfile(session.user.id);
-      const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
-      const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
-      const resolvedUser = {
-        id: session.user.id,
-        email: session.user.email,
-        name: profile?.name || session.user.user_metadata?.name || session.user.email.split('@')[0],
-        role,
-        orgKey: org,
-        department: profile?.department || '',
-        avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
-      };
-      setCurrentUser(resolvedUser);
-      if (org) setCurrentOrgKey(org);
-    });
 
     // Subscribe to Supabase auth events
     const {
@@ -167,6 +258,9 @@ export const AuthProvider = ({ children }) => {
       if (!isMounted) return;
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
+          if (session.access_token) {
+            setRealtimeAuth(session.access_token);
+          }
           const profile = await getUserProfile(session.user.id);
           const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
           const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
@@ -183,6 +277,7 @@ export const AuthProvider = ({ children }) => {
           if (org) setCurrentOrgKey(org);
         }
       } else if (event === 'SIGNED_OUT') {
+        setRealtimeAuth(null);
         setCurrentUser(null);
         localStorage.removeItem(STORAGE_USER_KEY);
       }
@@ -196,27 +291,54 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Create a new Custom Organization (Admin creation)
+   * Enforces declared name validation, uses 3 clean Archetypes, and persists to Supabase.
    */
-  const createCustomOrg = (newOrg) => {
-    const slug = (newOrg.name || 'CUSTOM')
-      .trim()
+  const createCustomOrg = async (newOrg) => {
+    if (!newOrg || !newOrg.name || !newOrg.name.trim()) {
+      throw new Error('Organization name is required and cannot be empty.');
+    }
+    const trimmedName = newOrg.name.trim();
+    if (trimmedName.length < 3) {
+      throw new Error('Organization name must be at least 3 characters long.');
+    }
+
+    const slug = trimmedName
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
       .substring(0, 16);
     const key = `ORG_${slug}_${Date.now().toString().slice(-4)}`;
 
-    const baseTemplate = ORG_TEMPLATES[newOrg.baseTemplate] || ORG_TEMPLATES.CUSTOM;
+    const archetype = ORG_ARCHETYPES[newOrg.baseTemplate] || UNIVERSAL_FALLBACK_ORG;
 
     const templateConfig = {
-      name: newOrg.name.trim(),
-      type: newOrg.baseTemplate?.toLowerCase() || 'custom',
-      userLabel: newOrg.userTerm || baseTemplate.userLabel || 'Member',
-      userTerm: newOrg.userTerm || baseTemplate.userTerm || 'Member',
-      staffTerm: newOrg.staffTerm || baseTemplate.staffTerm || 'Staff',
-      adminTerm: 'Admin',
-      categories: newOrg.categories && newOrg.categories.length > 0 ? newOrg.categories : baseTemplate.categories,
-      locationLabel: newOrg.locationLabel || baseTemplate.locationLabel || 'Location / Address',
+      name: trimmedName,
+      type: archetype.type || 'college',
+      userLabel: newOrg.userTerm?.trim() || archetype.defaultUserTerm || 'Member',
+      userTerm: newOrg.userTerm?.trim() || archetype.defaultUserTerm || 'Member',
+      staffTerm: newOrg.staffTerm?.trim() || archetype.defaultStaffTerm || 'Staff',
+      adminTerm: archetype.defaultAdminTerm || 'Admin',
+      categories: newOrg.categories && newOrg.categories.length > 0 ? newOrg.categories : archetype.categories,
+      locationLabel: newOrg.locationLabel?.trim() || archetype.defaultLocationLabel || 'Location / Address',
     };
+
+    // Persist globally to Supabase public.organizations
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await createOrganization({
+          org_key: key,
+          name: templateConfig.name,
+          type: templateConfig.type,
+          user_term: templateConfig.userTerm,
+          staff_term: templateConfig.staffTerm,
+          admin_term: templateConfig.adminTerm,
+          location_label: templateConfig.locationLabel,
+          categories: templateConfig.categories,
+        });
+      } catch (err) {
+        console.warn('[AuthContext] Failed to persist org to Supabase, continuing with local state:', err);
+      }
+    }
 
     setOrgTemplates((prev) => ({
       ...prev,
@@ -227,10 +349,11 @@ export const AuthProvider = ({ children }) => {
     return { key, template: templateConfig };
   };
 
+
   /**
    * Update settings for an existing organization
    */
-  const updateOrgSettings = (key, updatedFields) => {
+  const updateOrgSettings = async (key, updatedFields) => {
     setOrgTemplates((prev) => {
       const existing = prev[key] || ORG_TEMPLATES.CUSTOM;
       return {
@@ -241,6 +364,23 @@ export const AuthProvider = ({ children }) => {
         },
       };
     });
+
+    // Persist to Supabase public.organizations
+    if (isSupabaseConfigured && supabase && key) {
+      try {
+        const payload = {};
+        if (updatedFields.name) payload.name = updatedFields.name;
+        if (updatedFields.userTerm) payload.user_term = updatedFields.userTerm;
+        if (updatedFields.staffTerm) payload.staff_term = updatedFields.staffTerm;
+        if (updatedFields.locationLabel) payload.location_label = updatedFields.locationLabel;
+        if (updatedFields.categories) payload.categories = updatedFields.categories;
+        payload.updated_at = new Date().toISOString();
+
+        await supabase.from('organizations').update(payload).eq('org_key', key);
+      } catch (err) {
+        console.warn('[AuthContext] Failed to persist org settings to Supabase:', err);
+      }
+    }
   };
 
   /**
@@ -261,7 +401,7 @@ export const AuthProvider = ({ children }) => {
         });
 
         if (error) {
-          throw new Error(error.message || 'Supabase authentication failed');
+          throw new Error(error.message || 'Invalid email or password.');
         }
 
         if (data?.user) {
@@ -275,7 +415,7 @@ export const AuthProvider = ({ children }) => {
             email: data.user.email,
             role,
             orgKey: org,
-            department: profile?.department || '',
+            department: profile?.department_id || profile?.department || '',
             avatar: profile?.avatar_url || data.user.user_metadata?.avatar || null,
           };
 
@@ -286,42 +426,8 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // 2. Fallback Transport: Local registry / API if Supabase offline
       if (!loggedInUser) {
-        try {
-          const res = await authApi.login(email, password);
-          if (res && res.user) {
-            loggedInUser = res.user;
-          }
-        } catch (apiErr) {
-          console.info('[Auth] Server API offline, checking local registry:', apiErr.message);
-        }
-
-        const matchedRegistered = registeredUsers.find(
-          (u) => (u.email || '').toLowerCase() === cleanEmail
-        );
-
-        if (!loggedInUser) {
-          if (matchedRegistered) {
-            loggedInUser = { ...matchedRegistered };
-          } else {
-            loggedInUser = {
-              id: `usr_${Date.now()}`,
-              name: cleanEmail.split('@')[0],
-              email: cleanEmail,
-              role: ROLES.STUDENT,
-              orgKey: currentOrgKey,
-            };
-            setRegisteredUsers((prev) => [...prev, loggedInUser]);
-          }
-        } else if (matchedRegistered) {
-          loggedInUser = {
-            ...matchedRegistered,
-            ...loggedInUser,
-            role: matchedRegistered.role || loggedInUser.role,
-            orgKey: matchedRegistered.orgKey || loggedInUser.orgKey || currentOrgKey,
-          };
-        }
+        throw new Error('Authentication failed. Please verify your credentials.');
       }
 
       // Normalize role
@@ -346,6 +452,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Sign-Up with Email, Password, Name, Role & Organization
+   * Enforces ROLES.STUDENT for public registration (Privilege Escalation Prevention)
    */
   const signup = async (email, password, name, role = ROLES.STUDENT, targetOrgKey = null, newOrgData = null) => {
     setAuthError(null);
@@ -353,11 +460,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const cleanEmail = (email || '').trim().toLowerCase();
       let effectiveOrgKey = targetOrgKey || currentOrgKey;
-      let effectiveRole = String(role || ROLES.STUDENT).toLowerCase();
+      let effectiveRole = ROLES.STUDENT; // Strict default: public signups are always student
 
-      // If user registers a new organization, create it and designate user as Admin
+      // Only tenant creators registering a brand-new organization become ADMIN
       if (newOrgData && newOrgData.name) {
-        const { key } = createCustomOrg(newOrgData);
+        const { key } = await createCustomOrg(newOrgData);
         effectiveOrgKey = key;
         effectiveRole = ROLES.ADMIN;
       }
@@ -401,45 +508,9 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // 2. Fallback Transport: Local registry / API if Supabase offline
       if (!registeredUser) {
-        try {
-          const res = await authApi.register({
-            name,
-            email: cleanEmail,
-            password,
-            role: effectiveRole,
-            orgKey: effectiveOrgKey,
-          });
-          if (res && res.user) {
-            registeredUser = res.user;
-          }
-        } catch (apiErr) {
-          console.info('[Auth] Server API offline, saving to local registry:', apiErr.message);
-        }
-
-        if (!registeredUser) {
-          registeredUser = {
-            id: `usr_${Date.now()}`,
-            name: name || cleanEmail.split('@')[0],
-            email: cleanEmail,
-            role: effectiveRole,
-            orgKey: effectiveOrgKey,
-          };
-        } else {
-          registeredUser = {
-            ...registeredUser,
-            role: effectiveRole,
-            orgKey: effectiveOrgKey,
-          };
-        }
+        throw new Error('Registration failed. Please try again.');
       }
-
-      // Persist in local registry
-      setRegisteredUsers((prev) => {
-        const filtered = prev.filter((u) => (u.email || '').toLowerCase() !== cleanEmail);
-        return [...filtered, registeredUser];
-      });
 
       setCurrentOrgKey(effectiveOrgKey);
       setCurrentUser(registeredUser);
@@ -468,15 +539,6 @@ export const AuthProvider = ({ children }) => {
     if (isSupabaseConfigured && supabase && currentUser.id) {
       await upsertUserProfile({ id: currentUser.id, role: normalizedRole });
     }
-
-    // Also update in registeredUsers registry
-    setRegisteredUsers((prev) =>
-      prev.map((u) =>
-        (u.email || '').toLowerCase() === (currentUser.email || '').toLowerCase()
-          ? { ...u, role: normalizedRole }
-          : u
-      )
-    );
   };
 
   /**
@@ -528,11 +590,11 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(user);
   };
 
-  const activeOrg = orgTemplates[currentOrgKey] || ORG_TEMPLATES[currentOrgKey] || resolveOrg(currentOrgKey);
+  const activeOrg = orgTemplates[currentOrgKey] || ORG_TEMPLATES[currentOrgKey] || resolveOrg(currentOrgKey, orgTemplates);
 
   const normalizedRole = (currentUser?.role || ROLES.STUDENT).toLowerCase();
 
-  // Unified roster: live Supabase org profiles + locally registered users (No mock data!)
+  // Unified roster: live Supabase org profiles + active session user
   const allAvailableUsers = useMemo(() => {
     const seen = new Set();
     const list = [];
@@ -545,22 +607,14 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    // 2. Locally registered users
-    registeredUsers.forEach((u) => {
-      if (u.email && !seen.has(u.email.toLowerCase())) {
-        seen.add(u.email.toLowerCase());
-        list.push(u);
-      }
-    });
-
-    // 3. Current user if active
+    // 2. Current user if active
     if (currentUser?.email && !seen.has(currentUser.email.toLowerCase())) {
       seen.add(currentUser.email.toLowerCase());
       list.push(currentUser);
     }
 
     return list;
-  }, [orgProfiles, registeredUsers, currentUser]);
+  }, [orgProfiles, currentUser]);
 
   const value = {
     user: currentUser ? { ...currentUser, role: normalizedRole } : null,
@@ -570,6 +624,7 @@ export const AuthProvider = ({ children }) => {
     isStaff: normalizedRole === ROLES.STAFF,
     isAdmin: normalizedRole === ROLES.ADMIN,
     loading,
+    isInitializing,
     authError,
     login,
     signup,
@@ -587,14 +642,17 @@ export const AuthProvider = ({ children }) => {
     updateOrgSettings,
     switchOrgTemplate,
     categories: activeOrg.categories || [],
-    locationLabel: activeOrg.locationLabel || 'Location',
-    userLabel: activeOrg.userLabel || activeOrg.userTerm || 'Student',
-    userTerm: activeOrg.userTerm || activeOrg.userLabel || 'Student',
+    locationLabel: activeOrg.locationLabel || 'Location / Room / Desk',
+    userLabel: activeOrg.userLabel || activeOrg.userTerm || 'Member',
+    userTerm: activeOrg.userTerm || activeOrg.userLabel || 'Member',
     getRoleTerm: (targetRole) => {
       const r = targetRole || currentUser?.role;
-      if (r === ROLES.ADMIN) return activeOrg.adminTerm || 'Admin';
-      if (r === ROLES.STAFF) return activeOrg.staffTerm || 'Staff';
-      return activeOrg.userTerm || activeOrg.userLabel || 'Student';
+      if (r === ROLES.ADMIN) {
+        const term = activeOrg.adminTerm || 'Workspace Admin';
+        return term === 'Operations / HR Admin' || term === 'Admin & HR' ? 'Workspace Admin' : term;
+      }
+      if (r === ROLES.STAFF) return activeOrg.staffTerm || 'Staff Resolver';
+      return activeOrg.userTerm || activeOrg.userLabel || 'Member';
     },
   };
 

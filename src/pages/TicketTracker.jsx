@@ -87,9 +87,11 @@ export default function TicketTracker() {
         await complaintService.syncFromSupabase();
         if (!isMounted) return;
 
-        let myTickets = complaintService.getAll({ studentId: user?.id });
-        if (!myTickets || myTickets.length === 0) {
+        let myTickets = [];
+        if (user?.role === ROLES.STAFF || user?.role === ROLES.ADMIN) {
           myTickets = complaintService.getAll();
+        } else if (user?.id) {
+          myTickets = complaintService.getAll({ studentId: user.id });
         }
         setUserComplaintsList(myTickets);
 

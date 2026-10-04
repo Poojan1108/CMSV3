@@ -28,22 +28,30 @@ import {
  * Builds the reassignment target list from active staff accounts plus shared
  * department queues — no hard-coded people in the page.
  */
-function buildReassignTargets(availableUsers) {
+function buildReassignTargets(availableUsers, currentOrg = null) {
   const staffTargets = availableUsers
     .filter((u) => u.role === ROLES.STAFF || u.role === ROLES.ADMIN)
     .map((u) => ({
       id: u.id,
       name: u.name,
-      department: u.department || 'Staff Resolver',
+      department: u.department || (currentOrg?.staffTerm ? `${currentOrg.staffTerm} Resolver` : 'Staff Resolver'),
     }));
 
-  return [...staffTargets, ...DEPARTMENT_QUEUES];
+  const dynamicQueues = Array.isArray(currentOrg?.categories) && currentOrg.categories.length > 0
+    ? currentOrg.categories.slice(0, 4).map((cat) => ({
+        id: `dept_${cat.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        name: `${cat} Team`,
+        department: cat,
+      }))
+    : DEPARTMENT_QUEUES;
+
+  return [...staffTargets, ...dynamicQueues];
 }
 
 export default function StaffResolutions() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, availableUsers } = useAuth();
+  const { user, availableUsers, orgKey, currentOrg } = useAuth();
   const { showToast } = useToast();
 
   const urlTicketId = searchParams.get('ticketId') || '';
@@ -61,12 +69,15 @@ export default function StaffResolutions() {
   const [resSearchQuery, setResSearchQuery] = useState('');
   const [resDeptFilter, setResDeptFilter] = useState('all');
 
-  const reassignTargets = useMemo(() => buildReassignTargets(availableUsers), [availableUsers]);
+  const reassignTargets = useMemo(
+    () => buildReassignTargets(availableUsers, currentOrg),
+    [availableUsers, currentOrg]
+  );
 
   useEffect(() => {
     setIsLoading(true);
     try {
-      const data = complaintService.getAll({ sortBy: 'newest' });
+      const data = complaintService.getAll({ org: orgKey, sortBy: 'newest' });
       setAllComplaints(data);
 
       if (urlTicketId) {

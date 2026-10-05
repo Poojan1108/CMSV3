@@ -330,6 +330,21 @@ CREATE POLICY "Users can update own profile" ON public.profiles
     FOR UPDATE TO authenticated
     USING (auth.uid() = id);
 
+CREATE POLICY "Admins can update profiles in their organization" ON public.profiles
+    FOR UPDATE TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE profiles.id = auth.uid() AND profiles.role = 'admin' AND profiles.org_key = public.profiles.org_key
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE profiles.id = auth.uid() AND profiles.role = 'admin' AND profiles.org_key = public.profiles.org_key
+        )
+    );
+
 -- 2. Organizations: Public read for login/signup; Admin update
 CREATE POLICY "Organizations public read" ON public.organizations
     FOR SELECT TO anon, authenticated

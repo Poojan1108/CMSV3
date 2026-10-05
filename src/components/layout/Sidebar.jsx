@@ -9,6 +9,7 @@ import {
   History,
   BarChart3,
   Building2,
+  Users,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
@@ -36,6 +37,7 @@ const NAV_CONFIG = {
   [ROLES.ADMIN]: [
     { path: '/admin/analytics', label: 'Analytics & Governance', icon: BarChart3, match: 'exact' },
     { path: '/admin/departments', label: 'Departments & SLA', icon: Building2, match: 'exact' },
+    { path: '/admin/members', label: 'Staff & Members', icon: Users, match: 'exact' },
   ],
 };
 

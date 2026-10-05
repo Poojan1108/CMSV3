@@ -161,8 +161,15 @@ export const getSlaStatus = (complaint) => {
  */
 export const generateComplaintsCSV = (complaints = [], orgConfig = null) => {
   const userTerm = orgConfig?.userTerm || orgConfig?.userLabel;
-  const nameHeader = userTerm ? `${userTerm} Name` : 'Student Name';
-  const idHeader = userTerm ? `${userTerm} RollNo` : 'Student RollNo';
+  const nameHeader = userTerm ? `${userTerm} Name` : 'User Name';
+  const idHeader =
+    userTerm === 'Employee'
+      ? 'Employee ID'
+      : userTerm === 'Resident'
+      ? 'Flat / Unit No'
+      : userTerm
+      ? `${userTerm} ID`
+      : 'Student RollNo';
   const headers = [
     'Ticket ID',
     'Title',

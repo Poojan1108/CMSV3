@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   History,
-  UserPlus,
   CheckCircle2,
   Search,
   Clock,
   Inbox,
+  Filter,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
-import { STATUSES, ROLES } from '../utils/constants';
+import { STATUSES } from '../utils/constants';
 import { formatDate, getSlaStatus } from '../utils/formatters';
-import { DEPARTMENT_QUEUES } from '../data/taxonomy';
 import {
   PageHeader,
   EmptyState,
@@ -24,88 +23,37 @@ import {
   Tag,
 } from '../components/ui';
 
-/**
- * Builds the reassignment target list from active staff accounts plus shared
- * department queues — no hard-coded people in the page.
- */
-function buildReassignTargets(availableUsers, currentOrg = null) {
-  const staffTargets = availableUsers
-    .filter((u) => u.role === ROLES.STAFF || u.role === ROLES.ADMIN)
-    .map((u) => ({
-      id: u.id,
-      name: u.name,
-      department: u.department || (currentOrg?.staffTerm ? `${currentOrg.staffTerm} Resolver` : 'Staff Resolver'),
-    }));
-
-  const dynamicQueues = Array.isArray(currentOrg?.categories) && currentOrg.categories.length > 0
-    ? currentOrg.categories.slice(0, 4).map((cat) => ({
-        id: `dept_${cat.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-        name: `${cat} Team`,
-        department: cat,
-      }))
-    : DEPARTMENT_QUEUES;
-
-  return [...staffTargets, ...dynamicQueues];
-}
-
 export default function StaffResolutions() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, availableUsers, orgKey, currentOrg } = useAuth();
+  const { orgKey, currentOrg } = useAuth();
   const { showToast } = useToast();
-
-  const urlTicketId = searchParams.get('ticketId') || '';
 
   const [allComplaints, setAllComplaints] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Reassignment form state
-  const [selectedTicketId, setSelectedTicketId] = useState('');
-  const [targetHandlerId, setTargetHandlerId] = useState('');
-  const [transferReason, setTransferReason] = useState('');
-  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
 
   // Resolution log filter state
   const [resSearchQuery, setResSearchQuery] = useState('');
   const [resDeptFilter, setResDeptFilter] = useState('all');
 
-  const reassignTargets = useMemo(
-    () => buildReassignTargets(availableUsers, currentOrg),
-    [availableUsers, currentOrg]
-  );
-
   useEffect(() => {
     setIsLoading(true);
     try {
       const data = complaintService.getAll({ org: orgKey, sortBy: 'newest' });
-      setAllComplaints(data);
-
-      if (urlTicketId) {
-        setSelectedTicketId(urlTicketId);
-      } else {
-        setSelectedTicketId((prev) => {
-          if (prev) return prev;
-          const firstOpen = data.find(
-            (c) => c.status !== STATUSES.RESOLVED && c.status !== STATUSES.REJECTED
-          );
-          return firstOpen?.id || '';
-        });
-      }
+      setAllComplaints(data || []);
     } catch (err) {
       console.error('Failed to load complaints for resolution view', err);
       showToast('Error loading resolution data', 'error');
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlTicketId]);
+  }, [orgKey]);
 
-  // Real-time live synchronization: refreshes resolution queues and logs live
+  // Real-time live synchronization: refreshes resolution log automatically
   useEffect(() => {
     const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
       try {
-        const data = complaintService.getAll({ sortBy: 'newest' });
-        setAllComplaints(data);
+        const data = complaintService.getAll({ org: orgKey, sortBy: 'newest' });
+        setAllComplaints(data || []);
       } catch (err) {
         console.error('Error in StaffResolutions live sync:', err);
       }
@@ -114,21 +62,7 @@ export default function StaffResolutions() {
     return () => {
       unsubscribe();
     };
-  }, []);
-
-  // Open tickets eligible for transfer
-  const openComplaints = useMemo(
-    () =>
-      allComplaints.filter(
-        (c) => c.status === STATUSES.PENDING || c.status === STATUSES.IN_PROGRESS
-      ),
-    [allComplaints]
-  );
-
-  const activeTicket = useMemo(
-    () => allComplaints.find((c) => c.id === selectedTicketId) || null,
-    [allComplaints, selectedTicketId]
-  );
+  }, [orgKey]);
 
   const resolvedComplaints = useMemo(
     () =>
@@ -153,56 +87,17 @@ export default function StaffResolutions() {
     });
   }, [resolvedComplaints, resDeptFilter, resSearchQuery]);
 
-  const handleExecuteReassignment = (e) => {
-    e.preventDefault();
-    if (!selectedTicketId) {
-      showToast('Select a ticket to transfer', 'warning');
-      return;
-    }
-    if (!targetHandlerId) {
-      showToast('Select a target handler or department', 'warning');
-      return;
-    }
-    if (!transferReason.trim()) {
-      showToast('Provide a transfer reason', 'warning');
-      return;
-    }
-
-    const target = reassignTargets.find((t) => t.id === targetHandlerId);
-    if (!target) {
-      showToast('Invalid target selected', 'error');
-      return;
-    }
-
-    setIsSubmittingTransfer(true);
-    try {
-      const updated = complaintService.reassign(
-        selectedTicketId,
-        { id: target.id, name: target.name, department: target.department },
-        user || { name: 'Staff', role: ROLES.STAFF },
-        transferReason.trim()
-      );
-
-      if (updated) {
-        showToast(`Ticket ${selectedTicketId} transferred to ${target.name}`, 'success');
-        setTransferReason('');
-        setTargetHandlerId('');
-      }
-    } catch (err) {
-      console.error('Failed to execute reassignment', err);
-      showToast('Failed to transfer ticket', 'error');
-    } finally {
-      setIsSubmittingTransfer(false);
-    }
-  };
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(resolvedComplaints.map((c) => c.category).filter(Boolean)));
+  }, [resolvedComplaints]);
 
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Reassignments & Log"
+        eyebrow="Audit & History"
         icon={<History size={12} />}
-        title="Resolutions & Reassignment"
-        description="Transfer complaints across departments and review verified resolution history."
+        title="Resolution Log"
+        description="Review verified resolution history, SLA turnaround metrics, and closed complaint records."
         actions={
           <button type="button" className="btn btn-secondary" onClick={() => navigate('/staff/queue')}>
             <Inbox size={15} />
@@ -211,213 +106,118 @@ export default function StaffResolutions() {
         }
       />
 
-      <div className="detail-layout resolutions-detail-layout">
-        {/* Reassignment form */}
-        <section className="card card-pad">
-          <h2 className="card-title">Ticket Transfer</h2>
-          <p className="card-subtitle" style={{ marginBottom: 14 }}>
-            Move an open ticket to a specialized handler.
-          </p>
+      <section className="card card-pad">
+        <div className="card-header" style={{ marginBottom: 16 }}>
+          <div>
+            <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={16} className="tone-success" />
+              Completed Resolutions ({resolvedComplaints.length})
+            </h2>
+            <p className="card-subtitle">Official log of resolved and closed department requests</p>
+          </div>
 
-          <form onSubmit={handleExecuteReassignment} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="form-group">
-              <label htmlFor="transfer-ticket" className="form-label">
-                1. Ticket to transfer<span className="required-mark">*</span>
-              </label>
-              <select
-                id="transfer-ticket"
-                className="form-select"
-                style={{ width: '100%', minWidth: 0 }}
-                value={selectedTicketId}
-                onChange={(e) => setSelectedTicketId(e.target.value)}
-              >
-                <option value="">
-                  Select an open ticket ({openComplaints.length} available)
-                </option>
-                {openComplaints.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.id} — {t.title.slice(0, 40)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {activeTicket && (
-              <div className="resolution-summary" style={{ margin: 0, minWidth: 0, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                    gap: 8,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <TicketId id={activeTicket.id} />
-                  <Tag>{activeTicket.category}</Tag>
-                </div>
-                <div className="comment-author" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                  {activeTicket.title}
-                </div>
-                <div className="cell-sub" style={{ marginTop: 4, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                  Current handler: {activeTicket.assignedTo?.name || 'Unassigned'} •{' '}
-                  {activeTicket.location}
-                </div>
-              </div>
-            )}
-
-            <div className="form-group">
-              <label htmlFor="transfer-target" className="form-label">
-                2. Target staff / department<span className="required-mark">*</span>
-              </label>
-              <select
-                id="transfer-target"
-                className="form-select"
-                style={{ width: '100%', minWidth: 0 }}
-                value={targetHandlerId}
-                onChange={(e) => setTargetHandlerId(e.target.value)}
-              >
-                <option value="">Select target…</option>
-                {reassignTargets.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.department})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="transfer-reason" className="form-label">
-                3. Reason<span className="required-mark">*</span>
-              </label>
-              <textarea
-                id="transfer-reason"
-                className="form-textarea"
-                rows={3}
-                placeholder="Why is this ticket being transferred?"
-                value={transferReason}
-                onChange={(e) => setTransferReason(e.target.value)}
+          <div className="toolbar-row" style={{ width: '100%', marginTop: 12 }}>
+            <div className="search-field" style={{ flex: '1 1 240px' }}>
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="Search by ticket ID, title, or resolver…"
+                value={resSearchQuery}
+                onChange={(e) => setResSearchQuery(e.target.value)}
+                aria-label="Search resolution log"
               />
             </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary btn-block"
-              disabled={isSubmittingTransfer || !selectedTicketId || !targetHandlerId}
+            <select
+              className="form-select"
+              value={resDeptFilter}
+              onChange={(e) => setResDeptFilter(e.target.value)}
+              aria-label="Filter by category"
+              style={{ minWidth: 160 }}
             >
-              {isSubmittingTransfer ? (
-                <>
-                  <span className="spinner" />
-                  Processing…
-                </>
-              ) : (
-                <>
-                  <UserPlus size={15} />
-                  Execute Transfer
-                </>
-              )}
-            </button>
-          </form>
-        </section>
-
-        {/* Resolution log */}
-        <section className="card card-pad">
-          <div className="card-header">
-            <div>
-              <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CheckCircle2 size={16} className="tone-success" />
-                Completed Resolutions
-              </h2>
-              <p className="card-subtitle">Audit record of closed complaints</p>
-            </div>
-
-            <div className="toolbar-row" style={{ width: '100%' }}>
-              <div className="search-field" style={{ flex: '1 1 200px' }}>
-                <Search size={13} />
-                <input
-                  type="text"
-                  placeholder="Search log…"
-                  value={resSearchQuery}
-                  onChange={(e) => setResSearchQuery(e.target.value)}
-                  aria-label="Search resolution log"
-                />
-              </div>
-
-              <select
-                value={resDeptFilter}
-                onChange={(e) => setResDeptFilter(e.target.value)}
-                aria-label="Filter by category"
-                className="toolbar-select form-select"
-                style={{ flex: '1 1 160px', minWidth: 0 }}
-              >
-                <option value="all">All Categories</option>
-                {[...new Set(resolvedComplaints.map((c) => c.category))].map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <option value="all">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </div>
+        </div>
 
-          {isLoading ? (
-            <LoadingState label="Loading resolution logs…" />
-          ) : filteredResolutions.length === 0 ? (
-            <EmptyState
-              icon={CheckCircle2}
-              title="No completed resolutions yet"
-              description="Closed complaints appear here with resolution notes, timestamps and SLA metrics."
-            />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {filteredResolutions.map((ticket) => {
-                const sla = getSlaStatus(ticket);
-                const lastHistory =
-                  ticket.statusHistory?.[ticket.statusHistory.length - 1] || null;
-
-                return (
-                  <article key={ticket.id} className="ticket-card" style={{ height: 'auto' }}>
-                    <div className="ticket-card-top">
-                      <div className="ticket-card-badges">
-                        <TicketId id={ticket.id} />
-                        <Tag>{ticket.category}</Tag>
-                        <StatusBadge status={ticket.status} />
-                      </div>
-                      <SlaBadge sla={sla} showIcon={false} />
+        {isLoading ? (
+          <LoadingState message="Loading resolution history…" />
+        ) : filteredResolutions.length === 0 ? (
+          <EmptyState
+            icon={History}
+            title="No resolution records found"
+            description={
+              resSearchQuery || resDeptFilter !== 'all'
+                ? 'Try adjusting your search query or category filter.'
+                : 'Resolved complaints and technician notes will be logged here.'
+            }
+          />
+        ) : (
+          <div className="resolution-feed" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {filteredResolutions.map((ticket) => {
+              const sla = getSlaStatus(ticket);
+              return (
+                <article key={ticket.id} className="ticket-card" style={{ padding: '16px 20px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 8,
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <TicketId id={ticket.id} />
+                      <Tag>{ticket.category}</Tag>
+                      <StatusBadge status={ticket.status} />
                     </div>
+                    {sla && <SlaBadge sla={sla} />}
+                  </div>
 
-                    <h3 className="ticket-card-title">{ticket.title}</h3>
+                  <h3 className="ticket-title" style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+                    {ticket.title}
+                  </h3>
 
-                    {lastHistory?.note && (
-                      <div className="callout callout-success">
-                        <CheckCircle2 size={14} />
-                        <div>
-                          <span className="callout-title">
-                            Resolution note — {lastHistory.updatedBy}
-                          </span>
-                          {lastHistory.note}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="ticket-card-meta">
-                      <span className="meta-item">
-                        Resolver: <strong>{ticket.assignedTo?.name || 'Staff'}</strong>
-                      </span>
-                      <span className="meta-item">
-                        <Clock size={12} />
-                        Closed {formatDate(ticket.updatedAt)}
-                      </span>
-                      <span className="meta-item">{ticket.location}</span>
+                  {ticket.resolutionDetails?.summary && (
+                    <div
+                      className="resolution-summary"
+                      style={{
+                        padding: '10px 14px',
+                        background: 'var(--app-card-bg-subtle, #f8fafc)',
+                        borderLeft: '3px solid var(--app-success, #16a34a)',
+                        borderRadius: 6,
+                        margin: '10px 0',
+                        fontSize: 13,
+                        color: 'var(--app-text)',
+                      }}
+                    >
+                      <strong>Resolution Note:</strong> {ticket.resolutionDetails.summary}
                     </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
+                  )}
+
+                  <div className="ticket-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--app-text-muted)' }}>
+                    <span className="meta-item">
+                      Resolver: <strong>{ticket.assignedTo?.name || 'Staff'}</strong>
+                    </span>
+                    <span className="meta-item">
+                      <Clock size={12} />
+                      Closed {formatDate(ticket.updatedAt || ticket.resolvedAt)}
+                    </span>
+                    {ticket.location && <span className="meta-item">{ticket.location}</span>}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

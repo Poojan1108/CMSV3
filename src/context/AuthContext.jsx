@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ROLES,
   ORG_TEMPLATES,
@@ -21,7 +21,11 @@ import {
   fetchOrganizations,
   createOrganization,
   setRealtimeAuth,
+  updateMemberRole,
+  clearUserProfileCache,
+  clearOrgProfilesCache,
 } from '../services/supabaseClient';
+import { complaintService } from '../services/complaintService';
 
 
 const AuthContext = createContext(null);
@@ -87,6 +91,11 @@ export const AuthProvider = ({ children }) => {
 
   const [loading, setLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  const currentOrgKeyRef = useRef(currentOrgKey);
+  useEffect(() => {
+    currentOrgKeyRef.current = currentOrgKey;
+  }, [currentOrgKey]);
   const [authError, setAuthError] = useState(null);
 
   // Sync current user to local storage for offline resilience
@@ -144,15 +153,7 @@ export const AuthProvider = ({ children }) => {
                 ? 'Workspace Admin'
                 : rawAdmin;
 
-            // Self-heal legacy Supabase organization rows in background
-            if (rawAdmin === 'Operations / HR Admin' && isSupabaseConfigured && supabase) {
-              supabase
-                .from('organizations')
-                .update({ admin_term: 'Workspace Admin' })
-                .eq('org_key', o.org_key)
-                .then(() => {})
-                .catch(() => {});
-            }
+
 
             liveOrgs[o.org_key] = {
               name: o.name,
@@ -190,9 +191,22 @@ export const AuthProvider = ({ children }) => {
             department: profile?.department || '',
             avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
           };
-          setCurrentUser(resolvedUser);
+          setCurrentUser((prev) => {
+            if (
+              prev &&
+              prev.id === resolvedUser.id &&
+              prev.email === resolvedUser.email &&
+              prev.role === resolvedUser.role &&
+              prev.orgKey === resolvedUser.orgKey &&
+              prev.name === resolvedUser.name &&
+              prev.department === resolvedUser.department
+            ) {
+              return prev;
+            }
+            return resolvedUser;
+          });
           if (org) {
-            setCurrentOrgKey(org);
+            setCurrentOrgKey((prev) => (prev === org ? prev : org));
           }
         }
 
@@ -233,8 +247,9 @@ export const AuthProvider = ({ children }) => {
 
     const loadProfiles = async () => {
       if (isSupabaseConfigured && supabase && currentOrgKey) {
-        const profiles = await fetchOrgProfiles(currentOrgKey);
-        if (isMounted && profiles && profiles.length > 0) {
+        const filter = userRole === ROLES.ADMIN ? 'all' : ['staff', 'admin'];
+        const profiles = await fetchOrgProfiles(currentOrgKey, filter);
+        if (isMounted && profiles) {
           setOrgProfiles(profiles);
         }
       }
@@ -263,7 +278,7 @@ export const AuthProvider = ({ children }) => {
           }
           const profile = await getUserProfile(session.user.id);
           const role = (profile?.role || session.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
-          const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKey;
+          const org = profile?.org_key || session.user.user_metadata?.orgKey || currentOrgKeyRef.current;
           const resolvedUser = {
             id: session.user.id,
             email: session.user.email,
@@ -273,10 +288,28 @@ export const AuthProvider = ({ children }) => {
             department: profile?.department || '',
             avatar: profile?.avatar_url || session.user.user_metadata?.avatar || null,
           };
-          setCurrentUser(resolvedUser);
-          if (org) setCurrentOrgKey(org);
+          setCurrentUser((prev) => {
+            if (
+              prev &&
+              prev.id === resolvedUser.id &&
+              prev.email === resolvedUser.email &&
+              prev.role === resolvedUser.role &&
+              prev.orgKey === resolvedUser.orgKey &&
+              prev.name === resolvedUser.name &&
+              prev.department === resolvedUser.department
+            ) {
+              return prev;
+            }
+            return resolvedUser;
+          });
+          if (org) {
+            setCurrentOrgKey((prev) => (prev === org ? prev : org));
+          }
         }
       } else if (event === 'SIGNED_OUT') {
+        clearUserProfileCache();
+        clearOrgProfilesCache();
+        complaintService.clearCache();
         setRealtimeAuth(null);
         setCurrentUser(null);
         localStorage.removeItem(STORAGE_USER_KEY);
@@ -287,7 +320,7 @@ export const AuthProvider = ({ children }) => {
       isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [currentOrgKey]);
+  }, []);
 
   /**
    * Create a new Custom Organization (Admin creation)
@@ -542,6 +575,69 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Admin Member Lifecycle: Promote or update a member's role and department
+   */
+  const updateMemberRoleAndDept = async (memberId, { role, departmentId = null, departmentName = null, assignedCategories = [] }) => {
+    if (!memberId || !role) return { success: false, error: 'Missing member ID or role' };
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await updateMemberRole(memberId, {
+          role,
+          departmentId,
+          departmentName,
+          assignedCategories,
+        });
+      }
+
+      // Optimistically update local orgProfiles state
+      setOrgProfiles((prev) =>
+        prev.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                role: role.toLowerCase(),
+                departmentId: departmentId || null,
+                department: departmentName || '',
+                assignedCategories: assignedCategories || [],
+              }
+            : m
+        )
+      );
+
+      // If current user modified their own profile, sync active session
+      if (currentUser?.id === memberId) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          role: role.toLowerCase(),
+          departmentId: departmentId || null,
+          department: departmentName || '',
+        }));
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('[AuthContext updateMemberRoleAndDept Error]:', err);
+      return { success: false, error: err.message || 'Failed to update member role' };
+    }
+  };
+
+  /**
+   * Refetches the live member roster for the active organization
+   */
+  const reloadOrgProfiles = async (roleFilterOverride = null) => {
+    if (isSupabaseConfigured && supabase && currentOrgKey) {
+      const userRole = (currentUser?.role || ROLES.STUDENT).toLowerCase();
+      const filter = roleFilterOverride || (userRole === ROLES.ADMIN ? 'all' : ['staff', 'admin']);
+      const profiles = await fetchOrgProfiles(currentOrgKey, filter);
+      if (profiles) {
+        setOrgProfiles(profiles);
+      }
+      return profiles;
+    }
+    return [];
+  };
+
+  /**
    * Send Password Reset Email
    */
   const resetPassword = async (email) => {
@@ -564,6 +660,9 @@ export const AuthProvider = ({ children }) => {
    * Logout and clear session
    */
   const logout = async () => {
+    clearUserProfileCache();
+    clearOrgProfilesCache();
+    complaintService.clearCache();
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.auth.signOut();
@@ -629,9 +728,12 @@ export const AuthProvider = ({ children }) => {
     login,
     signup,
     updateUserRole,
+    updateMemberRoleAndDept,
+    reloadOrgProfiles,
     resetPassword,
     logout,
     setUser,
+    orgProfiles,
     availableUsers: allAvailableUsers,
 
     // Dynamic Multi-Tenant Organization State

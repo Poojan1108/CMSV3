@@ -37,7 +37,7 @@ import {
   EmptyState,
 } from '../components/ui';
 import Modal from '../components/ui/Modal';
-import { ACCESS_TIME_SLOTS, CONTACT_METHODS } from '../data/taxonomy';
+import { ACCESS_TIME_SLOTS } from '../data/taxonomy';
 
 /** Canonical resolution timeline stages. */
 const TIMELINE_STAGES = [
@@ -59,7 +59,7 @@ const TIMELINE_STAGES = [
 
 export default function TicketTracker() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, currentOrg } = useAuth();
   const { showToast } = useToast();
 
   const ticketIdParam = searchParams.get('id') || '';
@@ -95,14 +95,20 @@ export default function TicketTracker() {
         }
         setUserComplaintsList(myTickets);
 
-        if (ticketIdParam) {
-          const found = complaintService.getById(ticketIdParam);
+        const targetId = ticketIdParam || myTickets[0]?.id;
+        if (targetId) {
+          const found = complaintService.getById(targetId);
           setComplaint(found || myTickets[0] || null);
-          setLookupId(found ? found.id : ticketIdParam);
-        } else if (myTickets.length > 0) {
-          setComplaint(myTickets[0]);
-          setLookupId(myTickets[0].id);
-          setSearchParams({ id: myTickets[0].id }, { replace: true });
+          setLookupId(targetId);
+          if (!ticketIdParam && myTickets[0]?.id) {
+            setSearchParams({ id: myTickets[0].id }, { replace: true });
+          }
+
+          // Concurrently fetch latest comments and timeline specifically for this ticket
+          const detailed = await complaintService.syncTicketDetails(targetId);
+          if (isMounted && detailed) {
+            setComplaint(detailed);
+          }
         } else {
           setComplaint(null);
         }
@@ -148,8 +154,15 @@ export default function TicketTracker() {
 
     let found = complaintService.getById(lookupId.trim());
     if (!found) {
-      await complaintService.syncFromSupabase();
-      found = complaintService.getById(lookupId.trim());
+      found = await complaintService.syncTicketDetails(lookupId.trim());
+      if (!found) {
+        await complaintService.syncFromSupabase({ force: true });
+        found = complaintService.getById(lookupId.trim());
+      }
+    } else {
+      complaintService.syncTicketDetails(found.id).then((fresh) => {
+        if (fresh) setComplaint(fresh);
+      });
     }
 
     if (found) {
@@ -775,7 +788,7 @@ export default function TicketTracker() {
                         {complaint.assignedTo.name}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--app-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {complaint.assignedTo.email || 'Campus Facilities Team'}
+                        {complaint.assignedTo.email || (currentOrg?.staffTerm ? `${currentOrg.staffTerm} Team` : 'Support Team')}
                       </div>
                     </div>
                   </div>
@@ -1089,7 +1102,7 @@ export default function TicketTracker() {
                         }}
                       >
                         <Lock size={11} />
-                        <span>{isInternalNote ? 'Internal Note (Staff only)' : 'Public Reply (Visible to student)'}</span>
+                        <span>{isInternalNote ? 'Internal Note (Staff only)' : `Public Reply (Visible to ${currentOrg?.userTerm?.toLowerCase() || 'reporter'})`}</span>
                       </button>
                       <span style={{ fontSize: 11, color: '#64748b' }}>
                         Posting as <strong>{user?.name || 'Staff'}</strong> ({user?.role || 'staff'})

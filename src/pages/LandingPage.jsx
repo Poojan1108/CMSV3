@@ -16,25 +16,31 @@ import LandingBottomCTA from '../components/landing/LandingBottomCTA';
 import LandingFooter from '../components/landing/LandingFooter';
 import Auth from '../components/Auth';
 
-import { complaintService } from '../services/complaintService';
 import { useAuth } from '../context/AuthContext';
 import { ROLES } from '../utils/constants';
 
 export default function LandingPage({ initialMode = 'landing' }) {
   const [view, setView] = useState(initialMode);
   const navigate = useNavigate();
-  const { role } = useAuth();
-
-  // On mount, sync Supabase data in the background
-  useEffect(() => {
-    complaintService.syncFromSupabase().catch((err) => {
-      console.warn('Initial Supabase sync notice:', err);
-    });
-  }, []);
+  const { user, role } = useAuth();
 
   useEffect(() => {
     setView(initialMode);
   }, [initialMode]);
+
+  // If user is already authenticated, smoothly route to active dashboard
+  useEffect(() => {
+    if (user && (view === 'login' || view === 'signup')) {
+      const effectiveRole = (user.role || role || ROLES.STUDENT).toLowerCase();
+      if (effectiveRole === ROLES.ADMIN) {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (effectiveRole === ROLES.STAFF) {
+        navigate('/staff/queue', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, view, role, navigate]);
 
   // Smooth Lenis scrolling
   useEffect(() => {

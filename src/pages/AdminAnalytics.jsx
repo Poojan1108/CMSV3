@@ -75,9 +75,6 @@ export default function AdminAnalytics() {
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
 
-  // Seed reset confirmation
-  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
-
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
@@ -255,18 +252,6 @@ export default function AdminAnalytics() {
     } catch (err) {
       console.error('Failed to reassign ticket:', err);
       showToast('Failed to assign ticket', 'error');
-    }
-  };
-
-  const handleConfirmResetSeedData = () => {
-    try {
-      complaintService.resetToSeedData();
-      setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
-      setShowResetConfirmModal(false);
-      showToast('System reset to initial seed state', 'success');
-    } catch (err) {
-      console.error('Failed to reset seed data', err);
-      showToast('Error resetting seed data', 'error');
     }
   };
 
@@ -529,17 +514,9 @@ export default function AdminAnalytics() {
               Global Ticket Management
             </h2>
             <p className="card-subtitle">
-              Status override, staff assignment dispatch and system reset controls.
+              Status override and staff assignment dispatch across all departments.
             </p>
           </div>
-
-          <button
-            type="button"
-            className="btn btn-danger-outline btn-sm"
-            onClick={() => setShowResetConfirmModal(true)}
-          >
-            Reset Seed Data
-          </button>
         </div>
 
         {/* Filters */}
@@ -701,8 +678,8 @@ export default function AdminAnalytics() {
           </div>
         )}
 
-        {/* Table */}
-        <div className="table-scroll">
+        {/* Desktop Table View */}
+        <div className="dispatch-desktop-table table-scroll">
           <table>
             <thead>
               <tr>
@@ -799,6 +776,119 @@ export default function AdminAnalytics() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Dispatch / Reassignment Touch Cards */}
+        <div className="dispatch-mobile-cards">
+          {filteredComplaints.length === 0 ? (
+            <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--rx-text-muted)' }}>
+              No complaints match current filters.
+            </div>
+          ) : (
+            filteredComplaints.map((item) => (
+              <div
+                key={item.id}
+                className="card card-pad"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  background: 'var(--rx-surface)',
+                  border: '1px solid var(--rx-border)',
+                }}
+              >
+                {/* Header: Ticket ID & Priority Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <TicketId id={item.id} />
+                  <PriorityBadge priority={item.priority} />
+                </div>
+
+                {/* Title & Category / Location */}
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--rx-text)' }}>
+                    {item.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--rx-text-muted)', marginTop: 2 }}>
+                    {item.category} • {item.location || '—'}
+                  </div>
+                </div>
+
+                {/* Complainant details */}
+                <div
+                  style={{
+                    background: 'var(--rx-shade-subtle)',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--rx-text-muted)' }}>Reporter:</span>
+                    <span style={{ fontWeight: 500, color: 'var(--rx-text)' }}>
+                      {item.student?.name || 'Anonymous'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--rx-text-muted)' }}>Details:</span>
+                    <span style={{ color: 'var(--rx-text-secondary)' }}>
+                      {item.isAnonymous ? 'Identity protected' : (item.student?.identifier || item.student?.rollNo || item.student?.empId || item.student?.unit || '—')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status Override Select */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <label style={{ fontSize: 12, color: 'var(--rx-text-muted)', flexShrink: 0 }}>
+                    Status:
+                  </label>
+                  <select
+                    value={item.status}
+                    onChange={(e) => handleStatusOverride(item.id, e.target.value)}
+                    className="table-select form-select"
+                    aria-label={`Override status for ${item.id}`}
+                    style={{ width: '100%', height: 36, fontSize: 13 }}
+                  >
+                    {Object.values(STATUSES).map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Assignment & Action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--rx-border-soft)', paddingTop: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    {item.assignedTo ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <UserCheck size={13} className="tone-success" />
+                        <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--rx-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.assignedTo.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="tone-warning" style={{ fontStyle: 'italic', fontSize: 12 }}>
+                        Unassigned
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleOpenAssignModal(item)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+                  >
+                    <UserPlus size={13} />
+                    {item.assignedTo ? 'Reassign' : 'Assign'}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </section>
 
       {/* Assignment modal */}
@@ -869,34 +959,6 @@ export default function AdminAnalytics() {
               />
             </div>
           </form>
-        </Modal>
-      )}
-
-      {/* Reset confirmation modal */}
-      {showResetConfirmModal && (
-        <Modal
-          title="Reset System Data?"
-          subtitle="Irreversible admin action"
-          onClose={() => setShowResetConfirmModal(false)}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowResetConfirmModal(false)}
-              >
-                Cancel
-              </button>
-              <button type="button" className="btn btn-danger" onClick={handleConfirmResetSeedData}>
-                Yes, Reset Data
-              </button>
-            </>
-          }
-        >
-          <p className="detail-desc" style={{ margin: 0 }}>
-            This restores the original seed complaints and clears every ticket created during this
-            session. Consider exporting a CSV/JSON backup first.
-          </p>
         </Modal>
       )}
     </div>

@@ -193,30 +193,65 @@ export async function uploadComplaintAttachment(file, ticketId = 'draft') {
   }
 }
 
+const userProfileCache = new Map();
+const userProfileInFlight = new Map();
+
+/**
+ * Invalidate in-memory profile cache for a specific user or completely.
+ */
+export function clearUserProfileCache(userId = null) {
+  if (userId) {
+    userProfileCache.delete(userId);
+    userProfileInFlight.delete(userId);
+  } else {
+    userProfileCache.clear();
+    userProfileInFlight.clear();
+  }
+}
+
 /**
  * Retrieves the application profile for an authenticated Supabase user.
+ * Caches profile in memory and deduplicates in-flight requests.
  *
  * @param {string} userId - auth.users UUID
+ * @param {boolean} [forceRefresh=false] - bypass cache if needed
  * @returns {Promise<object|null>} Profile record or null if not found
  */
-export async function getUserProfile(userId) {
+export async function getUserProfile(userId, forceRefresh = false) {
   if (!isSupabaseConfigured || !supabase || !userId) return null;
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('[Supabase getUserProfile Error]:', error.message);
-      return null;
-    }
-    return data || null;
-  } catch (err) {
-    console.warn('[Supabase getUserProfile Exception]:', err);
-    return null;
+  if (!forceRefresh && userProfileCache.has(userId)) {
+    return userProfileCache.get(userId);
   }
+  if (userProfileInFlight.has(userId)) {
+    return userProfileInFlight.get(userId);
+  }
+
+  const promise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[Supabase getUserProfile Error]:', error.message);
+        return null;
+      }
+      if (data) {
+        userProfileCache.set(userId, data);
+      }
+      return data || null;
+    } catch (err) {
+      console.warn('[Supabase getUserProfile Exception]:', err);
+      return null;
+    } finally {
+      userProfileInFlight.delete(userId);
+    }
+  })();
+
+  userProfileInFlight.set(userId, promise);
+  return promise;
 }
 
 /**
@@ -264,70 +299,161 @@ export async function upsertUserProfile(profile) {
     return null;
   }
 }
+const orgProfilesInFlight = new Map();
 
 /**
- * Fetches all registered member profiles within a given organization.
- * Used to populate live staff reassignment dropdowns and department rosters.
- *
- * @param {string} orgKey - Organization key
- * @returns {Promise<Array>} Array of normalized profile objects
+ * Invalidate in-flight profile promises for organizations.
  */
-export async function fetchOrgProfiles(orgKey) {
-  if (!isSupabaseConfigured || !supabase || !orgKey) return [];
-  try {
-    let query = supabase
-      .from('profiles')
-      .select('*')
-      .in('role', ['staff', 'admin']);
-
-    if (orgKey !== 'ALL') {
-      query = query.eq('org_key', orgKey);
+export function clearOrgProfilesCache(orgKey = null) {
+  if (orgKey) {
+    for (const key of orgProfilesInFlight.keys()) {
+      if (key.startsWith(orgKey)) orgProfilesInFlight.delete(key);
     }
-    const { data, error } = await query;
-    if (error) {
-      console.warn('[Supabase fetchOrgProfiles Error]:', error.message);
-      return [];
-    }
-    return (data || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      email: p.email,
-      role: (p.role || 'staff').toLowerCase(),
-      orgKey: p.org_key,
-      department: p.department_name || '',
-      departmentId: p.department_id,
-      avatar: p.avatar_url,
-      phone: p.phone,
-      rollNo: p.roll_no,
-      room: p.room_no,
-      assignedCategories: p.assigned_categories || [],
-    }));
-  } catch (err) {
-    console.warn('[Supabase fetchOrgProfiles Exception]:', err);
-    return [];
+  } else {
+    orgProfilesInFlight.clear();
   }
 }
 
 /**
+ * Fetches all registered member profiles within a given organization.
+ * Used to populate live staff reassignment dropdowns, department rosters, and admin member management.
+ * Deduplicates in-flight concurrent requests.
+ *
+ * @param {string} orgKey - Organization key
+ * @param {Array|string} [roleFilter=['staff', 'admin']] - Array of roles or 'all' to fetch all members
+ * @returns {Promise<Array>} Array of normalized profile objects
+ */
+export async function fetchOrgProfiles(orgKey, roleFilter = ['staff', 'admin']) {
+  if (!isSupabaseConfigured || !supabase || !orgKey) return [];
+  const cacheKey = `${orgKey}_${Array.isArray(roleFilter) ? roleFilter.slice().sort().join(',') : roleFilter}`;
+
+  if (orgProfilesInFlight.has(cacheKey)) {
+    return orgProfilesInFlight.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    try {
+      let query = supabase.from('profiles').select('*');
+
+      if (roleFilter && roleFilter !== 'all' && Array.isArray(roleFilter)) {
+        query = query.in('role', roleFilter);
+      }
+
+      if (orgKey !== 'ALL') {
+        query = query.eq('org_key', orgKey);
+      }
+
+      query = query.order('name', { ascending: true });
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('[Supabase fetchOrgProfiles Error]:', error.message);
+        return [];
+      }
+      return (data || []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        role: (p.role || 'student').toLowerCase(),
+        orgKey: p.org_key,
+        department: p.department_name || '',
+        departmentId: p.department_id,
+        avatar: p.avatar_url,
+        phone: p.phone,
+        rollNo: p.roll_no,
+        room: p.room_no,
+        assignedCategories: p.assigned_categories || [],
+        createdAt: p.created_at,
+      }));
+    } catch (err) {
+      console.warn('[Supabase fetchOrgProfiles Exception]:', err);
+      return [];
+    } finally {
+      orgProfilesInFlight.delete(cacheKey);
+    }
+  })();
+
+  orgProfilesInFlight.set(cacheKey, promise);
+  return promise;
+}
+
+/**
+ * Updates a member's role and assigned department in public.profiles.
+ * Intended for Admin use to elevate normal users to staff or reassign departments.
+ *
+ * @param {string} userId - Target user ID
+ * @param {object} updates - { role, departmentId, departmentName, assignedCategories }
+ * @returns {Promise<object|null>} The updated profile or null
+ */
+export async function updateMemberRole(userId, { role, departmentId = null, departmentName = null, assignedCategories = [] }) {
+  if (!isSupabaseConfigured || !supabase || !userId) return null;
+  try {
+    const isUuid = departmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
+
+    const payload = {
+      role: (role || 'student').toLowerCase(),
+      department_id: isUuid ? departmentId : null,
+      department_name: departmentName || null,
+      assigned_categories: assignedCategories || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Supabase updateMemberRole Error]:', error.message);
+      throw error;
+    }
+
+    clearUserProfileCache(userId);
+    clearOrgProfilesCache();
+
+    return data;
+  } catch (err) {
+    console.error('[Supabase updateMemberRole Exception]:', err);
+    throw err;
+  }
+}
+
+let fetchOrganizationsPromise = null;
+
+/**
  * Fetches all active organizations from Supabase public.organizations table.
+ * Deduplicates concurrent in-flight calls to prevent redundant network queries.
  */
 export async function fetchOrganizations() {
   if (!isSupabaseConfigured || !supabase) return [];
-  try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: true });
+  if (fetchOrganizationsPromise) return fetchOrganizationsPromise;
 
-    if (error) {
-      console.warn('[Supabase Org] fetchOrganizations error:', error.message);
+  fetchOrganizationsPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('[Supabase Org] fetchOrganizations error:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.warn('[Supabase Org] fetchOrganizations exception:', err);
       return [];
+    } finally {
+      // Clear after a brief period so subsequent programmatic refreshes can re-fetch
+      setTimeout(() => {
+        fetchOrganizationsPromise = null;
+      }, 1000);
     }
-    return data || [];
-  } catch (err) {
-    console.warn('[Supabase Org] fetchOrganizations exception:', err);
-    return [];
-  }
+  })();
+
+  return fetchOrganizationsPromise;
 }
 
 /**

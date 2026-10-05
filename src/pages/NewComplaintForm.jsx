@@ -24,7 +24,7 @@ import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
 import { uploadComplaintAttachment } from '../services/supabaseClient';
 import { PRIORITIES } from '../utils/constants';
-import { getSubCategories, KB_ARTICLES, getQuickLocations, ACCESS_TIME_SLOTS, CONTACT_METHODS } from '../data/taxonomy';
+import { getSubCategories, getQuickLocations, ACCESS_TIME_SLOTS } from '../data/taxonomy';
 import { Breadcrumb, PageHeader } from '../components/ui';
 
 const TITLE_MAX_LENGTH = 120;
@@ -55,11 +55,9 @@ export default function NewComplaintForm() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [accessDate, setAccessDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [timeSlot, setTimeSlot] = useState(ACCESS_TIME_SLOTS[0]);
-  const [contactMethod, setContactMethod] = useState(CONTACT_METHODS[0].id);
   const [attachments, setAttachments] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deflectionDismissed, setDeflectionDismissed] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   // Restore draft on initial mount (Parkinson's Law: Prevent re-entering data)
@@ -134,35 +132,52 @@ export default function NewComplaintForm() {
     setSubCategory(getSubCategories(newCategory)[0]);
   };
 
-  // Knowledge-base deflection match
-  const matchedKbArticle = useMemo(() => {
-    if (deflectionDismissed || !title || title.trim().length < 4) return null;
-    const lowerTitle = title.toLowerCase();
-    return KB_ARTICLES.find((art) => art.keywords.some((kw) => lowerTitle.includes(kw))) || null;
-  }, [title, deflectionDismissed]);
-
   // Smart category suggestion based on title/description context (Tesler's Law)
   const suggestedCategory = useMemo(() => {
     if (!title || title.trim().length < 3) return null;
     const lower = `${title} ${description}`.toLowerCase();
 
+    if (/monitor|screen|display|dock|docking|keyboard|mouse|headset|webcam|laptop charger|adapter|hdmi cable/i.test(lower)) {
+      return categories.find((c) => /hardware|workstation/i.test(c)) || null;
+    }
+    if (/meeting room|conference room|boardroom|teams room|zoom room|projector|av display/i.test(lower)) {
+      return categories.find((c) => /meeting|conference/i.test(c)) || null;
+    }
+    if (/vpn|anyconnect|globalprotect|zscaler|firewall|proxy|lan cable|ethernet/i.test(lower)) {
+      return categories.find((c) => /vpn|network/i.test(c)) || null;
+    }
+    if (/pantry|coffee machine|tea machine|water dispenser|vending/i.test(lower)) {
+      return categories.find((c) => /pantry|cafeteria/i.test(c)) || null;
+    }
+    if (/payroll|payslip|salary|id badge|access card|swipe card|turnstile|leave portal|pf query/i.test(lower)) {
+      return categories.find((c) => /hr|operation|people/i.test(c)) || null;
+    }
+    if (/elevator|lift|stuck between|door sensor/i.test(lower)) {
+      return categories.find((c) => /elevator|lift/i.test(c)) || null;
+    }
+    if (/gate|guard|security|visitor|intercom|parking|cctv|boom barrier/i.test(lower)) {
+      return categories.find((c) => /security|gate/i.test(c)) || null;
+    }
+    if (/clubhouse|gym|pool|swimming|court|badminton|amenities|hall/i.test(lower)) {
+      return categories.find((c) => /clubhouse|amenities|gym/i.test(c)) || null;
+    }
     if (/wifi|internet|network|portal|login|laptop|server|lan|vpn|software|email|printer|system/i.test(lower)) {
       return categories.find((c) => /it|wifi|network|software|tech/i.test(c)) || null;
     }
-    if (/water|leak|pipe|tap|flush|drain|restroom|toilet|sink|washroom|plumber/i.test(lower)) {
-      return categories.find((c) => /hostel|sanitation|maintenance|plumbing/i.test(c)) || null;
+    if (/water|leak|pipe|tap|flush|drain|restroom|toilet|sink|washroom|plumber|seepage/i.test(lower)) {
+      return categories.find((c) => /plumbing|water|hostel|sanitation|maintenance/i.test(c)) || null;
     }
-    if (/ac|cooling|fan|light|power|switch|fuse|electricity|wiring|generator|heater/i.test(lower)) {
-      return categories.find((c) => /electrical|maintenance|facility/i.test(c)) || null;
+    if (/ac|cooling|fan|light|power|switch|fuse|electricity|wiring|generator|heater|mcb|tripping/i.test(lower)) {
+      return categories.find((c) => /electrical|power|maintenance|facility/i.test(c)) || null;
     }
     if (/food|mess|canteen|meal|snack|cook|kitchen|hygiene|taste|samosa|cater/i.test(lower)) {
       return categories.find((c) => /canteen|mess|food|dining/i.test(c)) || null;
     }
-    if (/garbage|trash|clean|dust|pest|insect|smell|bin|dirty/i.test(lower)) {
-      return categories.find((c) => /sanitation|clean|housekeeping/i.test(c)) || null;
+    if (/garbage|trash|clean|dust|pest|insect|smell|bin|dirty|waste/i.test(lower)) {
+      return categories.find((c) => /waste|sanitation|clean|housekeeping/i.test(c)) || null;
     }
     if (/desk|chair|table|bed|door|lock|window|cupboard|furniture|wardrobe/i.test(lower)) {
-      return categories.find((c) => /hostel|maintenance|furniture/i.test(c)) || null;
+      return categories.find((c) => /furniture|hostel|maintenance/i.test(c)) || null;
     }
     if (/grade|exam|course|professor|faculty|lecture|attendance|marks|scholarship/i.test(lower)) {
       return categories.find((c) => /academic|course|faculty/i.test(c)) || null;
@@ -233,11 +248,16 @@ export default function NewComplaintForm() {
     setIsSubmitting(true);
 
     try {
-      // 1. Upload files to Supabase Storage (or high-speed Data URL fallback)
+      // 1. Pre-generate collision-free ticket ID so storage attachments are strictly scoped under this ticket
+      const newTicketId = complaintService.generateId
+        ? complaintService.generateId()
+        : `CMS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // 2. Upload files to Supabase Storage (or high-speed Data URL fallback)
       const uploadedAttachments = await Promise.all(
         attachments.map(async (item) => {
           if (item.file) {
-            const uploadRes = await uploadComplaintAttachment(item.file, 'draft');
+            const uploadRes = await uploadComplaintAttachment(item.file, newTicketId);
             return {
               id: uploadRes.id,
               name: uploadRes.name,
@@ -280,6 +300,7 @@ export default function NewComplaintForm() {
       }
 
       const created = complaintService.create({
+        id: newTicketId,
         title: title.trim(),
         description: description.trim(),
         category,
@@ -291,7 +312,6 @@ export default function NewComplaintForm() {
         isAnonymous,
         accessDate,
         timeSlot,
-        contactMethod,
         attachmentsCount: uploadedAttachments.length,
         attachmentNames: uploadedAttachments.map((a) => a.name),
         attachments: uploadedAttachments,
@@ -347,6 +367,39 @@ export default function NewComplaintForm() {
         description={`Submit a formal service ticket to ${currentOrg?.name || 'your organization'}. Requests are triaged under SLA guidelines.`}
       />
 
+      {hasRestoredDraft && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            background: 'var(--app-info-bg, #eff6ff)',
+            border: '1px solid var(--app-info-border, #bfdbfe)',
+            borderRadius: '8px',
+            color: 'var(--app-info-text, #1e40af)',
+            fontSize: '13px',
+            marginBottom: '16px',
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={16} />
+            <span>Restored your saved draft from your previous session.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="btn btn-ghost btn-sm"
+            style={{ color: 'var(--app-danger, #ef4444)', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+          >
+            <RotateCcw size={13} />
+            <span>Discard Draft</span>
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="form-stack" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
         {/* Cluster 1: The Issue & Location (Core Identification) */}
         <div
@@ -377,10 +430,7 @@ export default function NewComplaintForm() {
               className="form-input"
               placeholder="e.g. Water leakage under the sink in Block B 304"
               value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setDeflectionDismissed(false);
-              }}
+              onChange={(e) => setTitle(e.target.value)}
               maxLength={TITLE_MAX_LENGTH}
               required
               style={{ width: '100%', boxSizing: 'border-box' }}
@@ -409,52 +459,6 @@ export default function NewComplaintForm() {
                 Detected department: <strong>{suggestedCategory}</strong> — Tap to apply
               </span>
             </button>
-          )}
-
-          {matchedKbArticle && (
-            <div className="kb-card" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
-              <div className="kb-head">
-                <span className="kb-tag">
-                  <CheckCircle2 size={14} />
-                  Suggested self-help guide
-                </span>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={() => setDeflectionDismissed(true)}
-                  aria-label="Dismiss suggestion"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-
-              <h3 className="kb-article-title">{matchedKbArticle.title}</h3>
-              <p className="kb-article-body">{matchedKbArticle.solution}</p>
-
-              <div className="kb-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => {
-                    showToast('Glad this guide resolved your issue.', 'success');
-                    setTitle('');
-                    setDescription('');
-                    setDeflectionDismissed(true);
-                  }}
-                  style={{ flex: '1 1 auto' }}
-                >
-                  This solved my issue
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => setDeflectionDismissed(true)}
-                  style={{ flex: '1 1 auto' }}
-                >
-                  Continue filing ticket
-                </button>
-              </div>
-            </div>
           )}
 
           <div className="form-grid-2" style={{ width: '100%', minWidth: 0 }}>

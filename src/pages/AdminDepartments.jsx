@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Building2,
   Building,
   Home,
   Sliders,
   Check,
-  Mail,
-  Phone,
-  UserPlus,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -16,7 +15,6 @@ import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import {
   PageHeader,
   Modal,
-  EmptyState,
 } from '../components/ui';
 
 const SLA_OPTIONS = [
@@ -110,9 +108,9 @@ export default function AdminDepartments() {
     const map = {};
     categories.forEach((cat) => {
       const name = cat.toLowerCase();
-      if (/urgent|security|elevator/.test(name)) map[cat] = 4;
+      if (/urgent|security|elevator|meeting/.test(name)) map[cat] = 4;
       else if (/sanitation|waste|plumbing/.test(name)) map[cat] = 8;
-      else if (/\bit\b|wifi|electrical/.test(name)) map[cat] = 12;
+      else if (/\bit\b|wifi|electrical|network|vpn|hardware/.test(name)) map[cat] = 12;
       else map[cat] = 24;
     });
     return map;
@@ -200,119 +198,17 @@ export default function AdminDepartments() {
     }
   };
 
-  // Staff roster state
-  const [staffList, setStaffList] = useState(() =>
-    availableUsers
-      .filter((u) => u.role === 'staff' || u.role === 'admin')
-      .map((s) => ({
-        ...s,
-        status: 'active',
-        assignedCategories: s.assignedCategories?.length
-          ? s.assignedCategories.filter((c) => categories.includes(c))
-          : [],
-      }))
-  );
-
-  // Modals
-  const [editingStaffId, setEditingStaffId] = useState(null);
-  const [editDraftCategories, setEditDraftCategories] = useState([]);
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [newStaffData, setNewStaffData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    department: '',
-  });
-
-  const [rosterFilter, setRosterFilter] = useState('all');
-
-  const editingStaff = staffList.find((s) => s.id === editingStaffId) || null;
-
   const getOrgIcon = (typeKey) => {
-    switch (typeKey) {
-      case 'SOCIETY':
-        return <Home size={19} />;
-      case 'CORPORATE':
-        return <Building size={19} />;
-      case 'CUSTOM':
-        return <Sliders size={19} />;
-      default:
-        return <Building2 size={19} />;
-    }
+    const t = (currentOrg?.type || typeKey || '').toUpperCase();
+    if (t.includes('SOCIETY') || t.includes('RESIDENCY') || t.includes('RWA')) return <Home size={19} />;
+    if (t.includes('CORPORATE') || t.includes('OFFICE') || t.includes('CORP')) return <Building size={19} />;
+    if (t.includes('CUSTOM')) return <Sliders size={19} />;
+    return <Building2 size={19} />;
   };
-
-  const getStaffWorkload = (staffId) =>
-    complaints.filter(
-      (c) =>
-        c.assignedTo?.id === staffId &&
-        c.status !== 'resolved' &&
-        c.status !== 'rejected'
-    ).length;
 
   const handleUpdateSla = (cat, newHours) => {
     persistSlaTargets({ ...slaTargets, [cat]: Number(newHours) });
     showToast(`SLA target for "${cat}" set to ${newHours}h`, 'success');
-  };
-
-  const handleToggleStaffDuty = (staffId) => {
-    setStaffList((prev) =>
-      prev.map((s) =>
-        s.id === staffId
-          ? { ...s, status: s.status === 'active' ? 'on_leave' : 'active' }
-          : s
-      )
-    );
-    const target = staffList.find((s) => s.id === staffId);
-    showToast(
-      `${target?.name} is now ${target?.status === 'active' ? 'on leave' : 'back on duty'}`,
-      'info'
-    );
-  };
-
-  const openEditStaff = (staff) => {
-    setEditingStaffId(staff.id);
-    setEditDraftCategories(staff.assignedCategories);
-  };
-
-  const toggleEditCategory = (cat) => {
-    setEditDraftCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
-  };
-
-  const handleSaveStaffAssignments = () => {
-    setStaffList((prev) =>
-      prev.map((s) =>
-        s.id === editingStaffId ? { ...s, assignedCategories: editDraftCategories } : s
-      )
-    );
-    setEditingStaffId(null);
-    showToast('Category assignments updated', 'success');
-  };
-
-  const handleAddStaffSubmit = (e) => {
-    e.preventDefault();
-    if (!newStaffData.name.trim() || !newStaffData.email.trim()) {
-      showToast('Provide a name and email address', 'warning');
-      return;
-    }
-
-    const created = {
-      id: `usr_staff_${Date.now()}`,
-      name: newStaffData.name.trim(),
-      email: newStaffData.email.trim(),
-      phone: newStaffData.phone.trim(),
-      role: 'staff',
-      department: newStaffData.department.trim(),
-      assignedCategories: [],
-      status: 'active',
-      avatar: null,
-    };
-
-    setStaffList((prev) => [...prev, created]);
-    setShowAddStaffModal(false);
-    setNewStaffData({ name: '', email: '', phone: '', department: '' });
-    showToast(`${created.name} added to the roster`, 'success');
   };
 
   return (
@@ -323,14 +219,14 @@ export default function AdminDepartments() {
         title="Organization & Departments"
         description="Switch organization templates, configure category SLA targets and manage the staff roster."
         actions={
-          <button
-            type="button"
+          <Link
+            to="/admin/members"
             className="btn btn-primary"
-            onClick={() => setShowAddStaffModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <UserPlus size={15} />
-            Add Staff
-          </button>
+            <Users size={15} />
+            Manage Members &amp; Staff
+          </Link>
         }
       />
 
@@ -353,7 +249,7 @@ export default function AdminDepartments() {
           </button>
         </div>
 
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))' }}>
+        <div className="stat-grid">
           <div className="metric-card">
             <span className="metric-icon bg-tone-accent">
               {getOrgIcon(orgKey)}
@@ -435,7 +331,8 @@ export default function AdminDepartments() {
           </div>
         </div>
 
-        <div className="table-scroll">
+        {/* Desktop SLA Table */}
+        <div className="sla-desktop-table table-scroll">
           <table>
             <thead>
               <tr>
@@ -474,268 +371,78 @@ export default function AdminDepartments() {
             </tbody>
           </table>
         </div>
-      </section>
 
-      {/* Staff roster */}
-      <section className="card card-pad">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title">Staff Roster</h2>
-            <p className="card-subtitle">
-              Resolvers with duty status, contact details and category coverage.
-            </p>
-          </div>
-
-          <select
-            value={rosterFilter}
-            onChange={(e) => setRosterFilter(e.target.value)}
-            aria-label="Filter roster by duty status"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">On Duty</option>
-            <option value="on_leave">On Leave</option>
-          </select>
-        </div>
-
-        {staffList.filter((s) => rosterFilter === 'all' || s.status === rosterFilter).length ===
-        0 ? (
-          <EmptyState
-            icon={UserPlus}
-            title="No staff match this filter"
-            description="Adjust the duty status filter or add a new resolver."
-          />
-        ) : (
-          <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))' }}>
-            {staffList
-              .filter((s) => rosterFilter === 'all' || s.status === rosterFilter)
-              .map((staff) => {
-                const workload = getStaffWorkload(staff.id);
-                const isOnDuty = staff.status === 'active';
-
-                return (
-                  <article key={staff.id} className="ticket-card" style={{ height: 'auto' }}>
-                    {/* Identity */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span className="avatar-wrapper" style={{ width: 42, height: 42 }}>
-                        {staff.avatar ? (
-                          <img src={staff.avatar} alt="" className="user-avatar-img" />
-                        ) : (
-                          <span className="user-avatar-fallback">{staff.name.charAt(0)}</span>
-                        )}
-                        <span
-                          className={`status-indicator status-${isOnDuty ? 'admin' : 'student'}`}
-                          style={{
-                            background: isOnDuty ? 'var(--app-success)' : 'var(--app-danger)',
-                          }}
-                        />
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="handler-name">{staff.name}</div>
-                        <div className="handler-dept">{staff.department || 'Resolver'}</div>
-                      </div>
-                      <span className={`badge ${isOnDuty ? 'status-resolved' : 'status-rejected'}`}>
-                        {isOnDuty ? 'On Duty' : 'On Leave'}
-                      </span>
-                    </div>
-
-                    {/* Contact */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
-                      <span className="meta-item" style={{ fontSize: 12, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0 }}>
-                        <Mail size={12} style={{ flexShrink: 0 }} />
-                        <span style={{ minWidth: 0, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{staff.email}</span>
-                      </span>
-                      {staff.phone && (
-                        <span className="meta-item" style={{ fontSize: 12 }}>
-                          <Phone size={12} style={{ flexShrink: 0 }} />
-                          <span>{staff.phone}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Categories */}
-                    {staff.assignedCategories.length > 0 && (
-                      <div style={{ minWidth: 0 }}>
-                        <div className="meta-cell-label" style={{ marginBottom: 6 }}>
-                          Assigned Categories
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {staff.assignedCategories.map((c) => (
-                            <span key={c} className="tag tone-accent">
-                              {c}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="ticket-card-footer" style={{ flexWrap: 'wrap', gap: 8 }}>
-                      <span
-                        className={`handler-line ${
-                          workload > 0 ? 'tone-warning' : 'tone-success'
-                        }`}
-                        style={{ minWidth: 0 }}
-                      >
-                        {workload} active ticket{workload === 1 ? '' : 's'}
-                      </span>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleToggleStaffDuty(staff.id)}
-                        >
-                          {isOnDuty ? 'Set Leave' : 'Set Duty'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline btn-sm"
-                          onClick={() => openEditStaff(staff)}
-                        >
-                          Edit Coverage
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-          </div>
-        )}
-      </section>
-
-      {/* Edit coverage modal */}
-      {editingStaff && (
-        <Modal
-          title={`Edit Coverage — ${editingStaff.name}`}
-          subtitle={currentOrg.name}
-          onClose={() => setEditingStaffId(null)}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setEditingStaffId(null)}
-              >
-                Cancel
-              </button>
-              <button type="button" className="btn btn-primary" onClick={handleSaveStaffAssignments}>
-                Save Changes
-              </button>
-            </>
-          }
-        >
-          <p className="detail-desc" style={{ margin: 0 }}>
-            Select the categories this resolver will handle.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
-            {categories.map((cat) => {
-              const isSelected = editDraftCategories.includes(cat);
-              return (
-                <label
-                  key={cat}
-                  className={`check-option ${isSelected ? 'is-selected' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleEditCategory(cat)}
-                  />
+        {/* Mobile SLA Touch Cards */}
+        <div className="sla-mobile-cards">
+          {categories.map((cat) => (
+            <div
+              key={cat}
+              className="card card-pad"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                background: 'var(--rx-surface)',
+                border: '1px solid var(--rx-border)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--rx-text)' }}>
                   {cat}
-                </label>
-              );
-            })}
-          </div>
-        </Modal>
-      )}
-
-      {/* Add staff modal */}
-      {showAddStaffModal && (
-        <Modal
-          title="Add Staff Resolver"
-          subtitle="Create a roster entry"
-          onClose={() => setShowAddStaffModal(false)}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowAddStaffModal(false)}
-              >
-                Cancel
-              </button>
-              <button type="submit" form="add-staff-form" className="btn btn-primary">
-                Add to Roster
-              </button>
-            </>
-          }
-        >
-          <form id="add-staff-form" onSubmit={handleAddSubmitWrapper}>
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label htmlFor="new-staff-name" className="field-label" style={{ display: 'block' }}>
-                Full name<span className="required-mark">*</span>
-              </label>
-              <input
-                id="new-staff-name"
-                type="text"
-                className="form-input"
-                style={{ width: '100%' }}
-                required
-                placeholder="e.g. Marcus Brody"
-                value={newStaffData.name}
-                onChange={(e) => setNewStaffData({ ...newStaffData, name: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label htmlFor="new-staff-email" className="field-label" style={{ display: 'block' }}>
-                Email<span className="required-mark">*</span>
-              </label>
-              <input
-                id="new-staff-email"
-                type="email"
-                className="form-input"
-                style={{ width: '100%' }}
-                required
-                placeholder="m.brody@organization.edu"
-                value={newStaffData.email}
-                onChange={(e) => setNewStaffData({ ...newStaffData, email: e.target.value })}
-              />
-            </div>
-
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label htmlFor="new-staff-dept" className="field-label" style={{ display: 'block' }}>
-                  Department
-                </label>
-                <input
-                  id="new-staff-dept"
-                  type="text"
-                  className="form-input"
-                  style={{ width: '100%' }}
-                  placeholder="Facilities / IT / Security"
-                  value={newStaffData.department}
-                  onChange={(e) => setNewStaffData({ ...newStaffData, department: e.target.value })}
-                />
+                </span>
+                <span className="badge badge-neutral" style={{ fontSize: 11 }}>
+                  Response &le; 2h
+                </span>
               </div>
-
-              <div className="form-group">
-                <label htmlFor="new-staff-phone" className="field-label" style={{ display: 'block' }}>
-                  Phone
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ fontSize: 12, color: 'var(--rx-text-muted)', flexShrink: 0 }}>
+                  Target SLA:
                 </label>
-                <input
-                  id="new-staff-phone"
-                  type="tel"
-                  className="form-input"
-                  style={{ width: '100%' }}
-                  placeholder="+1 555 000 0000"
-                  value={newStaffData.phone}
-                  onChange={(e) => setNewStaffData({ ...newStaffData, phone: e.target.value })}
-                />
+                <select
+                  value={slaTargets[cat] || 24}
+                  onChange={(e) => handleUpdateSla(cat, e.target.value)}
+                  className="table-select form-select"
+                  aria-label={`SLA target for ${cat}`}
+                  style={{ width: '100%', height: 36, fontSize: 13 }}
+                >
+                  {SLA_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          </form>
-        </Modal>
-      )}
+          ))}
+        </div>
+      </section>
+
+      {/* Staff & Members Governance Link */}
+      <section
+        className="card card-pad"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+          marginTop: 20,
+        }}
+      >
+        <div>
+          <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Users size={18} className="tone-accent" />
+            Staff &amp; Member Governance
+          </h2>
+          <p className="card-subtitle">
+            Manage organization members, elevate normal users to {currentOrg?.staffTerm || 'Staff'}, and assign resolvers to departments.
+          </p>
+        </div>
+        <Link to="/admin/members" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Users size={15} />
+          Open Staff &amp; Members Console
+        </Link>
+      </section>
 
       {/* Configure Organization Modal */}
       {showOrgConfigModal && (
@@ -825,9 +532,4 @@ export default function AdminDepartments() {
       )}
     </div>
   );
-
-  /** Bridges the footer submit button to the add-staff handler. */
-  function handleAddSubmitWrapper(e) {
-    handleAddStaffSubmit(e);
-  }
 }

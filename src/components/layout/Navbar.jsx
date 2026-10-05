@@ -18,21 +18,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { ROLES } from '../../utils/constants';
 
-const ORG_ICONS = {
-  SOCIETY: Home,
-  CORPORATE: Building,
-  CUSTOM: Sliders,
-};
-
-function getOrgIcon(typeKey) {
-  const Icon = ORG_ICONS[typeKey] || Building2;
-  return <Icon size={14} />;
-}
-
-function getRoleIcon(roleName) {
-  if (roleName === ROLES.ADMIN) return <ShieldAlert size={13} />;
-  if (roleName === ROLES.STAFF) return <Wrench size={13} />;
-  return <GraduationCap size={13} />;
+function getOrgIcon(typeKey, currentOrg) {
+  const t = (currentOrg?.type || typeKey || '').toUpperCase();
+  if (t.includes('SOCIETY') || t.includes('RESIDENCY') || t.includes('RWA')) return <Home size={14} />;
+  if (t.includes('CORPORATE') || t.includes('OFFICE') || t.includes('CORP')) return <Building size={14} />;
+  if (t.includes('CUSTOM')) return <Sliders size={14} />;
+  return <Building2 size={14} />;
 }
 
 export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
@@ -128,7 +119,7 @@ export default function HeaderNavbar({ isMobileMenuOpen, onToggleMobileMenu }) {
           style={{ cursor: 'default' }}
           title={`Organization: ${currentOrg?.name || 'ResolveX'} (${currentOrg?.type || 'Standard'})`}
         >
-          {getOrgIcon(orgKey)}
+          {getOrgIcon(orgKey, currentOrg)}
           <span className="org-switcher-label">
             <strong>{currentOrg?.name || 'ResolveX'}</strong>
           </span>

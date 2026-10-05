@@ -53,26 +53,30 @@ export default function MyComplaintsList() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const updateComplaintsFromCache = () => {
+    let list = complaintService.getAll({
+      studentId: user?.id,
+      sortBy,
+    });
+
+    // Match by student ID or student email for clean privacy
+    if ((!list || list.length === 0) && user?.email) {
+      const all = complaintService.getAll({ sortBy });
+      const byEmail = all.filter(
+        (c) =>
+          c.student?.email?.toLowerCase() === user.email?.toLowerCase() ||
+          c.studentEmail?.toLowerCase() === user.email?.toLowerCase() ||
+          c.student_email?.toLowerCase() === user.email?.toLowerCase()
+      );
+      list = byEmail;
+    }
+    setComplaints(list || []);
+  };
+
   const loadUserComplaints = async () => {
     try {
       await complaintService.syncFromSupabase();
-      let list = complaintService.getAll({
-        studentId: user?.id,
-        sortBy,
-      });
-
-      // Match by student ID or student email for clean privacy
-      if ((!list || list.length === 0) && user?.email) {
-        const all = complaintService.getAll({ sortBy });
-        const byEmail = all.filter(
-          (c) =>
-            c.student?.email?.toLowerCase() === user.email?.toLowerCase() ||
-            c.studentEmail?.toLowerCase() === user.email?.toLowerCase() ||
-            c.student_email?.toLowerCase() === user.email?.toLowerCase()
-        );
-        list = byEmail;
-      }
-      setComplaints(list || []);
+      updateComplaintsFromCache();
     } catch (err) {
       console.error('Failed to load complaints', err);
     }
@@ -93,18 +97,18 @@ export default function MyComplaintsList() {
     return () => {
       isMounted = false;
     };
-  }, [user, sortBy]);
+  }, [user?.id, sortBy]);
 
-  // Real-time live synchronization: instantly updates complaint list and status badges
+  // Real-time live synchronization: instantly updates complaint list from local memory cache without network recursion
   useEffect(() => {
     const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
-      loadUserComplaints();
+      updateComplaintsFromCache();
     });
 
     return () => {
       unsubscribe();
     };
-  }, [user, sortBy]);
+  }, [user?.id, sortBy]);
 
   // Overview metrics
   const metrics = useMemo(() => {

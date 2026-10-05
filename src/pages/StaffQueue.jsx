@@ -96,10 +96,6 @@ export default function StaffQueue() {
   const [modalInternalNote, setModalInternalNote] = useState('');
   const [modalStatusNote, setModalStatusNote] = useState('');
 
-  // Inline note state per ticket card
-  const [cardNotes, setCardNotes] = useState({});
-  const [submittingNoteId, setSubmittingNoteId] = useState(null);
-
   useEffect(() => {
     if (location.pathname.includes('/staff/assigned')) {
       setScopeFilter('assigned');
@@ -225,7 +221,6 @@ export default function StaffQueue() {
         if (updated)
           showToast(`${ticketId} → ${STATUS_LABELS[newStatus] || newStatus}`, 'success');
       }
-      if (updated) loadComplaints();
     } catch (err) {
       console.error('Failed to update status', err);
       showToast('Failed to update ticket status', 'error');
@@ -236,26 +231,15 @@ export default function StaffQueue() {
     return user || { name: 'Staff Resolver', role: ROLES.STAFF };
   }
 
-  const handleAddInlineNote = (ticketId) => {
-    const noteText = cardNotes[ticketId];
-    if (!noteText?.trim()) {
-      showToast('Enter an internal note first', 'warning');
-      return;
-    }
-
-    setSubmittingNoteId(ticketId);
+  const handleOpenTicketDetails = async (ticket) => {
+    setSelectedTicket(ticket);
     try {
-      const updated = complaintService.addComment(ticketId, actor(), noteText.trim(), true);
-      if (updated) {
-        showToast(`Internal note added to ${ticketId}`, 'success');
-        setCardNotes((prev) => ({ ...prev, [ticketId]: '' }));
-        loadComplaints();
+      const detailed = await complaintService.syncTicketDetails(ticket.id);
+      if (detailed) {
+        setSelectedTicket(detailed);
       }
     } catch (err) {
-      console.error('Failed to add internal note', err);
-      showToast('Failed to post internal note', 'error');
-    } finally {
-      setSubmittingNoteId(null);
+      console.warn('[StaffQueue] Failed to load ticket details:', err);
     }
   };
 
@@ -274,7 +258,6 @@ export default function StaffQueue() {
         showToast('Internal note added to ticket', 'success');
         setModalInternalNote('');
         setSelectedTicket(updated);
-        loadComplaints();
       }
     } catch (err) {
       console.error('Failed to post internal note in modal', err);
@@ -511,7 +494,7 @@ export default function StaffQueue() {
           <Search size={15} />
           <input
             type="text"
-            placeholder="Search ID, keyword, room, or student..."
+            placeholder={`Search ID, keyword, ${currentOrg?.locationLabel?.split('/')[0]?.trim().toLowerCase() || 'unit'}, or ${currentOrg?.userTerm?.toLowerCase() || 'resident'}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search tickets"
@@ -734,7 +717,11 @@ export default function StaffQueue() {
                   </div>
                 </div>
 
-                <h3 className="ticket-card-title" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                <h3
+                  className="ticket-card-title"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
+                  onClick={() => handleOpenTicketDetails(ticket)}
+                >
                   {ticket.title}
                 </h3>
 
@@ -793,39 +780,7 @@ export default function StaffQueue() {
                   </select>
                 </div>
 
-                {/* Internal audit note */}
-                <div className="inline-note-box" style={{ width: '100%', boxSizing: 'border-box' }}>
-                  <span className="inline-note-head" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Lock size={11} style={{ flexShrink: 0 }} />
-                    <span>Internal note (hidden from reporter)</span>
-                  </span>
-                  <div className="inline-note-row" style={{ display: 'flex', gap: 6, width: '100%', boxSizing: 'border-box' }}>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Log internal action or parts required…"
-                      value={cardNotes[ticket.id] || ''}
-                      onChange={(e) =>
-                        setCardNotes((prev) => ({ ...prev, [ticket.id]: e.target.value }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddInlineNote(ticket.id);
-                      }}
-                      aria-label={`Internal note for ${ticket.id}`}
-                      style={{ flex: 1, minWidth: 0, height: 36, fontSize: 13 }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline"
-                      onClick={() => handleAddInlineNote(ticket.id)}
-                      disabled={submittingNoteId === ticket.id}
-                      style={{ flexShrink: 0, height: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <Send size={12} />
-                      Post
-                    </button>
-                  </div>
-                </div>
+
 
                 <div
                   className="ticket-card-footer"
@@ -851,7 +806,7 @@ export default function StaffQueue() {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => setSelectedTicket(ticket)}
+                    onClick={() => handleOpenTicketDetails(ticket)}
                     style={{ minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
                     Details
@@ -918,18 +873,7 @@ function TicketDetailModal({
       onClose={onClose}
       maxWidth={860}
       footer={
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            style={{ minHeight: 38, height: 38 }}
-            onClick={() => {
-              onClose();
-              navigate(`/staff/resolutions?ticketId=${ticket.id}`);
-            }}
-          >
-            Reassign Ticket
-          </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"

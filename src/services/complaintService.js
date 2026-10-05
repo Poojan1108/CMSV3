@@ -57,10 +57,40 @@ function notifyLiveChange(detail = {}) {
  */
 export const getCategoryDepartment = (category) => {
   const cat = (category || '').toLowerCase();
-  if (cat.includes('hostel') || cat.includes('mess') || cat.includes('sanitation') || cat.includes('warden')) {
+  if (cat.includes('elevator') || cat.includes('lift')) {
+    return { id: null, name: 'Elevator & Lift Operations' };
+  }
+  if (cat.includes('gate') || cat.includes('security') || cat.includes('cctv')) {
+    return { id: null, name: 'Security & Gate Management' };
+  }
+  if (cat.includes('clubhouse') || cat.includes('amenities') || cat.includes('gym') || cat.includes('pool')) {
+    return { id: null, name: 'Clubhouse & Amenities Operations' };
+  }
+  if (cat.includes('waste') || cat.includes('garbage')) {
+    return { id: null, name: 'Waste Management & Sanitation' };
+  }
+  if (cat.includes('plumb') || cat.includes('water')) {
+    return { id: null, name: 'Plumbing & Water Services' };
+  }
+  if (cat.includes('power') || cat.includes('electric')) {
+    return { id: null, name: 'Electrical & Power Services' };
+  }
+  if (cat.includes('hostel') || cat.includes('mess') || cat.includes('warden')) {
     return { id: null, name: 'Hostel & Residential Welfare' };
   }
-  if (cat.includes('it') || cat.includes('wifi') || cat.includes('lab') || cat.includes('computer') || cat.includes('network') || cat.includes('switch')) {
+  if (cat.includes('meeting') || cat.includes('conference')) {
+    return { id: null, name: 'AV & Collaboration Services' };
+  }
+  if (cat.includes('cafeteria') || cat.includes('pantry')) {
+    return { id: null, name: 'Cafeteria & Pantry Management' };
+  }
+  if (cat.includes('hr') || cat.includes('payroll') || cat.includes('people')) {
+    return { id: null, name: 'Human Resources & People Ops' };
+  }
+  if (cat.includes('facility') || cat.includes('cooling') || cat.includes('temperature')) {
+    return { id: null, name: 'Workplace Facilities & AC' };
+  }
+  if (cat.includes('it') || cat.includes('wifi') || cat.includes('lab') || cat.includes('computer') || cat.includes('network') || cat.includes('switch') || cat.includes('hardware') || cat.includes('vpn')) {
     return { id: null, name: 'IT & Digital Infrastructure' };
   }
   return { id: null, name: 'Maintenance & Estate Services' };
@@ -88,6 +118,24 @@ export const calculateSlaDeadlines = (priority, fromDate = new Date()) => {
   };
 };
 
+let remoteDepartmentsCache = null;
+
+export async function fetchRemoteDepartments(orgKey) {
+  if (!isSupabaseConfigured || !supabase || !orgKey) return [];
+  if (remoteDepartmentsCache && remoteDepartmentsCache[orgKey]) {
+    return remoteDepartmentsCache[orgKey];
+  }
+  try {
+    const { data } = await supabase.from('departments').select('*').eq('org_key', orgKey);
+    if (data && data.length > 0) {
+      if (!remoteDepartmentsCache) remoteDepartmentsCache = {};
+      remoteDepartmentsCache[orgKey] = data;
+      return data;
+    }
+  } catch (e) {}
+  return [];
+}
+
 /**
  * Background upsert of complaint record into Supabase with all relational columns
  */
@@ -103,6 +151,15 @@ async function syncComplaintToSupabase(complaint) {
     const rawAssignedId = complaint.assignedTo?.id || complaint.assigned_to_id;
     const isAssignedUuid = typeof rawAssignedId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAssignedId);
     const departmentName = complaint.assignedTo?.department || complaint.assigned_to_department || autoDept.name;
+    const activeOrg = complaint.org || complaint.currentOrg || complaint.org_key || '';
+
+    let resolvedDeptId = isUuid ? rawDeptId : null;
+    if (!resolvedDeptId && activeOrg && remoteDepartmentsCache && remoteDepartmentsCache[activeOrg]) {
+      const match = remoteDepartmentsCache[activeOrg].find(
+        (d) => (d.name || '').toLowerCase() === (departmentName || '').toLowerCase()
+      );
+      if (match?.id) resolvedDeptId = match.id;
+    }
 
     const payload = {
       id: complaint.id,
@@ -123,12 +180,12 @@ async function syncComplaintToSupabase(complaint) {
       assigned_to_id: isAssignedUuid ? rawAssignedId : null,
       assigned_to_name: complaint.assignedTo?.name || complaint.assigned_to_name || null,
       assigned_to_department: departmentName,
-      department_id: isUuid ? rawDeptId : null,
+      department_id: resolvedDeptId,
       sla_response_due: complaint.slaResponseDue || complaint.sla_response_due || null,
       sla_resolve_due: complaint.slaResolveDue || complaint.sla_resolve_due || null,
       sla_breached: Boolean(complaint.slaBreached || complaint.sla_breached),
       resolution_details: complaint.resolutionDetails || null,
-      org_key: complaint.org || complaint.currentOrg || complaint.org_key || '',
+      org_key: activeOrg,
       attachments: complaint.attachments || [],
     };
     const { data, error } = await supabase.from('complaints').upsert([payload], { onConflict: 'id' }).select();
@@ -245,8 +302,12 @@ const getNextId = () => {
   return `CMS-${year}-${rand}`;
 };
 
-// Wire Supabase Realtime WebSocket listener for remote multi-device mutations
-if (typeof window !== 'undefined') {
+// Wire Supabase Realtime WebSocket listener for remote multi-device mutations (lazily initialized)
+let realtimeInitialized = false;
+export function ensureRealtimeSubscription() {
+  if (typeof window === 'undefined' || realtimeInitialized) return;
+  realtimeInitialized = true;
+
   initRealtimeSubscription((payload) => {
     try {
       if (payload.type === 'complaint') {
@@ -358,6 +419,10 @@ if (typeof window !== 'undefined') {
   });
 }
 
+let syncFromSupabasePromise = null;
+let lastSyncTimestamp = 0;
+const SYNC_CACHE_TTL_MS = 5000;
+
 export const complaintService = {
   /**
    * Helper methods to dynamically resolve organization template attributes
@@ -378,6 +443,7 @@ export const complaintService = {
     if (typeof window === 'undefined' || typeof callback !== 'function') {
       return () => {};
     }
+    ensureRealtimeSubscription();
 
     // 1. Same-window custom event handler (0ms instantaneous reflection)
     const handleLocalEvent = (e) => {
@@ -413,43 +479,89 @@ export const complaintService = {
   },
 
   /**
-   * Sync complaints from Supabase into local storage cache
+   * Generates a collision-free ticket ID (e.g. CMS-2026-8492)
    */
-  syncFromSupabase: async () => {
-    if (isSupabaseConfigured && supabase) {
+  generateId: () => getNextId(),
+
+  /**
+   * Sync complaints from Supabase into local storage cache.
+   * Deduplicates concurrent in-flight requests and avoids child table scans for list views.
+   */
+  syncFromSupabase: async ({ force = false, includeDetails = false, orgKey = null } = {}) => {
+    ensureRealtimeSubscription();
+    if (!isSupabaseConfigured || !supabase) {
+      return getRawComplaints();
+    }
+
+    // Skip redundant network hit if data was freshly synced/created within TTL
+    if (!force && Date.now() - lastSyncTimestamp < SYNC_CACHE_TTL_MS) {
+      const cached = getRawComplaints();
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+    }
+
+    if (syncFromSupabasePromise) {
+      return syncFromSupabasePromise;
+    }
+
+    syncFromSupabasePromise = (async () => {
       try {
-        const { data: dbComplaints, error } = await supabase
+        let query = supabase
           .from('complaints')
           .select('*')
           .order('created_at', { ascending: false });
 
+        if (orgKey && orgKey !== 'ALL') {
+          query = query.eq('org_key', orgKey);
+        }
+
+        const { data: dbComplaints, error } = await query;
+
         if (!error && Array.isArray(dbComplaints)) {
-          const { data: dbComments } = await supabase.from('complaint_comments').select('*');
-          const { data: dbHistory } = await supabase.from('complaint_history').select('*');
+          let dbComments = [];
+          let dbHistory = [];
+          const complaintIds = dbComplaints.map((c) => c.id).filter(Boolean);
+
+          if (includeDetails && complaintIds.length > 0) {
+            const [commentsRes, historyRes] = await Promise.all([
+              supabase.from('complaint_comments').select('*').in('complaint_id', complaintIds),
+              supabase.from('complaint_history').select('*').in('complaint_id', complaintIds),
+            ]);
+            dbComments = commentsRes.data || [];
+            dbHistory = historyRes.data || [];
+          }
+
+          const existingList = getRawComplaints();
+          const existingMap = new Map(existingList.map((c) => [c.id, c]));
 
           const mappedList = dbComplaints.map((row) => {
-            const comments = (dbComments || [])
-              .filter((c) => c.complaint_id === row.id)
-              .map((c) => ({
-                id: c.id,
-                senderId: c.sender_id,
-                senderName: c.sender_name,
-                senderRole: c.sender_role,
-                text: c.text,
-                isInternal: c.is_internal,
-                timestamp: c.created_at,
-              }));
+            const existingItem = existingMap.get(row.id);
+            const comments = includeDetails
+              ? (dbComments || [])
+                  .filter((c) => c.complaint_id === row.id)
+                  .map((c) => ({
+                    id: c.id,
+                    senderId: c.sender_id,
+                    senderName: c.sender_name,
+                    senderRole: c.sender_role,
+                    text: c.text,
+                    isInternal: c.is_internal,
+                    timestamp: c.created_at,
+                  }))
+              : (existingItem?.comments || []);
 
-            const dbTimeline = (dbHistory || [])
-              .filter((h) => h.complaint_id === row.id)
-              .map((h) => ({
-                status: h.status,
-                updatedBy: h.updated_by,
-                note: h.note,
-                timestamp: h.created_at,
-              }));
+            const dbTimeline = includeDetails
+              ? (dbHistory || [])
+                  .filter((h) => h.complaint_id === row.id)
+                  .map((h) => ({
+                    status: h.status,
+                    updatedBy: h.updated_by,
+                    note: h.note,
+                    timestamp: h.created_at,
+                  }))
+              : (existingItem?.statusHistory || []);
 
-            // Ensure initial submission event is always anchored at inception of timeline
             const hasInitialEntry = dbTimeline.some(
               (h) => (h.status || '').toLowerCase() === STATUSES.PENDING
             );
@@ -500,20 +612,122 @@ export const complaintService = {
             };
           });
 
-          const existingList = getRawComplaints();
-          const existingMap = new Map(existingList.map((c) => [c.id, c]));
           mappedList.forEach((c) => existingMap.set(c.id, c));
           const mergedList = Array.from(existingMap.values());
           saveComplaints(mergedList);
-          notifyLiveChange({ type: 'sync_supabase', count: mergedList.length });
+          lastSyncTimestamp = Date.now();
           return mappedList;
         }
       } catch (err) {
         console.warn('[Supabase Direct Sync Error]:', err);
+      } finally {
+        setTimeout(() => {
+          syncFromSupabasePromise = null;
+        }, 1000);
       }
-    }
+      return getRawComplaints();
+    })();
 
-    return getRawComplaints();
+    return syncFromSupabasePromise;
+  },
+
+  /**
+   * Fetches fresh full ticket details (including comments and history) for a specific ticket.
+   * Scopes child queries strictly to the target complaint ID.
+   */
+  syncTicketDetails: async (complaintId) => {
+    if (!complaintId || !isSupabaseConfigured || !supabase) {
+      return complaintService.getById(complaintId);
+    }
+    try {
+      const [ticketRes, commentsRes, historyRes] = await Promise.all([
+        supabase.from('complaints').select('*').eq('id', complaintId).maybeSingle(),
+        supabase.from('complaint_comments').select('*').eq('complaint_id', complaintId),
+        supabase.from('complaint_history').select('*').eq('complaint_id', complaintId),
+      ]);
+
+      if (ticketRes.data) {
+        const row = ticketRes.data;
+        const comments = (commentsRes.data || []).map((c) => ({
+          id: c.id,
+          senderId: c.sender_id,
+          senderName: c.sender_name,
+          senderRole: c.sender_role,
+          text: c.text,
+          isInternal: c.is_internal,
+          timestamp: c.created_at,
+        }));
+
+        const dbTimeline = (historyRes.data || []).map((h) => ({
+          status: h.status,
+          updatedBy: h.updated_by,
+          note: h.note,
+          timestamp: h.created_at,
+        }));
+
+        const hasInitialEntry = dbTimeline.some(
+          (h) => (h.status || '').toLowerCase() === STATUSES.PENDING
+        );
+        const statusHistory = hasInitialEntry
+          ? dbTimeline
+          : [
+              {
+                status: STATUSES.PENDING,
+                updatedBy: row.student_name || 'User',
+                note: 'Complaint registered in system.',
+                timestamp: row.created_at,
+              },
+              ...dbTimeline,
+            ];
+
+        const mapped = {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          category: row.category,
+          priority: (row.priority || 'medium').toLowerCase(),
+          status: (row.status || 'pending').toLowerCase(),
+          location: row.location,
+          org: row.org_key || '',
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          resolvedAt: row.resolved_at,
+          slaResponseDue: row.sla_response_due,
+          slaResolveDue: row.sla_resolve_due,
+          slaBreached: Boolean(row.sla_breached),
+          departmentId: row.department_id,
+          departmentName: row.assigned_to_department || (row.assigned_to && row.assigned_to.department) || '',
+          attachments: row.attachments || [],
+          student: row.student_meta || {
+            id: row.student_id,
+            name: row.student_name,
+            email: row.student_email,
+          },
+          student_meta: row.student_meta || {},
+          assignedTo: row.assigned_to || (row.assigned_to_id ? {
+            id: row.assigned_to_id,
+            name: row.assigned_to_name || 'Staff Member',
+            department: row.assigned_to_department || (row.assigned_to && row.assigned_to.department) || '',
+          } : null),
+          resolutionDetails: row.resolution_details || null,
+          statusHistory,
+          comments,
+        };
+
+        const list = getRawComplaints();
+        const idx = list.findIndex((c) => c.id === mapped.id);
+        if (idx >= 0) {
+          list[idx] = mapped;
+        } else {
+          list.unshift(mapped);
+        }
+        saveComplaints(list);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('[complaintService.syncTicketDetails Error]:', err);
+    }
+    return complaintService.getById(complaintId);
   },
 
   /**
@@ -523,7 +737,7 @@ export const complaintService = {
    */
   fetchComplaints: async (filters = {}) => {
     try {
-      await complaintService.syncFromSupabase();
+      await complaintService.syncFromSupabase({ orgKey: filters.org || filters.orgKey || null });
     } catch (err) {
       console.warn('[complaintService.fetchComplaints] Supabase sync warning:', err);
     }
@@ -692,6 +906,7 @@ export const complaintService = {
 
     list.unshift(newComplaint);
     saveComplaints(list);
+    lastSyncTimestamp = Date.now();
     notifyLiveChange({ type: 'create', complaint: newComplaint, id: newId });
 
     // Sync to Supabase in background while attaching promise for awaiters
@@ -814,11 +1029,8 @@ export const complaintService = {
     saveComplaints(list);
     notifyLiveChange({ type: 'new_comment', id, comment: newComment, complaint });
 
-    // Sync to Supabase in background (atomically sync complaint state + comment record)
-    Promise.all([
-      syncComplaintToSupabase(complaint),
-      recordCommentToSupabase(id, newComment),
-    ]).catch((err) => {
+    // Sync comment record to Supabase in background
+    recordCommentToSupabase(id, newComment).catch((err) => {
       console.warn('[complaintService.addComment] Sync warning:', err);
     });
 
@@ -1117,11 +1329,26 @@ export const complaintService = {
   },
 
   /**
+   * Completely purges client-side memory cache and storage on user logout / session switch.
+   * Prevents cross-account data leakage on shared computers.
+   */
+  clearCache: () => {
+    lastSyncTimestamp = 0;
+    syncFromSupabasePromise = null;
+    remoteDepartmentsCache = null;
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+    notifyLiveChange({ type: 'cache_cleared' });
+  },
+
+  /**
    * Resets local storage complaints back to a clean empty dataset.
    */
   resetToSeedData: () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
     localStorage.setItem(ID_COUNTER_KEY, '1000');
+    lastSyncTimestamp = 0;
     notifyLiveChange({ type: 'reset_seed', count: 0 });
     return [];
   },

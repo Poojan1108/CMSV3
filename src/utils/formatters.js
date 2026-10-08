@@ -62,32 +62,6 @@ export const formatRelativeTime = (dateInput) => {
   return formatDate(dateInput);
 };
 
-/**
- * Returns Tailwind badge classes for a given status.
- * @param {string} status
- * @returns {{ bg: string, text: string, border: string, dot: string }}
- */
-export const getStatusBadgeColor = (status) => {
-  return {
-    bg: `status-${status || 'default'}`,
-    text: '',
-    border: '',
-    dot: 'status-dot',
-  };
-};
-
-/**
- * Returns custom badge classes for a given priority level.
- * @param {string} priority
- * @returns {{ bg: string, text: string, border: string }}
- */
-export const getPriorityBadgeColor = (priority) => {
-  return {
-    bg: `priority-${priority || 'default'}`,
-    text: '',
-    border: '',
-  };
-};
 
 /**
  * Calculates SLA status for a complaint.

@@ -136,39 +136,6 @@ export const DEFAULT_SUB_CATEGORIES = [
 export const getSubCategories = (category) =>
   SUB_CATEGORIES_MAP[category] || DEFAULT_SUB_CATEGORIES;
 
-/** Knowledge-base articles used for self-service deflection on the intake form. */
-export const KB_ARTICLES = [
-  {
-    keywords: ['wifi', 'wi-fi', 'internet', 'network', 'connect', 'latency', 'disconnect'],
-    title: 'Self-Help: Resolving Network & Wi-Fi Disconnections',
-    solution:
-      'Try forgetting the organization Wi-Fi network on your device, clearing saved credentials, and re-authenticating. Verify if adjacent devices in your area are also affected.',
-  },
-  {
-    keywords: ['water', 'pipe', 'leak', 'sink', 'plumb', 'tap', 'restroom', 'drain'],
-    title: 'Emergency Checklist: Pipe Leakage & Stopcock Location',
-    solution:
-      'In case of active pipe leakage, shut off the main isolation valve or stopcock located under the sink counter or utility riser to prevent water damage while maintenance arrives.',
-  },
-  {
-    keywords: ['ac', 'cooling', 'air condition', 'hvac', 'warm air', 'temperature', 'fan'],
-    title: 'Quick Check: HVAC Controller & Thermostat Mode',
-    solution:
-      'Ensure the AC control mode is set to "Cool" (snowflake icon) with fan speed set to "Auto" or "High" and setpoint adjusted between 20°C - 22°C.',
-  },
-  {
-    keywords: ['food', 'canteen', 'mess', 'lunch', 'snack', 'meal', 'catering', 'cafeteria'],
-    title: 'Cafeteria & Dining Services Feedback Protocol',
-    solution:
-      'For urgent meal or dining service quality issues, notify the facility supervisor or dining manager on-duty immediately so raw batch samples can be inspected.',
-  },
-  {
-    keywords: ['password', 'login', 'portal', 'account', 'auth'],
-    title: 'Account & Credentials Self-Service Reset',
-    solution:
-      'You can reset your account password using the Self-Service Portal without waiting for manual IT queue processing.',
-  },
-];
 
 /** Quick-select location presets keyed by organization template key. */
 export const QUICK_LOCATIONS = {
@@ -228,28 +195,3 @@ export const ACCESS_TIME_SLOTS = [
   'Evening (4 PM - 8 PM)',
 ];
 
-/** Preferred contact channels. */
-export const CONTACT_METHODS = [
-  {
-    id: 'In-App Notification',
-    label: 'In-App Notification',
-    desc: 'Real-time portal updates and live tracker pushes.',
-  },
-  {
-    id: 'Email Notification',
-    label: 'Email Digest',
-    desc: 'Status milestones sent to your registered email.',
-  },
-  {
-    id: 'Phone Call / SMS',
-    label: 'Phone Call / SMS',
-    desc: 'Direct call from the assigned technician before arrival.',
-  },
-];
-
-/** Shared department queues available as reassignment targets. */
-export const DEPARTMENT_QUEUES = [
-  { id: 'dept_estate', name: 'Estate & Facilities Team', department: 'Estate Management' },
-  { id: 'dept_sanitation', name: 'Sanitation & Hygiene Unit', department: 'Campus Sanitation' },
-  { id: 'dept_security', name: 'Campus Security Desk', department: 'Security & Safety' },
-];

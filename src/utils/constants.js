@@ -216,8 +216,6 @@ export const getRoleTerm = (role, org, registry) => {
   return resolved.userLabel || resolved.userTerm || UNIVERSAL_FALLBACK_ORG.userTerm;
 };
 
-export const CATEGORIES = UNIVERSAL_FALLBACK_ORG.categories;
-
 export const PRIORITIES = {
   LOW: 'low',
   MEDIUM: 'medium',

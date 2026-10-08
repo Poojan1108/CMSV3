@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -25,11 +25,8 @@ const SLA_OPTIONS = [
   { value: 48, label: '48 hours (Extended)' },
 ];
 
-const SLA_STORAGE_PREFIX = 'cms_sla_targets_';
-
 export default function AdminDepartments() {
-  const { currentOrg, orgKey, switchOrgTemplate, orgTemplates, categories, availableUsers, updateOrgSettings } =
-    useAuth();
+  const { currentOrg, orgKey, categories, updateOrgSettings } = useAuth();
   const { showToast } = useToast();
 
   // Custom Organization Configuration State
@@ -73,40 +70,30 @@ export default function AdminDepartments() {
     e.preventDefault();
     const trimmed = newCategoryInput.trim();
     if (!trimmed) return;
-    if (categories.includes(trimmed)) {
+    if ((categories || []).includes(trimmed)) {
       showToast('Category already exists', 'warning');
       return;
     }
-    const updatedCategories = [...categories, trimmed];
+    const updatedCategories = [...(categories || []), trimmed];
     updateOrgSettings(orgKey, { categories: updatedCategories });
     setNewCategoryInput('');
     showToast(`Added category "${trimmed}"`, 'success');
   };
 
   const handleRemoveCategory = (catToRemove) => {
-    if (categories.length <= 1) {
+    if ((categories || []).length <= 1) {
       showToast('At least one category is required', 'warning');
       return;
     }
-    const updatedCategories = categories.filter((c) => c !== catToRemove);
+    const updatedCategories = (categories || []).filter((c) => c !== catToRemove);
     updateOrgSettings(orgKey, { categories: updatedCategories });
     showToast(`Removed category "${catToRemove}"`, 'info');
   };
 
-  // Live complaints for workload calculation
-  const [complaints, setComplaints] = useState([]);
-  useEffect(() => {
-    try {
-      setComplaints(complaintService.getAll({ org: orgKey }));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [orgKey]);
-
-  // Default SLA targets derived from category names
+  // Derive default SLA targets from category names
   const defaultSlaTargets = useMemo(() => {
     const map = {};
-    categories.forEach((cat) => {
+    (categories || []).forEach((cat) => {
       const name = cat.toLowerCase();
       if (/urgent|security|elevator|meeting/.test(name)) map[cat] = 4;
       else if (/sanitation|waste|plumbing/.test(name)) map[cat] = 8;
@@ -116,28 +103,20 @@ export default function AdminDepartments() {
     return map;
   }, [categories]);
 
-  const loadSavedSla = () => {
-    try {
-      const saved = localStorage.getItem(`${SLA_STORAGE_PREFIX}${orgKey}`);
-      return saved ? JSON.parse(saved) : defaultSlaTargets;
-    } catch {
-      return defaultSlaTargets;
-    }
-  };
+  const [slaTargets, setSlaTargets] = useState(defaultSlaTargets);
 
-  const [slaTargets, setSlaTargets] = useState(loadSavedSla);
-
+  // Sync SLA targets from Supabase PostgREST on mount
   useEffect(() => {
-    setSlaTargets(loadSavedSla());
-
     let isMounted = true;
+    setSlaTargets(defaultSlaTargets);
+
     if (isSupabaseConfigured && supabase && orgKey) {
       supabase
         .from('departments')
-        .select('*')
+        .select('name, sla_resolve_hours')
         .eq('org_key', orgKey)
         .then(({ data, error }) => {
-          if (!error && data && data.length > 0 && isMounted) {
+          if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
             const remoteMap = {};
             data.forEach((d) => {
               if (d.name && d.sla_resolve_hours) {
@@ -149,51 +128,51 @@ export default function AdminDepartments() {
             }
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn('[AdminDepartments] SLA fetch warning:', err);
+        });
     }
 
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgKey]);
+  }, [orgKey, defaultSlaTargets]);
 
-  const persistSlaTargets = async (updated) => {
-    setSlaTargets(updated);
-    try {
-      localStorage.setItem(`${SLA_STORAGE_PREFIX}${orgKey}`, JSON.stringify(updated));
-    } catch (e) {
-      console.error('Failed to persist SLA targets', e);
-    }
+  // Atomic single-category SLA mutation (eliminates serial N+1 loop)
+  const handleUpdateSla = async (cat, newHours) => {
+    const numericHours = Number(newHours);
+    setSlaTargets((prev) => ({ ...prev, [cat]: numericHours }));
+    showToast(`SLA target for "${cat}" set to ${numericHours}h`, 'success');
 
     if (isSupabaseConfigured && supabase && orgKey) {
       try {
-        for (const [deptName, hours] of Object.entries(updated)) {
-          const { data: existing } = await supabase
-            .from('departments')
-            .select('id')
-            .eq('org_key', orgKey)
-            .ilike('name', deptName)
-            .maybeSingle();
+        const { data: existing } = await supabase
+          .from('departments')
+          .select('id')
+          .eq('org_key', orgKey)
+          .ilike('name', cat)
+          .maybeSingle();
 
-          if (existing?.id) {
-            await supabase
-              .from('departments')
-              .update({ sla_resolve_hours: hours, updated_at: new Date().toISOString() })
-              .eq('id', existing.id);
-          } else {
-            await supabase
-              .from('departments')
-              .insert({
-                org_key: orgKey,
-                name: deptName,
-                sla_resolve_hours: hours,
-                sla_response_hours: Math.max(2, Math.round(hours / 3)),
-              });
-          }
+        if (existing?.id) {
+          await supabase
+            .from('departments')
+            .update({
+              sla_resolve_hours: numericHours,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+        } else {
+          await supabase
+            .from('departments')
+            .insert({
+              org_key: orgKey,
+              name: cat,
+              sla_resolve_hours: numericHours,
+              sla_response_hours: Math.max(2, Math.round(numericHours / 3)),
+            });
         }
       } catch (err) {
-        console.warn('Failed to sync SLA targets to Supabase:', err);
+        console.warn('[AdminDepartments] Failed to persist single SLA update:', err);
       }
     }
   };
@@ -204,11 +183,6 @@ export default function AdminDepartments() {
     if (t.includes('CORPORATE') || t.includes('OFFICE') || t.includes('CORP')) return <Building size={19} />;
     if (t.includes('CUSTOM')) return <Sliders size={19} />;
     return <Building2 size={19} />;
-  };
-
-  const handleUpdateSla = (cat, newHours) => {
-    persistSlaTargets({ ...slaTargets, [cat]: Number(newHours) });
-    showToast(`SLA target for "${cat}" set to ${newHours}h`, 'success');
   };
 
   return (
@@ -236,13 +210,14 @@ export default function AdminDepartments() {
           <div>
             <h2 className="card-title">Organization Settings & Terminology</h2>
             <p className="card-subtitle">
-              Configure operational categories, labels, and role terminology for {currentOrg.name}.
+              Configure operational categories, labels, and role terminology for {currentOrg?.name || 'Workspace'}.
             </p>
           </div>
           <button
             type="button"
             className="btn btn-secondary"
             onClick={() => setShowOrgConfigModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <Sliders size={14} />
             Customize Organization
@@ -255,38 +230,38 @@ export default function AdminDepartments() {
               {getOrgIcon(orgKey)}
             </span>
             <div>
-              <div className="priority-name">{currentOrg.name}</div>
-              <div className="cell-sub">Type: {currentOrg.type || 'Organization'}</div>
+              <div className="priority-name">{currentOrg?.name || 'Organization'}</div>
+              <div className="cell-sub">Type: {currentOrg?.type || 'Organization'}</div>
             </div>
           </div>
 
           <div className="metric-card">
             <div>
-              <div className="priority-name">{currentOrg.userTerm || 'Member'}</div>
+              <div className="priority-name">{currentOrg?.userTerm || 'Member'}</div>
               <div className="cell-sub">Complainant Title</div>
             </div>
           </div>
 
           <div className="metric-card">
             <div>
-              <div className="priority-name">{currentOrg.staffTerm || 'Staff'}</div>
+              <div className="priority-name">{currentOrg?.staffTerm || 'Staff'}</div>
               <div className="cell-sub">Resolver Title</div>
             </div>
           </div>
 
           <div className="metric-card">
             <div>
-              <div className="priority-name">{currentOrg.locationLabel || 'Location'}</div>
+              <div className="priority-name">{currentOrg?.locationLabel || 'Location'}</div>
               <div className="cell-sub">Location Field Prompt</div>
             </div>
           </div>
         </div>
 
         {/* Categories Pills & Quick Add */}
-        <div style={{ marginTop: 18, borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
+        <div style={{ marginTop: 18, borderTop: '1px solid var(--app-border-soft, #e4e4e7)', paddingTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <span className="field-label" style={{ margin: 0, fontWeight: 600 }}>
-              Operational Categories ({categories.length})
+              Operational Categories ({(categories || []).length})
             </span>
             <form onSubmit={handleAddCustomCategory} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 auto', maxWidth: '100%', minWidth: 0 }}>
               <input
@@ -296,6 +271,7 @@ export default function AdminDepartments() {
                 value={newCategoryInput}
                 onChange={(e) => setNewCategoryInput(e.target.value)}
                 style={{ height: 32, fontSize: 13, padding: '0 10px', minWidth: 0, flex: '1 1 120px' }}
+                aria-label="New category name"
               />
               <button type="submit" className="btn btn-secondary btn-sm" style={{ flexShrink: 0 }}>
                 + Add
@@ -303,16 +279,17 @@ export default function AdminDepartments() {
             </form>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {categories.map((cat) => (
+            {(categories || []).map((cat) => (
               <span key={cat} className="badge badge-neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {cat}
                 <button
                   type="button"
                   onClick={() => handleRemoveCategory(cat)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
-                  title="Remove category"
+                  style={{ background: 'none', border: 'none', color: 'var(--app-text-muted, #71717a)', cursor: 'pointer', padding: 0 }}
+                  title={`Remove ${cat}`}
+                  aria-label={`Remove category ${cat}`}
                 >
-                  ×
+                  &times;
                 </button>
               </span>
             ))}
@@ -326,7 +303,7 @@ export default function AdminDepartments() {
           <div>
             <h2 className="card-title">Category SLA Targets</h2>
             <p className="card-subtitle">
-              Resolution deadline in hours per operational category for {currentOrg.name}.
+              Resolution deadline in hours per operational category for {currentOrg?.name || 'Workspace'}.
             </p>
           </div>
         </div>
@@ -342,7 +319,7 @@ export default function AdminDepartments() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((cat) => (
+              {(categories || []).map((cat) => (
                 <tr key={cat}>
                   <td>
                     <span className="cell-main" style={{ maxWidth: 'none' }}>
@@ -374,7 +351,7 @@ export default function AdminDepartments() {
 
         {/* Mobile SLA Touch Cards */}
         <div className="sla-mobile-cards">
-          {categories.map((cat) => (
+          {(categories || []).map((cat) => (
             <div
               key={cat}
               className="card card-pad"
@@ -382,12 +359,12 @@ export default function AdminDepartments() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 10,
-                background: 'var(--rx-surface)',
-                border: '1px solid var(--rx-border)',
+                background: 'var(--app-card-bg, #ffffff)',
+                border: '1px solid var(--app-border-soft, #e4e4e7)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--rx-text)' }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text, #18181b)' }}>
                   {cat}
                 </span>
                 <span className="badge badge-neutral" style={{ fontSize: 11 }}>
@@ -395,7 +372,7 @@ export default function AdminDepartments() {
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--rx-text-muted)', flexShrink: 0 }}>
+                <label style={{ fontSize: 12, color: 'var(--app-text-muted, #71717a)', flexShrink: 0 }}>
                   Target SLA:
                 </label>
                 <select
@@ -438,7 +415,11 @@ export default function AdminDepartments() {
             Manage organization members, elevate normal users to {currentOrg?.staffTerm || 'Staff'}, and assign resolvers to departments.
           </p>
         </div>
-        <Link to="/admin/members" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Link
+          to="/admin/members"
+          className="btn btn-primary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
           <Users size={15} />
           Open Staff &amp; Members Console
         </Link>
@@ -448,7 +429,7 @@ export default function AdminDepartments() {
       {showOrgConfigModal && (
         <Modal
           title="Customize Organization Profile"
-          subtitle={currentOrg.name}
+          subtitle={currentOrg?.name || 'Workspace Profile'}
           onClose={() => setShowOrgConfigModal(false)}
           footer={
             <>

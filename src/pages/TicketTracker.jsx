@@ -37,9 +37,8 @@ import {
   EmptyState,
 } from '../components/ui';
 import Modal from '../components/ui/Modal';
-import { ACCESS_TIME_SLOTS } from '../data/taxonomy';
 
-/** Canonical resolution timeline stages. */
+/** Canonical resolution timeline stages (Linear / Plane lifecycle pattern). */
 const TIMELINE_STAGES = [
   { key: 'submitted', label: 'Submitted', desc: 'Ticket registered in the system.' },
   { key: 'under_review', label: 'Under Review', desc: 'Triage and verification by admin.' },
@@ -67,53 +66,83 @@ export default function TicketTracker() {
   // Local state
   const [lookupId, setLookupId] = useState(ticketIdParam);
   const [complaint, setComplaint] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
-  const [userComplaintsList, setUserComplaintsList] = useState([]);
 
+  // Modal dialog states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmFeedbackText, setConfirmFeedbackText] = useState('');
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenReasonText, setReopenReasonText] = useState('');
   const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
 
+  const isStaffOrAdmin = user?.role === ROLES.STAFF || user?.role === ROLES.ADMIN;
+  const actorProfile = user || { name: 'Guest', role: ROLES.STUDENT, id: null };
+
+  // Data fetching: targeted single-ticket lookup with background revalidation
   useEffect(() => {
     let isMounted = true;
 
     const loadTrackerData = async () => {
-      try {
-        await complaintService.syncFromSupabase();
-        if (!isMounted) return;
+      const targetId = ticketIdParam?.trim();
 
-        let myTickets = [];
-        if (user?.role === ROLES.STAFF || user?.role === ROLES.ADMIN) {
-          myTickets = complaintService.getAll();
-        } else if (user?.id) {
-          myTickets = complaintService.getAll({ studentId: user.id });
-        }
-        setUserComplaintsList(myTickets);
-
-        const targetId = ticketIdParam || myTickets[0]?.id;
-        if (targetId) {
-          const found = complaintService.getById(targetId);
-          setComplaint(found || myTickets[0] || null);
+      // Instant optimistic hydration from memory cache
+      if (targetId) {
+        const cached = complaintService.getById(targetId);
+        if (cached && isMounted) {
+          setComplaint(cached);
           setLookupId(targetId);
-          if (!ticketIdParam && myTickets[0]?.id) {
-            setSearchParams({ id: myTickets[0].id }, { replace: true });
-          }
+        }
+      }
 
-          // Concurrently fetch latest comments and timeline specifically for this ticket
-          const detailed = await complaintService.syncTicketDetails(targetId);
-          if (isMounted && detailed) {
-            setComplaint(detailed);
+      setIsLoading(!complaint);
+
+      try {
+        if (targetId) {
+          // Surgical single-record fetch with relational join (PostgREST)
+          const fresh = await complaintService.syncTicketDetails(targetId);
+          if (isMounted) {
+            if (fresh) {
+              setComplaint(fresh);
+              setLookupId(fresh.id);
+            } else if (!complaintService.getById(targetId)) {
+              // Fallback sync all if single record missed
+              await complaintService.syncFromSupabase();
+              const fallback = complaintService.getById(targetId);
+              setComplaint(fallback || null);
+            }
           }
         } else {
-          setComplaint(null);
+          // No ticket ID in URL: sync complaints and load user's most recent complaint
+          await complaintService.syncFromSupabase();
+          if (!isMounted) return;
+
+          const myTickets = isStaffOrAdmin
+            ? complaintService.getAll()
+            : complaintService.getAll({ studentId: user?.id });
+
+          if (myTickets.length > 0) {
+            const first = myTickets[0];
+            setComplaint(first);
+            setLookupId(first.id);
+            setSearchParams({ id: first.id }, { replace: true });
+
+            // Fetch comments and history in background
+            const detailed = await complaintService.syncTicketDetails(first.id);
+            if (isMounted && detailed) {
+              setComplaint(detailed);
+            }
+          } else {
+            setComplaint(null);
+          }
         }
       } catch (err) {
-        console.error('Error fetching ticket tracker data:', err);
+        console.error('[TicketTracker] Error loading ticket data:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -122,42 +151,39 @@ export default function TicketTracker() {
     return () => {
       isMounted = false;
     };
-  }, [ticketIdParam, user, setSearchParams]);
+  }, [ticketIdParam, user?.id, isStaffOrAdmin, setSearchParams]);
 
-  // Real-time live synchronization: reacts to new comments, status transitions, and Supabase WebSocket events
+  // Real-time live synchronization (WebSocket / Supabase events)
   useEffect(() => {
-    const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
-      try {
-        const myTickets = complaintService.getAll({ studentId: user?.id });
-        setUserComplaintsList(myTickets);
+    const unsubscribe = complaintService.subscribeToLiveUpdates((evt) => {
+      const activeId = complaint?.id || ticketIdParam;
+      if (!activeId) return;
 
-        const currentTargetId = complaint?.id || ticketIdParam;
-        if (currentTargetId) {
-          const refreshed = complaintService.getById(currentTargetId);
-          if (refreshed) {
-            setComplaint(refreshed);
-          }
+      if (!evt.id || evt.id === activeId) {
+        const refreshed = complaintService.getById(activeId);
+        if (refreshed) {
+          setComplaint({ ...refreshed });
         }
-      } catch (err) {
-        console.error('Error in TicketTracker live update listener:', err);
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [complaint?.id, ticketIdParam, user?.id]);
+  }, [complaint?.id, ticketIdParam]);
 
+  // Handle jump/lookup form submission
   const handleLookupSubmit = async (e) => {
     e.preventDefault();
-    if (!lookupId.trim()) return;
+    const clean = lookupId.trim();
+    if (!clean) return;
 
-    let found = complaintService.getById(lookupId.trim());
+    let found = complaintService.getById(clean);
     if (!found) {
-      found = await complaintService.syncTicketDetails(lookupId.trim());
+      found = await complaintService.syncTicketDetails(clean);
       if (!found) {
         await complaintService.syncFromSupabase({ force: true });
-        found = complaintService.getById(lookupId.trim());
+        found = complaintService.getById(clean);
       }
     } else {
       complaintService.syncTicketDetails(found.id).then((fresh) => {
@@ -171,7 +197,7 @@ export default function TicketTracker() {
       setSearchParams({ id: found.id });
       showToast(`Loaded ticket ${found.id}`, 'info');
     } else {
-      showToast(`Ticket "${lookupId}" not found. Please check the ID.`, 'error');
+      showToast(`Ticket "${clean}" not found. Please check the ID.`, 'error');
     }
   };
 
@@ -183,9 +209,7 @@ export default function TicketTracker() {
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const actorProfile =
-    user || { name: 'Guest', role: ROLES.STUDENT, id: null };
-
+  // Sign-off confirmation handler
   const handleConfirmResolution = () => {
     if (!complaint) return;
     try {
@@ -195,7 +219,7 @@ export default function TicketTracker() {
         confirmFeedbackText.trim()
       );
       if (updated) {
-        setComplaint(updated);
+        setComplaint({ ...updated });
         setShowConfirmModal(false);
         setConfirmFeedbackText('');
         showToast('Ticket confirmed and closed as Resolved', 'success');
@@ -206,6 +230,7 @@ export default function TicketTracker() {
     }
   };
 
+  // Dispute / reopen handler
   const handleRejectResolution = () => {
     if (!complaint) return;
     try {
@@ -215,7 +240,7 @@ export default function TicketTracker() {
         reopenReasonText.trim()
       );
       if (updated) {
-        setComplaint(updated);
+        setComplaint({ ...updated });
         setShowReopenModal(false);
         setReopenReasonText('');
         showToast('Ticket reopened and returned to staff', 'info');
@@ -226,7 +251,7 @@ export default function TicketTracker() {
     }
   };
 
-  // Map complaint status to timeline stage index
+  // Calculate discrete stepper index (Linear / Plane pattern)
   const currentStageIndex = useMemo(() => {
     if (!complaint) return 0;
     switch (complaint.status) {
@@ -239,13 +264,18 @@ export default function TicketTracker() {
       case STATUSES.PENDING:
       default:
         if (complaint.assignedTo) return 2;
-        if (complaint.statusHistory?.length > 1) return 1;
+        if (complaint.statusHistory && complaint.statusHistory.length > 1) return 1;
         return 0;
     }
   }, [complaint]);
 
-  const isStaffOrAdmin = user?.role === ROLES.STAFF || user?.role === ROLES.ADMIN;
+  const progressPercentage = useMemo(() => {
+    if (!complaint) return 0;
+    if (currentStageIndex === 5) return 100;
+    return Math.min(100, Math.round(((currentStageIndex + 0.5) / 6) * 100));
+  }, [complaint, currentStageIndex]);
 
+  // Comment submission handler
   const handleAddComment = (e) => {
     e.preventDefault();
     if (!newCommentText.trim() || !complaint) return;
@@ -290,6 +320,7 @@ export default function TicketTracker() {
     }
   };
 
+  // Chatwoot-style unified activity feed with RBAC privacy boundary
   const timelineFeed = useMemo(() => {
     if (!complaint) return [];
 
@@ -298,7 +329,7 @@ export default function TicketTracker() {
     // 1. Process comments
     const commentsList = complaint.comments || [];
     commentsList.forEach((c) => {
-      // Hide internal comments from student/public viewers
+      // Strict privacy filter: Students must NEVER see internal staff notes
       if (c.isInternal && !isStaffOrAdmin) {
         return;
       }
@@ -395,7 +426,7 @@ export default function TicketTracker() {
         id: `created_${complaint.id}`,
         type: 'event',
         eventCategory: 'created',
-        title: `Ticket registered in system`,
+        title: 'Ticket registered in system',
         actorName: complaint.isAnonymous ? 'Anonymous' : (complaint.student?.name || 'Reporter'),
         actorRole: ROLES.STUDENT,
         actorId: complaint.student?.id || '',
@@ -473,8 +504,12 @@ export default function TicketTracker() {
       {!complaint ? (
         <EmptyState
           icon={AlertCircle}
-          title="Ticket not found"
-          description={`No complaint matched "${lookupId}". Check the ID or select one from your list.`}
+          title={isLoading ? 'Loading ticket details…' : 'Ticket not found'}
+          description={
+            isLoading
+              ? 'Connecting to secure data store…'
+              : `No complaint matched "${lookupId}". Check the ID or select one from your complaints list.`
+          }
         >
           <Link to="/complaints" className="btn btn-primary" style={{ minHeight: 42, display: 'inline-flex', alignItems: 'center' }}>
             View All Complaints
@@ -482,7 +517,7 @@ export default function TicketTracker() {
         </EmptyState>
       ) : (
         <>
-          {/* Linear / Stripe-grade Milestone Stepper Rail */}
+          {/* Milestone Stepper Rail (Linear / Plane architecture) */}
           <div
             className="tracker-milestones-card"
             style={{
@@ -503,18 +538,18 @@ export default function TicketTracker() {
                 </span>
               </div>
 
-              {/* Row 2: Dedicated Full-Width Stage Name (Safely wraps for any length) */}
+              {/* Row 2: Dedicated Full-Width Stage Name */}
               <h2 className="tracker-milestones-stage-name">
                 {TIMELINE_STAGES[currentStageIndex]?.label}
               </h2>
 
-              {/* Row 3: Progress Info (Unbroken label and single string percentage) */}
+              {/* Row 3: Progress Info */}
               <div className="tracker-milestones-progress-info">
                 <span className="tracker-milestones-progress-label">
                   Resolution Progress
                 </span>
                 <span className="tracker-milestones-progress-pct">
-                  {Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}% Complete
+                  {progressPercentage}% Complete
                 </span>
               </div>
 
@@ -523,7 +558,7 @@ export default function TicketTracker() {
                 <div
                   className="milestone-progress-bar-fill"
                   style={{
-                    width: `${Math.min(100, Math.round(((currentStageIndex + (currentStageIndex === 5 ? 1 : 0.5)) / 6) * 100))}%`,
+                    width: `${progressPercentage}%`,
                   }}
                 />
               </div>
@@ -764,7 +799,7 @@ export default function TicketTracker() {
                 </section>
               )}
 
-              {/* Assigned Technician Card */}
+              {/* Assigned Technician & SLA Card */}
               <section
                 className="card card-pad"
                 style={{
@@ -781,7 +816,7 @@ export default function TicketTracker() {
                 {complaint.assignedTo ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--app-accent-subtle)', color: 'var(--app-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                      {complaint.assignedTo.name.charAt(0)}
+                      {complaint.assignedTo.name?.charAt(0) || 'S'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -799,7 +834,7 @@ export default function TicketTracker() {
                 )}
               </section>
 
-              {/* Resolution Action Card if awaiting confirmation */}
+              {/* Resolution Action Banner (when awaiting complainant sign-off) */}
               {complaint.status === STATUSES.PENDING_CONFIRMATION && (
                 <section
                   className="card card-pad"
@@ -847,7 +882,7 @@ export default function TicketTracker() {
               )}
             </div>
 
-            {/* RIGHT COLUMN: Live Discussion & Audit Feed */}
+            {/* RIGHT COLUMN: Chatwoot-Style Live Discussion & Audit Feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, width: '100%', maxWidth: '100%' }}>
               <section
                 className="card card-pad"
@@ -906,7 +941,7 @@ export default function TicketTracker() {
                             />
                             <div
                               style={{
-                                position: 'relative',
+                                relative: true,
                                 zIndex: 2,
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1070,6 +1105,7 @@ export default function TicketTracker() {
                   )}
                 </div>
 
+                {/* Comment & Internal Note Composer */}
                 <form
                   onSubmit={handleAddComment}
                   style={{
@@ -1116,8 +1152,8 @@ export default function TicketTracker() {
                       className="form-input"
                       placeholder={
                         isInternalNote
-                          ? "Log internal diagnostic or dispatch note..."
-                          : "Type a message or inquiry..."
+                          ? 'Log internal diagnostic or dispatch note...'
+                          : 'Type a message or inquiry...'
                       }
                       value={newCommentText}
                       onChange={(e) => setNewCommentText(e.target.value)}
@@ -1149,7 +1185,7 @@ export default function TicketTracker() {
         </>
       )}
 
-      {/* Confirm-resolution modal */}
+      {/* Confirm-Resolution Modal */}
       {showConfirmModal && complaint && (
         <Modal
           title="Confirm Ticket Resolution"
@@ -1198,7 +1234,7 @@ export default function TicketTracker() {
         </Modal>
       )}
 
-      {/* Reopen modal */}
+      {/* Reopen Modal */}
       {showReopenModal && complaint && (
         <Modal
           title="Reopen Complaint"

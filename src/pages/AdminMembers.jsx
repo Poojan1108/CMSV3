@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Users,
   Search,
@@ -11,8 +11,6 @@ import {
   RefreshCw,
   Check,
   AlertCircle,
-  Clock,
-  Filter,
   Sliders,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +33,6 @@ export default function AdminMembers() {
     updateMemberRoleAndDept,
     reloadOrgProfiles,
     categories,
-    getRoleTerm,
   } = useAuth();
   const { showToast } = useToast();
 
@@ -68,7 +65,7 @@ export default function AdminMembers() {
             .select('id, name, description')
             .eq('org_key', orgKey);
 
-          if (!error && data && isMounted) {
+          if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
             setDepartments(data);
             return;
           }
@@ -96,41 +93,61 @@ export default function AdminMembers() {
 
   // Initial roster refresh on mount
   useEffect(() => {
+    let isMounted = true;
     const load = async () => {
       setIsLoading(true);
-      await reloadOrgProfiles('all');
-      setIsLoading(false);
+      try {
+        await reloadOrgProfiles('all');
+      } catch (err) {
+        console.error('[AdminMembers] Failed to load member roster:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
     };
     load();
+    return () => {
+      isMounted = false;
+    };
   }, [orgKey]);
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    await reloadOrgProfiles('all');
-    setIsLoading(false);
-    showToast('Member roster refreshed', 'info');
+    try {
+      await reloadOrgProfiles('all');
+      showToast('Member roster refreshed', 'info');
+    } catch (err) {
+      console.error('[AdminMembers] Refresh failed:', err);
+      showToast('Failed to refresh roster', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Open the role & department assignment modal
-  const handleOpenEditModal = (member) => {
+  const handleOpenEditModal = useCallback((member) => {
     setActiveModalMember(member);
-    const initialRole = member.role === ROLES.ADMIN ? ROLES.ADMIN : member.role === ROLES.STAFF ? ROLES.STAFF : ROLES.STAFF;
+    const initialRole =
+      member.role === ROLES.ADMIN
+        ? ROLES.ADMIN
+        : member.role === ROLES.STAFF
+        ? ROLES.STAFF
+        : ROLES.STAFF;
     setTargetRole(initialRole);
     setSelectedDeptId(member.departmentId || '');
     setSelectedDeptName(member.department || '');
     setSelectedCategories(member.assignedCategories || []);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setActiveModalMember(null);
     setIsSaving(false);
-  };
+  }, []);
 
-  const handleToggleCategory = (category) => {
+  const handleToggleCategory = useCallback((category) => {
     setSelectedCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
-  };
+  }, []);
 
   const handleDepartmentChange = (e) => {
     const deptId = e.target.value;
@@ -150,62 +167,80 @@ export default function AdminMembers() {
     }
 
     setIsSaving(true);
-    const result = await updateMemberRoleAndDept(activeModalMember.id, {
-      role: targetRole,
-      departmentId: targetRole === ROLES.STAFF ? selectedDeptId : null,
-      departmentName: targetRole === ROLES.STAFF ? selectedDeptName : null,
-      assignedCategories: targetRole === ROLES.STAFF ? selectedCategories : [],
-    });
+    try {
+      const result = await updateMemberRoleAndDept(activeModalMember.id, {
+        role: targetRole,
+        departmentId: targetRole === ROLES.STAFF ? selectedDeptId : null,
+        departmentName: targetRole === ROLES.STAFF ? selectedDeptName : null,
+        assignedCategories: targetRole === ROLES.STAFF ? selectedCategories : [],
+      });
 
-    setIsSaving(false);
-
-    if (result.success) {
-      const roleLabel =
-        targetRole === ROLES.STAFF ? staffTerm : targetRole === ROLES.ADMIN ? adminTerm : userTerm;
-      showToast(`Updated role for ${activeModalMember.name} to ${roleLabel}`, 'success');
-      handleCloseModal();
-      await reloadOrgProfiles('all');
-    } else {
-      showToast(result.error || 'Failed to update member role', 'error');
+      if (result.success) {
+        const roleLabel =
+          targetRole === ROLES.STAFF
+            ? staffTerm
+            : targetRole === ROLES.ADMIN
+            ? adminTerm
+            : userTerm;
+        showToast(`Updated role for ${activeModalMember.name} to ${roleLabel}`, 'success');
+        handleCloseModal();
+        await reloadOrgProfiles('all');
+      } else {
+        showToast(result.error || 'Failed to update member role', 'error');
+      }
+    } catch (err) {
+      console.error('[AdminMembers] Update error:', err);
+      showToast('Failed to update member role', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Fast direct demotion to normal user
+  // Fast direct demotion to standard user
   const handleQuickDemote = async (member) => {
     if (member.id === currentUser?.id) {
       showToast('You cannot demote yourself from the Administrator role', 'warning');
       return;
     }
 
-    const confirm = window.confirm(
+    const confirmed = window.confirm(
       `Revoke ${staffTerm} privileges for ${member.name} and return them to ${userTerm}?`
     );
-    if (!confirm) return;
+    if (!confirmed) return;
 
-    const result = await updateMemberRoleAndDept(member.id, {
-      role: ROLES.STUDENT,
-      departmentId: null,
-      departmentName: null,
-      assignedCategories: [],
-    });
+    setIsLoading(true);
+    try {
+      const result = await updateMemberRoleAndDept(member.id, {
+        role: ROLES.STUDENT,
+        departmentId: null,
+        departmentName: null,
+        assignedCategories: [],
+      });
 
-    if (result.success) {
-      showToast(`${member.name} has been returned to ${userTerm}`, 'info');
-      await reloadOrgProfiles('all');
-    } else {
-      showToast(result.error || 'Failed to demote member', 'error');
+      if (result.success) {
+        showToast(`${member.name} has been returned to ${userTerm}`, 'info');
+        await reloadOrgProfiles('all');
+      } else {
+        showToast(result.error || 'Failed to demote member', 'error');
+      }
+    } catch (err) {
+      console.error('[AdminMembers] Quick demote error:', err);
+      showToast('Failed to update member role', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Filtered members list
   const filteredMembers = useMemo(() => {
     return (orgProfiles || []).filter((m) => {
+      const query = searchQuery.trim().toLowerCase();
       const matchesSearch =
-        !searchQuery.trim() ||
-        (m.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (m.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (m.rollNo || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (m.department || '').toLowerCase().includes(searchQuery.toLowerCase());
+        !query ||
+        (m.name || '').toLowerCase().includes(query) ||
+        (m.email || '').toLowerCase().includes(query) ||
+        (m.rollNo || '').toLowerCase().includes(query) ||
+        (m.department || '').toLowerCase().includes(query);
 
       const matchesRole =
         roleFilter === 'all' ||
@@ -222,13 +257,18 @@ export default function AdminMembers() {
     return {
       all: list.length,
       staff: list.filter((m) => m.role === ROLES.STAFF).length,
-      students: list.filter((m) => m.role === ROLES.STUDENT || !m.role || m.role === 'student').length,
+      students: list.filter(
+        (m) => m.role === ROLES.STUDENT || !m.role || m.role === 'student'
+      ).length,
       admins: list.filter((m) => m.role === ROLES.ADMIN).length,
     };
   }, [orgProfiles]);
 
   return (
-    <div className="page-container app-shell" style={{ maxWidth: 'var(--max-width)', margin: '0 auto', paddingBottom: 60 }}>
+    <div
+      className="page-container app-shell"
+      style={{ maxWidth: 'var(--max-width, 1200px)', margin: '0 auto', paddingBottom: 60 }}
+    >
       {/* Header */}
       <PageHeader
         title="Staff & Member Management"
@@ -236,7 +276,7 @@ export default function AdminMembers() {
         action={
           <button
             type="button"
-            className="btn-secondary"
+            className="btn btn-secondary"
             onClick={handleRefresh}
             disabled={isLoading}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
@@ -268,16 +308,17 @@ export default function AdminMembers() {
               left: 12,
               top: '50%',
               transform: 'translateY(-50%)',
-              color: 'var(--rx-text-muted)',
+              color: 'var(--app-text-muted, #71717a)',
             }}
           />
           <input
             type="text"
             className="form-input"
-            placeholder={`Search by name, email, or department...`}
+            placeholder="Search by name, email, or department..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ paddingLeft: 38, width: '100%' }}
+            aria-label="Search members roster"
           />
         </div>
 
@@ -293,8 +334,8 @@ export default function AdminMembers() {
               borderRadius: 20,
               flexShrink: 0,
               fontWeight: roleFilter === 'all' ? 600 : 400,
-              background: roleFilter === 'all' ? 'var(--rx-obsidian-subtle)' : undefined,
-              borderColor: roleFilter === 'all' ? 'var(--rx-obsidian-border)' : undefined,
+              background: roleFilter === 'all' ? 'var(--app-card-bg-subtle, #f4f4f5)' : undefined,
+              borderColor: roleFilter === 'all' ? 'var(--app-border-strong, #d4d4d8)' : undefined,
             }}
           >
             All Members ({counts.all})
@@ -309,8 +350,8 @@ export default function AdminMembers() {
               borderRadius: 20,
               flexShrink: 0,
               fontWeight: roleFilter === 'staff' ? 600 : 400,
-              background: roleFilter === 'staff' ? 'var(--rx-obsidian-subtle)' : undefined,
-              borderColor: roleFilter === 'staff' ? 'var(--rx-obsidian-border)' : undefined,
+              background: roleFilter === 'staff' ? 'var(--app-card-bg-subtle, #f4f4f5)' : undefined,
+              borderColor: roleFilter === 'staff' ? 'var(--app-border-strong, #d4d4d8)' : undefined,
             }}
           >
             {staffTerm} ({counts.staff})
@@ -325,8 +366,8 @@ export default function AdminMembers() {
               borderRadius: 20,
               flexShrink: 0,
               fontWeight: roleFilter === 'student' ? 600 : 400,
-              background: roleFilter === 'student' ? 'var(--rx-obsidian-subtle)' : undefined,
-              borderColor: roleFilter === 'student' ? 'var(--rx-obsidian-border)' : undefined,
+              background: roleFilter === 'student' ? 'var(--app-card-bg-subtle, #f4f4f5)' : undefined,
+              borderColor: roleFilter === 'student' ? 'var(--app-border-strong, #d4d4d8)' : undefined,
             }}
           >
             {userTerm}s ({counts.students})
@@ -341,8 +382,8 @@ export default function AdminMembers() {
               borderRadius: 20,
               flexShrink: 0,
               fontWeight: roleFilter === 'admin' ? 600 : 400,
-              background: roleFilter === 'admin' ? 'var(--rx-obsidian-subtle)' : undefined,
-              borderColor: roleFilter === 'admin' ? 'var(--rx-obsidian-border)' : undefined,
+              background: roleFilter === 'admin' ? 'var(--app-card-bg-subtle, #f4f4f5)' : undefined,
+              borderColor: roleFilter === 'admin' ? 'var(--app-border-strong, #d4d4d8)' : undefined,
             }}
           >
             {adminTerm}s ({counts.admins})
@@ -350,7 +391,7 @@ export default function AdminMembers() {
         </div>
       </div>
 
-      {/* Member Roster List */}
+      {/* Member Roster Content */}
       {isLoading && orgProfiles.length === 0 ? (
         <LoadingState message="Loading organization roster..." />
       ) : filteredMembers.length === 0 ? (
@@ -360,11 +401,15 @@ export default function AdminMembers() {
           description={
             searchQuery
               ? `No members match "${searchQuery}". Try a different search.`
-              : `No members found matching the selected filter.`
+              : 'No members found matching the selected filter.'
           }
           action={
             searchQuery ? (
-              <button type="button" className="btn-secondary" onClick={() => setSearchQuery('')}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSearchQuery('')}
+              >
                 Clear Search
               </button>
             ) : null
@@ -373,15 +418,18 @@ export default function AdminMembers() {
       ) : (
         <>
           {/* Desktop High-Density Table */}
-          <div className="members-desktop-table table-card" style={{ overflowX: 'auto', background: 'var(--rx-surface)' }}>
+          <div
+            className="members-desktop-table table-card"
+            style={{ overflowX: 'auto', background: 'var(--app-card-bg, #ffffff)' }}
+          >
             <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--rx-border)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--rx-text-muted)' }}>MEMBER</th>
-                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--rx-text-muted)' }}>CURRENT ROLE</th>
-                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--rx-text-muted)' }}>DEPARTMENT / SCOPE</th>
-                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--rx-text-muted)' }}>CONTACT</th>
-                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--rx-text-muted)', textAlign: 'right' }}>
+                <tr style={{ borderBottom: '1px solid var(--app-border-soft, #e4e4e7)', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-text-muted)' }}>MEMBER</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-text-muted)' }}>CURRENT ROLE</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-text-muted)' }}>DEPARTMENT / SCOPE</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-text-muted)' }}>CONTACT</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-text-muted)', textAlign: 'right' }}>
                     ADMIN ACTION
                   </th>
                 </tr>
@@ -396,7 +444,7 @@ export default function AdminMembers() {
                     <tr
                       key={member.id}
                       style={{
-                        borderBottom: '1px solid var(--rx-border-soft)',
+                        borderBottom: '1px solid var(--app-border-soft, #e4e4e7)',
                         transition: 'background 0.15s ease',
                       }}
                     >
@@ -413,7 +461,7 @@ export default function AdminMembers() {
                             )}
                           </span>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, color: 'var(--rx-text)', fontSize: 14 }}>
+                            <div style={{ fontWeight: 600, color: 'var(--app-text)', fontSize: 14 }}>
                               {member.name || 'Member'}
                               {isSelf && (
                                 <span
@@ -423,8 +471,8 @@ export default function AdminMembers() {
                                     fontWeight: 500,
                                     padding: '2px 6px',
                                     borderRadius: 4,
-                                    background: 'var(--rx-shade-inset)',
-                                    color: 'var(--rx-text-secondary)',
+                                    background: 'var(--app-card-bg-subtle, #f4f4f5)',
+                                    color: 'var(--app-text-secondary)',
                                   }}
                                 >
                                   You
@@ -434,7 +482,7 @@ export default function AdminMembers() {
                             <div
                               style={{
                                 fontSize: 12,
-                                color: 'var(--rx-text-muted)',
+                                color: 'var(--app-text-muted)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
@@ -469,7 +517,7 @@ export default function AdminMembers() {
                       <td style={{ padding: '14px 16px' }}>
                         {isMemberStaff ? (
                           <div>
-                            <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--rx-text)' }}>
+                            <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--app-text)' }}>
                               {member.department || 'General Resolver'}
                             </div>
                             {member.assignedCategories && member.assignedCategories.length > 0 && (
@@ -488,7 +536,7 @@ export default function AdminMembers() {
                             )}
                           </div>
                         ) : (
-                          <span style={{ fontSize: 13, color: 'var(--rx-text-muted)' }}>
+                          <span style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>
                             {isMemberAdmin ? 'Full Workspace Governance' : 'Standard Member Access'}
                           </span>
                         )}
@@ -496,7 +544,7 @@ export default function AdminMembers() {
 
                       {/* Contact */}
                       <td style={{ padding: '14px 16px' }}>
-                        <div style={{ fontSize: 12, color: 'var(--rx-text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ fontSize: 12, color: 'var(--app-text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                           {member.phone && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                               <Phone size={11} /> {member.phone}
@@ -506,7 +554,7 @@ export default function AdminMembers() {
                             <span>ID: {member.rollNo}</span>
                           )}
                           {!member.phone && !member.rollNo && (
-                            <span style={{ color: 'var(--rx-text-muted)' }}>&mdash;</span>
+                            <span style={{ color: 'var(--app-text-muted)' }}>&mdash;</span>
                           )}
                         </div>
                       </td>
@@ -574,7 +622,11 @@ export default function AdminMembers() {
               const isSelf = member.id === currentUser?.id;
 
               return (
-                <div key={member.id} className="card card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div
+                  key={member.id}
+                  className="card card-pad"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                >
                   {/* Header: Avatar, Name, Email, Role */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
@@ -588,7 +640,7 @@ export default function AdminMembers() {
                         )}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, color: 'var(--rx-text)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--app-text)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {member.name || 'Member'}
                           </span>
@@ -599,15 +651,15 @@ export default function AdminMembers() {
                                 fontWeight: 600,
                                 padding: '2px 6px',
                                 borderRadius: 4,
-                                background: 'var(--rx-shade-inset)',
-                                color: 'var(--rx-text-secondary)',
+                                background: 'var(--app-card-bg-subtle, #f4f4f5)',
+                                color: 'var(--app-text-secondary)',
                               }}
                             >
                               You
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--rx-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 12, color: 'var(--app-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {member.email}
                         </div>
                       </div>
@@ -635,18 +687,19 @@ export default function AdminMembers() {
                   {/* Scope & Contact Details */}
                   <div
                     style={{
-                      background: 'var(--rx-shade-subtle)',
+                      background: 'var(--app-card-bg-subtle, #f8fafc)',
                       padding: '10px 12px',
                       borderRadius: 8,
                       fontSize: 12,
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 6,
+                      border: '1px solid var(--app-border-soft, #e4e4e7)',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--rx-text-muted)' }}>Department:</span>
-                      <span style={{ fontWeight: 500, color: 'var(--rx-text)' }}>
+                      <span style={{ color: 'var(--app-text-muted)' }}>Department:</span>
+                      <span style={{ fontWeight: 500, color: 'var(--app-text)' }}>
                         {isMemberStaff ? (member.department || 'General Resolver') : isMemberAdmin ? 'Full Workspace' : 'Standard Member'}
                       </span>
                     </div>
@@ -662,14 +715,14 @@ export default function AdminMembers() {
                     )}
 
                     {(member.phone || member.rollNo) && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--rx-border-soft)', paddingTop: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--app-border-soft, #e4e4e7)', paddingTop: 6 }}>
                         {member.phone ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--rx-text-secondary)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--app-text-secondary)' }}>
                             <Phone size={11} /> {member.phone}
                           </span>
                         ) : <span />}
                         {member.rollNo && (
-                          <span style={{ color: 'var(--rx-text-muted)' }}>ID: {member.rollNo}</span>
+                          <span style={{ color: 'var(--app-text-muted)' }}>ID: {member.rollNo}</span>
                         )}
                       </div>
                     )}
@@ -736,7 +789,7 @@ export default function AdminMembers() {
       {/* Role & Department Modal */}
       {activeModalMember && (
         <Modal
-          title={`Assign Role & Department`}
+          title="Assign Role & Department"
           subtitle={`Configure access and dispatch responsibilities for ${activeModalMember.name} (${activeModalMember.email}).`}
           onClose={handleCloseModal}
           maxWidth={540}
@@ -781,7 +834,7 @@ export default function AdminMembers() {
                 <option value={ROLES.ADMIN}>{adminTerm} (Full Workspace Administrator)</option>
               </select>
               {activeModalMember.id === currentUser?.id && (
-                <small style={{ color: 'var(--rx-text-muted)', display: 'block', marginTop: 4 }}>
+                <small style={{ color: 'var(--app-text-muted)', display: 'block', marginTop: 4 }}>
                   You cannot change your own Administrator role.
                 </small>
               )}
@@ -822,9 +875,9 @@ export default function AdminMembers() {
                       maxHeight: 140,
                       overflowY: 'auto',
                       padding: '10px 12px',
-                      background: 'var(--app-inset, #f4f0ea)',
+                      background: 'var(--app-card-bg-subtle, #f4f0ea)',
                       borderRadius: 'var(--app-radius, 8px)',
-                      border: '1px solid var(--app-border, #e7e5e4)',
+                      border: '1px solid var(--app-border-soft, #e7e5e4)',
                     }}
                   >
                     {(categories || []).map((cat) => {
@@ -851,7 +904,7 @@ export default function AdminMembers() {
                       );
                     })}
                   </div>
-                  <small style={{ color: 'var(--rx-text-muted)', display: 'block', marginTop: 6, fontSize: 12 }}>
+                  <small style={{ color: 'var(--app-text-muted)', display: 'block', marginTop: 6, fontSize: 12 }}>
                     Tickets under these categories will be prioritized for this resolver in dispatch queues.
                   </small>
                 </div>

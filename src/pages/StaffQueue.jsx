@@ -1,46 +1,37 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Inbox,
   Clock,
   CheckCircle2,
   Search,
-  Filter,
   RefreshCw,
   User,
   MapPin,
-  MessageSquare,
-  Lock,
-  Send,
   X,
   ChevronRight,
   Shield,
   UserCheck,
   AlertTriangle,
-  Camera,
-  Maximize2,
-  FileText,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { complaintService } from '../services/complaintService';
 import { STATUSES, PRIORITIES, STATUS_LABELS, PRIORITY_LABELS, ROLES } from '../utils/constants';
-import {
-  formatRelativeTime,
-  getSlaStatus,
-} from '../utils/formatters';
+import { formatRelativeTime, getSlaStatus } from '../utils/formatters';
 import {
   PageHeader,
   EmptyState,
   LoadingState,
   MetricCard,
-  Modal,
   StatusBadge,
   PriorityBadge,
   SlaBadge,
   TicketId,
   Tag,
 } from '../components/ui';
+import TicketDetailModal from '../components/tickets/TicketDetailModal';
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
@@ -53,6 +44,13 @@ const PRIORITY_FILTER_OPTIONS = [
   { value: PRIORITIES.MEDIUM, label: `${PRIORITY_LABELS[PRIORITIES.MEDIUM]} (48h SLA)` },
   { value: PRIORITIES.LOW, label: `${PRIORITY_LABELS[PRIORITIES.LOW]} (72h SLA)` },
 ];
+
+const PRIORITY_WEIGHTS = {
+  [PRIORITIES.URGENT]: 4,
+  [PRIORITIES.HIGH]: 3,
+  [PRIORITIES.MEDIUM]: 2,
+  [PRIORITIES.LOW]: 1,
+};
 
 const chipStyle = {
   display: 'inline-flex',
@@ -68,41 +66,68 @@ const chipStyle = {
   transition: 'all 0.15s ease',
 };
 
+/**
+ * StaffQueue
+ *
+ * Operational triage queue for resolvers and staff.
+ * Features:
+ * - URL Query Parameters synchronization for deep-linking & persistent triage views
+ * - Optimistic UI updates with rollback resilience
+ * - Component-isolated inspection modal preventing re-render tax
+ * - Dynamic category taxonomy & multi-field search indexing
+ */
 export default function StaffQueue() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, categories, currentOrg, orgKey, availableUsers, setUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, categories, currentOrg, orgKey } = useAuth();
   const { showToast } = useToast();
 
-  // Scope derived from route (/staff/assigned -> assigned)
-  const isAssignedPage = location.pathname.includes('/staff/assigned');
-  const [scopeFilter, setScopeFilter] = useState(isAssignedPage ? 'assigned' : 'all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('newest');
+  const isAssignedRoute = location.pathname.includes('/staff/assigned');
 
+  // URL-driven filter parameters (Plane / Linear standard)
+  const scopeFilter = isAssignedRoute ? 'assigned' : (searchParams.get('scope') || 'all');
+  const statusFilter = searchParams.get('status') || 'all';
+  const priorityFilter = searchParams.get('priority') || 'all';
+  const departmentFilter = searchParams.get('dept') || 'all';
+  const sortBy = searchParams.get('sort') || 'newest';
+
+  // Search input state (local for responsive typing, synced on change)
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [complaints, setComplaints] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
-  // Dynamic taxonomy of categories across user config and existing complaint records
+  // Sync search input if URL changes externally
+  useEffect(() => {
+    const urlQ = searchParams.get('q') || '';
+    if (urlQ !== searchQuery) {
+      setSearchQuery(urlQ);
+    }
+  }, [searchParams]);
+
+  // Helper to update URL query params
+  const updateFilters = useCallback((updates) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, val]) => {
+        if (!val || val === 'all' || val === 'newest') {
+          next.delete(key);
+        } else {
+          next.set(key, val);
+        }
+      });
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Dynamic taxonomy of categories across user config and records
   const availableCategories = useMemo(() => {
     return Array.from(new Set([...(categories || []), ...complaints.map((c) => c.category)].filter(Boolean)));
   }, [categories, complaints]);
 
-  // Detail modal state
-  const [selectedTicket, setSelectedTicket] = useState(null);
-  const [modalInternalNote, setModalInternalNote] = useState('');
-  const [modalStatusNote, setModalStatusNote] = useState('');
-
-  useEffect(() => {
-    if (location.pathname.includes('/staff/assigned')) {
-      setScopeFilter('assigned');
-    }
-  }, [location.pathname]);
-
-  const loadComplaints = async () => {
+  // Load complaints from Tier 1 service
+  const loadComplaints = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await complaintService.fetchComplaints({ org: orgKey, sortBy });
@@ -113,19 +138,18 @@ export default function StaffQueue() {
         if (refreshed) setSelectedTicket(refreshed);
       }
     } catch (err) {
-      console.error('Failed to fetch complaints queue', err);
+      console.error('[StaffQueue] Failed to fetch complaints queue:', err);
       showToast('Error loading queue items', 'error');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [orgKey, sortBy, selectedTicket, showToast]);
 
   useEffect(() => {
     loadComplaints();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKey, sortBy]);
 
-  // Real-time live synchronization: automatically updates queue cards and counters when tickets are created, reassigned, or status updated
+  // Real-time synchronization subscription
   useEffect(() => {
     const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
       try {
@@ -140,7 +164,7 @@ export default function StaffQueue() {
           return null;
         });
       } catch (err) {
-        console.error('Error in StaffQueue live sync:', err);
+        console.error('[StaffQueue] Error in live sync:', err);
       }
     });
 
@@ -149,7 +173,7 @@ export default function StaffQueue() {
     };
   }, [orgKey, sortBy]);
 
-  // Header metrics
+  // KPI Metrics calculation
   const metrics = useMemo(() => {
     const assignedToMe = complaints.filter(
       (c) => c.assignedTo && c.assignedTo.id === user?.id
@@ -165,8 +189,9 @@ export default function StaffQueue() {
     return { assignedToMe, pendingReview, inProgress, resolvedToday, slaBreached };
   }, [complaints, user]);
 
+  // Multi-facet filtering and sorting pipeline
   const filteredComplaints = useMemo(() => {
-    return complaints.filter((item) => {
+    let result = complaints.filter((item) => {
       if (scopeFilter === 'assigned') {
         const isMine = item.assignedTo && item.assignedTo.id === user?.id;
         if (!isMine) return false;
@@ -192,7 +217,23 @@ export default function StaffQueue() {
       }
       return true;
     });
-  }, [complaints, scopeFilter, statusFilter, priorityFilter, departmentFilter, searchQuery, user]);
+
+    // Client-side sort stability
+    result.sort((a, b) => {
+      if (sortBy === 'priority') {
+        const weightA = PRIORITY_WEIGHTS[a.priority] || 0;
+        const weightB = PRIORITY_WEIGHTS[b.priority] || 0;
+        return weightB - weightA;
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      // default: newest
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+
+    return result;
+  }, [complaints, scopeFilter, statusFilter, priorityFilter, departmentFilter, searchQuery, sortBy, user]);
 
   const hasActiveFilters =
     scopeFilter !== 'all' ||
@@ -201,37 +242,55 @@ export default function StaffQueue() {
     departmentFilter !== 'all' ||
     searchQuery.trim() !== '';
 
-  const handleQuickStatusChange = (ticketId, newStatus, note = '') => {
+  const actor = useCallback(() => {
+    return user || { name: 'Staff Resolver', role: ROLES.STAFF };
+  }, [user]);
+
+  // Optimistic Quick Status Update with instant rollback on failure
+  const handleQuickStatusChange = useCallback(async (ticketId, newStatus, note = '') => {
+    const previousComplaints = [...complaints];
+    const previousSelected = selectedTicket;
+
+    // Optimistic UI mutation
+    setComplaints((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
+    );
+    if (selectedTicket?.id === ticketId) {
+      setSelectedTicket((prev) => (prev ? { ...prev, status: newStatus } : null));
+    }
+
     try {
       let updated;
       if (newStatus === STATUSES.RESOLVED) {
-        updated = complaintService.proposeResolution(
+        updated = await complaintService.proposeResolution(
           ticketId,
           actor(),
           note || 'Staff marked ticket as resolved. Awaiting confirmation.'
         );
         if (updated) showToast(`Resolution request sent for ${ticketId}`, 'success');
       } else {
-        updated = complaintService.updateStatus(
+        updated = await complaintService.updateStatus(
           ticketId,
           newStatus,
           actor(),
           note || `Status updated to ${STATUS_LABELS[newStatus] || newStatus}`
         );
-        if (updated)
-          showToast(`${ticketId} → ${STATUS_LABELS[newStatus] || newStatus}`, 'success');
+        if (updated) showToast(`${ticketId} → ${STATUS_LABELS[newStatus] || newStatus}`, 'success');
+      }
+
+      if (updated) {
+        setComplaints((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+        if (selectedTicket?.id === ticketId) setSelectedTicket(updated);
       }
     } catch (err) {
-      console.error('Failed to update status', err);
+      console.error('[StaffQueue] Failed to update status:', err);
+      setComplaints(previousComplaints);
+      setSelectedTicket(previousSelected);
       showToast('Failed to update ticket status', 'error');
     }
-  };
+  }, [complaints, selectedTicket, actor, showToast]);
 
-  function actor() {
-    return user || { name: 'Staff Resolver', role: ROLES.STAFF };
-  }
-
-  const handleOpenTicketDetails = async (ticket) => {
+  const handleOpenTicketDetails = useCallback(async (ticket) => {
     setSelectedTicket(ticket);
     try {
       const detailed = await complaintService.syncTicketDetails(ticket.id);
@@ -241,51 +300,37 @@ export default function StaffQueue() {
     } catch (err) {
       console.warn('[StaffQueue] Failed to load ticket details:', err);
     }
-  };
+  }, []);
 
-  const handleModalAddInternalNote = (e) => {
-    e.preventDefault();
-    if (!selectedTicket || !modalInternalNote.trim()) return;
+  const handleModalAddInternalNote = useCallback((e, noteText) => {
+    if (!selectedTicket || !noteText?.trim()) return;
 
     try {
       const updated = complaintService.addComment(
         selectedTicket.id,
         actor(),
-        modalInternalNote.trim(),
+        noteText.trim(),
         true
       );
       if (updated) {
         showToast('Internal note added to ticket', 'success');
-        setModalInternalNote('');
         setSelectedTicket(updated);
       }
     } catch (err) {
-      console.error('Failed to post internal note in modal', err);
+      console.error('[StaffQueue] Failed to post internal note:', err);
       showToast('Error adding internal note', 'error');
     }
-  };
+  }, [selectedTicket, actor, showToast]);
 
-  const handleModalStatusSubmit = (e, newStatus) => {
-    e.preventDefault();
+  const handleModalStatusSubmit = useCallback((e, newStatus, noteText) => {
     if (!selectedTicket) return;
+    handleQuickStatusChange(selectedTicket.id, newStatus, noteText);
+  }, [selectedTicket, handleQuickStatusChange]);
 
-    try {
-      handleQuickStatusChange(selectedTicket.id, newStatus, modalStatusNote);
-      setModalStatusNote('');
-    } catch (err) {
-      console.error('Failed modal status update', err);
-      showToast('Error updating status', 'error');
-    }
-  };
-
-  const handleResetFilters = () => {
-    setScopeFilter(isAssignedPage ? 'assigned' : 'all');
-    setStatusFilter('all');
-    setPriorityFilter('all');
-    setDepartmentFilter('all');
+  const handleResetFilters = useCallback(() => {
     setSearchQuery('');
-    setSortBy('newest');
-  };
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
 
   return (
     <div
@@ -319,7 +364,7 @@ export default function StaffQueue() {
         }
       />
 
-      {/* Metrics */}
+      {/* KPI Metrics Summary Cards */}
       <div className="stat-grid" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         <MetricCard
           icon={UserCheck}
@@ -327,7 +372,7 @@ export default function StaffQueue() {
           value={metrics.assignedToMe}
           tone="accent"
           onClick={() => {
-            setScopeFilter(scopeFilter === 'assigned' ? 'all' : 'assigned');
+            updateFilters({ scope: scopeFilter === 'assigned' ? 'all' : 'assigned' });
           }}
           isActive={scopeFilter === 'assigned'}
         />
@@ -337,7 +382,7 @@ export default function StaffQueue() {
           value={metrics.pendingReview}
           tone="warning"
           onClick={() =>
-            setStatusFilter(statusFilter === STATUSES.PENDING ? 'all' : STATUSES.PENDING)
+            updateFilters({ status: statusFilter === STATUSES.PENDING ? 'all' : STATUSES.PENDING })
           }
           isActive={statusFilter === STATUSES.PENDING}
         />
@@ -347,7 +392,7 @@ export default function StaffQueue() {
           value={metrics.inProgress}
           tone="info"
           onClick={() =>
-            setStatusFilter(statusFilter === STATUSES.IN_PROGRESS ? 'all' : STATUSES.IN_PROGRESS)
+            updateFilters({ status: statusFilter === STATUSES.IN_PROGRESS ? 'all' : STATUSES.IN_PROGRESS })
           }
           isActive={statusFilter === STATUSES.IN_PROGRESS}
         />
@@ -357,24 +402,24 @@ export default function StaffQueue() {
           value={metrics.resolvedToday}
           tone="success"
           onClick={() =>
-            setStatusFilter(statusFilter === STATUSES.RESOLVED ? 'all' : STATUSES.RESOLVED)
+            updateFilters({ status: statusFilter === STATUSES.RESOLVED ? 'all' : STATUSES.RESOLVED })
           }
           isActive={statusFilter === STATUSES.RESOLVED}
         />
       </div>
 
+      {/* SLA Breach Banner */}
       {metrics.slaBreached > 0 && (
         <div className="callout callout-danger" role="alert" style={{ width: '100%', boxSizing: 'border-box' }}>
           <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ minWidth: 0, wordBreak: 'break-word' }}>
             <span className="callout-title">SLA breached</span>
-            {metrics.slaBreached} ticket{metrics.slaBreached > 1 ? 's' : ''} exceeded the target
-            resolution window.
+            {metrics.slaBreached} ticket{metrics.slaBreached > 1 ? 's' : ''} exceeded the target resolution window.
           </div>
         </div>
       )}
 
-      {/* 1. Triage Command Strip (Page 4 Spec) */}
+      {/* Triage Command Strip */}
       <div
         className="status-segment-strip"
         role="tablist"
@@ -398,10 +443,7 @@ export default function StaffQueue() {
           aria-selected={scopeFilter === 'all' && statusFilter === 'all'}
           className={`status-segment-pill ${scopeFilter === 'all' && statusFilter === 'all' ? 'is-active' : ''}`}
           style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-          onClick={() => {
-            setScopeFilter('all');
-            setStatusFilter('all');
-          }}
+          onClick={() => updateFilters({ scope: 'all', status: 'all' })}
         >
           All Queue Tickets
           <span className="segment-count">{complaints.length}</span>
@@ -413,10 +455,7 @@ export default function StaffQueue() {
           aria-selected={scopeFilter === 'assigned'}
           className={`status-segment-pill ${scopeFilter === 'assigned' ? 'is-active' : ''}`}
           style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-          onClick={() => {
-            setScopeFilter('assigned');
-            setStatusFilter('all');
-          }}
+          onClick={() => updateFilters({ scope: 'assigned', status: 'all' })}
         >
           Assigned to Me
           <span className="segment-count">{metrics.assignedToMe}</span>
@@ -428,10 +467,7 @@ export default function StaffQueue() {
           aria-selected={statusFilter === STATUSES.PENDING}
           className={`status-segment-pill ${statusFilter === STATUSES.PENDING ? 'is-active' : ''}`}
           style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-          onClick={() => {
-            setScopeFilter('all');
-            setStatusFilter(STATUSES.PENDING);
-          }}
+          onClick={() => updateFilters({ scope: 'all', status: STATUSES.PENDING })}
         >
           Needs Triage
           <span className="segment-count">{metrics.pendingReview}</span>
@@ -443,10 +479,7 @@ export default function StaffQueue() {
           aria-selected={statusFilter === STATUSES.IN_PROGRESS}
           className={`status-segment-pill ${statusFilter === STATUSES.IN_PROGRESS ? 'is-active' : ''}`}
           style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-          onClick={() => {
-            setScopeFilter('all');
-            setStatusFilter(STATUSES.IN_PROGRESS);
-          }}
+          onClick={() => updateFilters({ scope: 'all', status: STATUSES.IN_PROGRESS })}
         >
           In Progress
           <span className="segment-count">{metrics.inProgress}</span>
@@ -465,9 +498,9 @@ export default function StaffQueue() {
               color: 'var(--app-danger)',
               background: priorityFilter === PRIORITIES.URGENT ? 'var(--app-danger-subtle)' : 'var(--app-surface)',
             }}
-            onClick={() => {
-              setPriorityFilter(priorityFilter === PRIORITIES.URGENT ? 'all' : PRIORITIES.URGENT);
-            }}
+            onClick={() =>
+              updateFilters({ priority: priorityFilter === PRIORITIES.URGENT ? 'all' : PRIORITIES.URGENT })
+            }
           >
             <AlertTriangle size={13} style={{ color: 'var(--app-danger)' }} />
             SLA Critical
@@ -478,7 +511,7 @@ export default function StaffQueue() {
         )}
       </div>
 
-      {/* 2. Streamlined Toolbar (Content-on-Canvas) */}
+      {/* Toolbar & Filter Controls */}
       <div
         className="toolbar-row"
         style={{
@@ -496,14 +529,20 @@ export default function StaffQueue() {
             type="text"
             placeholder={`Search ID, keyword, ${currentOrg?.locationLabel?.split('/')[0]?.trim().toLowerCase() || 'unit'}, or ${currentOrg?.userTerm?.toLowerCase() || 'resident'}...`}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              updateFilters({ q: e.target.value });
+            }}
             aria-label="Search tickets"
           />
           {searchQuery && (
             <button
               type="button"
               className="search-clear"
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                updateFilters({ q: '' });
+              }}
               aria-label="Clear search"
             >
               <X size={13} />
@@ -515,7 +554,7 @@ export default function StaffQueue() {
 
         <select
           value={departmentFilter}
-          onChange={(e) => setDepartmentFilter(e.target.value)}
+          onChange={(e) => updateFilters({ dept: e.target.value })}
           aria-label="Filter by department"
           className="toolbar-select"
         >
@@ -529,7 +568,7 @@ export default function StaffQueue() {
 
         <select
           value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
+          onChange={(e) => updateFilters({ priority: e.target.value })}
           aria-label="Filter by priority"
           className="toolbar-select"
         >
@@ -543,7 +582,7 @@ export default function StaffQueue() {
 
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
+          onChange={(e) => updateFilters({ sort: e.target.value })}
           aria-label="Sort order"
           className="toolbar-select"
         >
@@ -586,7 +625,7 @@ export default function StaffQueue() {
           {scopeFilter !== 'all' && (
             <button
               type="button"
-              onClick={() => setScopeFilter('all')}
+              onClick={() => updateFilters({ scope: 'all' })}
               style={chipStyle}
               title="Remove scope filter"
             >
@@ -598,7 +637,7 @@ export default function StaffQueue() {
           {statusFilter !== 'all' && (
             <button
               type="button"
-              onClick={() => setStatusFilter('all')}
+              onClick={() => updateFilters({ status: 'all' })}
               style={chipStyle}
               title="Remove status filter"
             >
@@ -610,7 +649,7 @@ export default function StaffQueue() {
           {priorityFilter !== 'all' && (
             <button
               type="button"
-              onClick={() => setPriorityFilter('all')}
+              onClick={() => updateFilters({ priority: 'all' })}
               style={chipStyle}
               title="Remove priority filter"
             >
@@ -622,7 +661,7 @@ export default function StaffQueue() {
           {departmentFilter !== 'all' && (
             <button
               type="button"
-              onClick={() => setDepartmentFilter('all')}
+              onClick={() => updateFilters({ dept: 'all' })}
               style={chipStyle}
               title="Remove department filter"
             >
@@ -634,7 +673,10 @@ export default function StaffQueue() {
           {searchQuery.trim() !== '' && (
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                updateFilters({ q: '' });
+              }}
               style={chipStyle}
               title="Clear search query"
             >
@@ -661,7 +703,7 @@ export default function StaffQueue() {
         </div>
       )}
 
-      {/* Ticket cards */}
+      {/* Ticket Cards Grid */}
       {isLoading ? (
         <LoadingState label="Loading department queue…" />
       ) : filteredComplaints.length === 0 ? (
@@ -752,7 +794,7 @@ export default function StaffQueue() {
                   </span>
                 </div>
 
-                {/* Quick status update */}
+                {/* Quick Status Action Row */}
                 <div
                   className="quick-status-row"
                   style={{
@@ -779,8 +821,6 @@ export default function StaffQueue() {
                     ))}
                   </select>
                 </div>
-
-
 
                 <div
                   className="ticket-card-footer"
@@ -819,502 +859,17 @@ export default function StaffQueue() {
         </div>
       )}
 
-      {/* Detail modal */}
+      {/* Decoupled Detail Modal with Isolated Internal Note Draft State */}
       {selectedTicket && (
         <TicketDetailModal
           ticket={selectedTicket}
           onClose={() => setSelectedTicket(null)}
           onQuickStatus={handleQuickStatusChange}
           onAddInternalNote={handleModalAddInternalNote}
-          internalNote={modalInternalNote}
-          setInternalNote={setModalInternalNote}
           onStatusSubmit={handleModalStatusSubmit}
-          statusNote={modalStatusNote}
-          setStatusNote={setModalStatusNote}
           navigate={navigate}
         />
       )}
     </div>
-  );
-}
-
-/** Full detail dialog for resolver inspection. */
-function TicketDetailModal({
-  ticket,
-  onClose,
-  onQuickStatus,
-  onAddInternalNote,
-  internalNote,
-  setInternalNote,
-  onStatusSubmit,
-  statusNote,
-  setStatusNote,
-  navigate,
-}) {
-  const [commentTab, setCommentTab] = useState('all');
-  const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
-  const sla = getSlaStatus(ticket);
-
-  const comments = ticket.comments || [];
-  const internalComments = comments.filter((c) => c.isInternal);
-  const publicComments = comments.filter((c) => !c.isInternal);
-
-  const displayedComments =
-    commentTab === 'internal'
-      ? internalComments
-      : commentTab === 'public'
-      ? publicComments
-      : comments;
-
-  return (
-    <Modal
-      title={ticket.title}
-      subtitle={ticket.id}
-      onClose={onClose}
-      maxWidth={860}
-      footer={
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ minHeight: 38, height: 38 }}
-              onClick={() => onQuickStatus(ticket.id, STATUSES.IN_PROGRESS, 'Started working on issue.')}
-            >
-              Mark In Progress
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              style={{ minHeight: 38, height: 38 }}
-              onClick={() => onQuickStatus(ticket.id, STATUSES.RESOLVED, 'Resolution completed.')}
-            >
-              Mark Resolved
-            </button>
-          </div>
-        </div>
-      }
-    >
-      {/* Badges row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <TicketId id={ticket.id} />
-        <PriorityBadge priority={ticket.priority} />
-        <StatusBadge status={ticket.status} />
-        <SlaBadge sla={sla} showIcon={false} />
-      </div>
-
-      {/* Overview grid */}
-      <div className="meta-grid" style={{ width: '100%', minWidth: 0 }}>
-        <div style={{ minWidth: 0 }}>
-          <span className="meta-cell-label">Reporter</span>
-          <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>
-            {ticket.isAnonymous || ticket.anonymous ? 'Anonymous' : (ticket.student?.name || ticket.reporter?.name || '—')}
-          </span>
-          {(ticket.student?.identifier || ticket.student?.rollNo || ticket.student?.empId || ticket.student?.unit) && !ticket.isAnonymous && (
-            <span className="cell-sub" style={{ display: 'block', wordBreak: 'break-word' }}>
-              {ticket.student?.identifier || ticket.student?.rollNo || ticket.student?.empId || ticket.student?.unit}
-            </span>
-          )}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <span className="meta-cell-label">Location</span>
-          <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>{ticket.location || '—'}</span>
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <span className="meta-cell-label">Handler</span>
-          <span className="meta-cell-value" style={{ wordBreak: 'break-word' }}>
-            {ticket.assignedTo ? ticket.assignedTo.name : 'Unassigned'}
-          </span>
-          {ticket.assignedTo?.department && (
-            <span className="cell-sub" style={{ display: 'block', wordBreak: 'break-word' }}>
-              {ticket.assignedTo.department}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Description */}
-      <div className="resolution-summary" style={{ margin: 0, wordBreak: 'break-word' }}>
-        <p className="resolution-summary-text" style={{ wordBreak: 'break-word', margin: 0 }}>{ticket.description}</p>
-      </div>
-
-      {/* Attached Media & Photo Evidence */}
-      {ticket.attachments && ticket.attachments.length > 0 && (
-        <div style={{ margin: '12px 0', width: '100%', minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-            <h4 className="section-heading" style={{ margin: 0, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Camera size={14} className="tone-accent" />
-              Photo Evidence ({ticket.attachments.length})
-            </h4>
-            <span style={{ fontSize: 11, color: 'var(--app-text-muted)' }}>Click to inspect full size</span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 115px), 1fr))', gap: 8, width: '100%', minWidth: 0 }}>
-            {ticket.attachments.map((att, idx) => (
-              <div
-                key={att.id || idx}
-                onClick={() => setSelectedLightboxImage(att)}
-                style={{
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  border: '1px solid var(--app-border-soft)',
-                  background: 'var(--app-card-bg-subtle)',
-                  cursor: 'pointer',
-                  position: 'relative',
-                }}
-                className="photo-card-hover"
-                title={`Inspect ${att.name || 'photo'}`}
-              >
-                {att.url ? (
-                  <div style={{ width: '100%', height: 82, position: 'relative' }}>
-                    <img
-                      src={att.url}
-                      alt={att.name || 'Evidence'}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)',
-                      }}
-                    />
-                    <span
-                      style={{
-                        position: 'absolute',
-                        bottom: 4,
-                        right: 4,
-                        background: 'rgba(0,0,0,0.7)',
-                        color: '#fff',
-                        padding: '1px 5px',
-                        borderRadius: 3,
-                        fontSize: 9,
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 3,
-                      }}
-                    >
-                      <Maximize2 size={9} /> View
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ height: 82, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FileText size={20} className="tone-muted" />
-                  </div>
-                )}
-                <div style={{ padding: '4px 6px' }}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--app-text)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {att.name || `Photo ${idx + 1}`}
-                  </div>
-                  <div style={{ fontSize: 9.5, color: 'var(--app-text-muted)' }}>
-                    {att.size || 'Attached'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Status audit log */}
-      <div style={{ width: '100%', minWidth: 0 }}>
-        <h4 className="section-heading" style={{ marginBottom: 10 }}>
-          Audit Log
-        </h4>
-        <div className="history-notes" style={{ marginTop: 0, width: '100%', minWidth: 0 }}>
-          {ticket.statusHistory?.length ? (
-            ticket.statusHistory.map((item, idx) => (
-              <div key={idx} className="history-note" style={{ flexWrap: 'wrap', gap: 6 }}>
-                <span className="history-author" style={{ flexShrink: 0 }}>{item.updatedBy}</span>
-                <span style={{ minWidth: 0, flex: 1, wordBreak: 'break-word' }}>
-                  <strong>{STATUS_LABELS[item.status] || item.status}</strong> — {item.note}
-                </span>
-                <span className="history-time" style={{ flexShrink: 0 }}>{formatRelativeTime(item.timestamp)}</span>
-              </div>
-            ))
-          ) : (
-            <p className="no-comments">No status history available.</p>
-          )}
-        </div>
-      </div>
-
-      {/* Comments with tabs */}
-      <div style={{ width: '100%', minWidth: 0 }}>
-        <div className="card-header" style={{ marginBottom: 12, paddingBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-          <h4 className="section-heading" style={{ margin: 0 }}>
-            <MessageSquare size={15} />
-            Activity ({comments.length})
-          </h4>
-
-          <div className="segmented" style={{ maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', display: 'inline-flex', alignItems: 'center', gap: 3, background: 'var(--app-inset, #f1f5f9)', padding: 3, borderRadius: 8, border: '1px solid var(--app-border-soft, #e2e8f0)' }}>
-            <button
-              type="button"
-              className={commentTab === 'all' ? 'is-active' : ''}
-              onClick={() => setCommentTab('all')}
-              style={{
-                background: commentTab === 'all' ? '#0f172a' : 'transparent',
-                color: commentTab === 'all' ? '#ffffff' : '#64748b',
-                fontWeight: commentTab === 'all' ? 600 : 500,
-                border: 'none',
-                borderRadius: 6,
-                padding: '4px 11px',
-                fontSize: 11.5,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              All ({comments.length})
-            </button>
-            <button
-              type="button"
-              className={commentTab === 'public' ? 'is-active' : ''}
-              onClick={() => setCommentTab('public')}
-              style={{
-                background: commentTab === 'public' ? '#0f172a' : 'transparent',
-                color: commentTab === 'public' ? '#ffffff' : '#64748b',
-                fontWeight: commentTab === 'public' ? 600 : 500,
-                border: 'none',
-                borderRadius: 6,
-                padding: '4px 11px',
-                fontSize: 11.5,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Public ({publicComments.length})
-            </button>
-            <button
-              type="button"
-              className={commentTab === 'internal' ? 'is-active' : ''}
-              onClick={() => setCommentTab('internal')}
-              style={{
-                background: commentTab === 'internal' ? '#0f172a' : 'transparent',
-                color: commentTab === 'internal' ? '#ffffff' : '#64748b',
-                fontWeight: commentTab === 'internal' ? 600 : 500,
-                border: 'none',
-                borderRadius: 6,
-                padding: '4px 11px',
-                fontSize: 11.5,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Internal ({internalComments.length})
-            </button>
-          </div>
-        </div>
-
-        <div className="comments-list" style={{ maxHeight: 220, width: '100%', minWidth: 0 }}>
-          {displayedComments.length === 0 ? (
-            <p className="no-comments">No comments in this tab.</p>
-          ) : (
-            displayedComments.map((c) => {
-              const authorName = c.senderName || c.sender?.name || 'User';
-              const authorRole = (c.senderRole || c.sender?.role || 'user').toLowerCase();
-              const timeVal = c.timestamp || c.createdAt;
-              const isStaffOrAdmin = authorRole === ROLES.STAFF || authorRole === ROLES.ADMIN || authorRole === 'staff' || authorRole === 'admin';
-              const roleDisplay = authorRole === ROLES.ADMIN || authorRole === 'admin' ? 'ADMIN' : isStaffOrAdmin ? 'STAFF' : 'REPORTER';
-
-              return (
-                <div key={c.id || `${authorName}-${timeVal}`} className="comment-row">
-                  <span
-                    className={`comment-avatar ${c.isInternal || isStaffOrAdmin ? 'staff' : 'user'}`}
-                    style={{
-                      flexShrink: 0,
-                      background: c.isInternal ? '#0f172a' : isStaffOrAdmin ? '#334155' : '#f1f5f9',
-                      color: isStaffOrAdmin || c.isInternal ? '#ffffff' : '#334155',
-                    }}
-                  >
-                    {c.isInternal ? <Lock size={13} /> : <MessageSquare size={13} />}
-                  </span>
-                  <div
-                    className="comment-bubble"
-                    style={{
-                      minWidth: 0,
-                      wordBreak: 'break-word',
-                      ...(c.isInternal
-                        ? { borderColor: '#94a3b8', background: '#f8fafc' }
-                        : { borderColor: '#e2e8f0', background: '#ffffff' }),
-                    }}
-                  >
-                    <div className="comment-meta" style={{ flexWrap: 'wrap', gap: 6 }}>
-                      <span className="comment-author" style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {authorName}
-                      </span>
-                      <span
-                        className="comment-role"
-                        style={{
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          padding: '1px 5px',
-                          borderRadius: 4,
-                          background: isStaffOrAdmin ? '#0f172a' : '#f1f5f9',
-                          color: isStaffOrAdmin ? '#ffffff' : '#475569',
-                          border: isStaffOrAdmin ? 'none' : '1px solid #cbd5e1',
-                        }}
-                      >
-                        {roleDisplay}
-                      </span>
-                      {c.isInternal && (
-                        <span
-                          className="comment-role"
-                          style={{
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            background: '#334155',
-                            color: '#ffffff',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 3,
-                          }}
-                        >
-                          <Lock size={8} /> INTERNAL NOTE
-                        </span>
-                      )}
-                      <span className="comment-time" style={{ color: '#64748b' }}>
-                        {formatRelativeTime(timeVal)}
-                      </span>
-                    </div>
-                    <p className="comment-text" style={{ wordBreak: 'break-word', margin: 0, color: '#1e293b' }}>
-                      {c.text}
-                    </p>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Internal note form */}
-        <form onSubmit={onAddInternalNote} className="comment-form" style={{ width: '100%', boxSizing: 'border-box' }}>
-          <span className="inline-note-head" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Lock size={11} style={{ flexShrink: 0 }} />
-            <span>Post internal audit note</span>
-          </span>
-          <div className="inline-note-row" style={{ display: 'flex', gap: 6, width: '100%', boxSizing: 'border-box' }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Log internal action, parts required…"
-              value={internalNote}
-              onChange={(e) => setInternalNote(e.target.value)}
-              style={{ flex: 1, minWidth: 0, height: 38 }}
-            />
-            <button
-              type="submit"
-              className="btn btn-sm btn-outline"
-              disabled={!internalNote.trim()}
-              style={{ flexShrink: 0, height: 38, padding: '0 12px' }}
-            >
-              Log Note
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Optional resolution note before marking resolved */}
-      <div className="form-group" style={{ width: '100%', boxSizing: 'border-box' }}>
-        <label htmlFor="modal-status-note" className="field-label" style={{ display: 'block' }}>
-          Resolution / status note (attached when you mark a status below)
-        </label>
-        <textarea
-          id="modal-status-note"
-          className="form-textarea"
-          rows={2}
-          placeholder="Optional context saved with the next status change…"
-          value={statusNote}
-          onChange={(e) => setStatusNote(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={(e) => onStatusSubmit(e, STATUSES.RESOLVED)}
-            style={{ minHeight: 38, height: 38 }}
-          >
-            Submit Resolution with Note
-          </button>
-        </div>
-      </div>
-
-      {/* Photo Evidence Lightbox Modal */}
-      {selectedLightboxImage && (
-        <Modal
-          title={selectedLightboxImage.name || 'Inspection Photo Evidence'}
-          subtitle={selectedLightboxImage.size ? `Attached file size: ${selectedLightboxImage.size}` : 'High-resolution photo evidence'}
-          onClose={() => setSelectedLightboxImage(null)}
-          maxWidth={760}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--app-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Staff Inspection View · {ticket.id}
-              </span>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {selectedLightboxImage.url && (
-                  <a
-                    href={selectedLightboxImage.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary btn-sm"
-                    style={{ minHeight: 36, height: 36, display: 'inline-flex', alignItems: 'center' }}
-                  >
-                    Open Full Size
-                  </a>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  style={{ minHeight: 36, height: 36 }}
-                  onClick={() => setSelectedLightboxImage(null)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          }
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              background: '#090d16',
-              borderRadius: 8,
-              overflow: 'hidden',
-              minHeight: 200,
-              maxHeight: '65vh',
-              padding: 8,
-              width: '100%',
-              boxSizing: 'border-box',
-            }}
-          >
-            {selectedLightboxImage.url ? (
-              <img
-                src={selectedLightboxImage.url}
-                alt={selectedLightboxImage.name || 'Inspection Photo'}
-                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 4 }}
-              />
-            ) : (
-              <div style={{ color: '#fff', padding: 40, textAlign: 'center' }}>
-                Preview image unavailable
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-    </Modal>
   );
 }

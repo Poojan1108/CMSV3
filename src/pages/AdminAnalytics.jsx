@@ -58,7 +58,7 @@ const chipStyle = {
 };
 
 export default function AdminAnalytics() {
-  const { user, currentOrg, orgKey, availableUsers } = useAuth();
+  const { user, currentOrg, orgKey, orgProfiles, availableUsers } = useAuth();
   const { showToast } = useToast();
 
   const [complaints, setComplaints] = useState([]);
@@ -75,18 +75,20 @@ export default function AdminAnalytics() {
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
 
+  // Primary data loading: sync from PostgREST and populate live state
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
 
     const loadLiveAnalytics = async () => {
       try {
-        const data = await complaintService.fetchComplaints({ org: orgKey, sortBy: 'newest' });
+        await complaintService.syncFromSupabase({ orgKey });
         if (isMounted) {
+          const data = complaintService.getAll({ org: orgKey, sortBy: 'newest' });
           setComplaints(data || []);
         }
       } catch (err) {
-        console.error('Failed to load analytics complaints:', err);
+        console.error('[AdminAnalytics] Failed to load analytics complaints:', err);
         if (isMounted) {
           showToast('Failed to load system analytics', 'error');
         }
@@ -102,16 +104,15 @@ export default function AdminAnalytics() {
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKey]);
 
-  // Real-time live synchronization: refreshes analytics metrics when tickets or statuses change
+  // Real-time live synchronization: refreshes analytics metrics on WebSocket/service events
   useEffect(() => {
     const unsubscribe = complaintService.subscribeToLiveUpdates(() => {
       try {
         setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
       } catch (err) {
-        console.error('Error in AdminAnalytics live sync:', err);
+        console.error('[AdminAnalytics] Live sync error:', err);
       }
     });
 
@@ -119,6 +120,30 @@ export default function AdminAnalytics() {
       unsubscribe();
     };
   }, [orgKey]);
+
+  // Consolidated staff resolvers list (merges live orgProfiles with availableUsers fallback)
+  const staffAssignees = useMemo(() => {
+    const map = new Map();
+    (orgProfiles || []).forEach((p) => {
+      if (p.role === ROLES.STAFF || p.role === ROLES.ADMIN) {
+        map.set(p.id, {
+          id: p.id,
+          name: p.name,
+          department: p.department || (p.role === ROLES.ADMIN ? 'Administrator' : 'Staff Resolver'),
+        });
+      }
+    });
+    (availableUsers || []).forEach((u) => {
+      if ((u.role === ROLES.STAFF || u.role === ROLES.ADMIN) && !map.has(u.id)) {
+        map.set(u.id, {
+          id: u.id,
+          name: u.name,
+          department: u.department || (u.role === ROLES.ADMIN ? 'Administrator' : 'Staff Resolver'),
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [orgProfiles, availableUsers]);
 
   // Core metrics — computed strictly from live data
   const metrics = useMemo(() => {
@@ -210,7 +235,7 @@ export default function AdminAnalytics() {
       showToast(`${ticketId} is now ${STATUS_LABELS[newStatus]}`, 'success');
       setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
     } catch (err) {
-      console.error('Failed to override ticket status', err);
+      console.error('[AdminAnalytics] Failed to override ticket status:', err);
       showToast('Error updating ticket status', 'error');
     }
   };
@@ -219,7 +244,7 @@ export default function AdminAnalytics() {
     setAssignmentModalTicket(ticket);
     setSelectedAssigneeId(
       ticket.assignedTo?.id ||
-        availableUsers.find((u) => u.role === ROLES.STAFF)?.id ||
+        staffAssignees[0]?.id ||
         ''
     );
     setReassignReason('');
@@ -229,7 +254,7 @@ export default function AdminAnalytics() {
     e.preventDefault();
     if (!assignmentModalTicket || !selectedAssigneeId) return;
 
-    const targetUser = availableUsers.find((u) => u.id === selectedAssigneeId);
+    const targetUser = staffAssignees.find((u) => u.id === selectedAssigneeId);
     if (!targetUser) {
       showToast('Invalid staff assignee selected', 'error');
       return;
@@ -250,7 +275,7 @@ export default function AdminAnalytics() {
       setAssignmentModalTicket(null);
       setComplaints(complaintService.getAll({ org: orgKey, sortBy: 'newest' }));
     } catch (err) {
-      console.error('Failed to reassign ticket:', err);
+      console.error('[AdminAnalytics] Failed to reassign ticket:', err);
       showToast('Failed to assign ticket', 'error');
     }
   };
@@ -780,7 +805,7 @@ export default function AdminAnalytics() {
         {/* Mobile Dispatch / Reassignment Touch Cards */}
         <div className="dispatch-mobile-cards">
           {filteredComplaints.length === 0 ? (
-            <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--rx-text-muted)' }}>
+            <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--app-text-muted)' }}>
               No complaints match current filters.
             </div>
           ) : (
@@ -792,8 +817,8 @@ export default function AdminAnalytics() {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
-                  background: 'var(--rx-surface)',
-                  border: '1px solid var(--rx-border)',
+                  background: 'var(--app-card-bg, #ffffff)',
+                  border: '1px solid var(--app-border-soft, #e4e4e7)',
                 }}
               >
                 {/* Header: Ticket ID & Priority Badge */}
@@ -804,10 +829,10 @@ export default function AdminAnalytics() {
 
                 {/* Title & Category / Location */}
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--rx-text)' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--app-text, #18181b)' }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--rx-text-muted)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'var(--app-text-muted, #71717a)', marginTop: 2 }}>
                     {item.category} • {item.location || '—'}
                   </div>
                 </div>
@@ -815,24 +840,25 @@ export default function AdminAnalytics() {
                 {/* Complainant details */}
                 <div
                   style={{
-                    background: 'var(--rx-shade-subtle)',
+                    background: 'var(--app-card-bg-subtle, #f8fafc)',
                     padding: '8px 12px',
                     borderRadius: 8,
                     fontSize: 12,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 4,
+                    border: '1px solid var(--app-border-soft, #e4e4e7)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--rx-text-muted)' }}>Reporter:</span>
-                    <span style={{ fontWeight: 500, color: 'var(--rx-text)' }}>
+                    <span style={{ color: 'var(--app-text-muted, #71717a)' }}>Reporter:</span>
+                    <span style={{ fontWeight: 500, color: 'var(--app-text, #18181b)' }}>
                       {item.student?.name || 'Anonymous'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--rx-text-muted)' }}>Details:</span>
-                    <span style={{ color: 'var(--rx-text-secondary)' }}>
+                    <span style={{ color: 'var(--app-text-muted, #71717a)' }}>Details:</span>
+                    <span style={{ color: 'var(--app-text-secondary, #52525b)' }}>
                       {item.isAnonymous ? 'Identity protected' : (item.student?.identifier || item.student?.rollNo || item.student?.empId || item.student?.unit || '—')}
                     </span>
                   </div>
@@ -840,7 +866,7 @@ export default function AdminAnalytics() {
 
                 {/* Status Override Select */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <label style={{ fontSize: 12, color: 'var(--rx-text-muted)', flexShrink: 0 }}>
+                  <label style={{ fontSize: 12, color: 'var(--app-text-muted, #71717a)', flexShrink: 0 }}>
                     Status:
                   </label>
                   <select
@@ -859,12 +885,12 @@ export default function AdminAnalytics() {
                 </div>
 
                 {/* Assignment & Action */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--rx-border-soft)', paddingTop: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--app-border-soft, #e4e4e7)', paddingTop: 10 }}>
                   <div style={{ minWidth: 0 }}>
                     {item.assignedTo ? (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         <UserCheck size={13} className="tone-success" />
-                        <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--rx-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--app-text, #18181b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.assignedTo.name}
                         </span>
                       </div>
@@ -934,13 +960,11 @@ export default function AdminAnalytics() {
                 value={selectedAssigneeId}
                 onChange={(e) => setSelectedAssigneeId(e.target.value)}
               >
-                {availableUsers
-                  .filter((u) => u.role === ROLES.STAFF || u.role === ROLES.ADMIN)
-                  .map((su) => (
-                    <option key={su.id} value={su.id}>
-                      {su.name} — {su.department || 'Staff'}
-                    </option>
-                  ))}
+                {staffAssignees.map((su) => (
+                  <option key={su.id} value={su.id}>
+                    {su.name} — {su.department}
+                  </option>
+                ))}
               </select>
             </div>
 

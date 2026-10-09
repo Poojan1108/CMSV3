@@ -182,6 +182,15 @@ export const complaintApi = {
         }
       }
 
+/**
+ * Safely sanitizes UUID values to prevent PostgreSQL 22P02 "invalid input syntax for type uuid"
+ * errors when demo accounts, empty strings, or string IDs are passed to relational foreign keys.
+ */
+const toUuidOrNull = (val) =>
+  typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim())
+    ? val.trim()
+    : null;
+
       const dbPayload = {
         id: payload.id,
         title: payload.title,
@@ -194,15 +203,15 @@ export const complaintApi = {
         created_at: payload.createdAt || payload.created_at || new Date().toISOString(),
         updated_at: payload.updatedAt || payload.updated_at || new Date().toISOString(),
         resolved_at: payload.resolvedAt || payload.resolved_at || null,
-        student_id: payload.student?.id || payload.studentId || null,
+        student_id: toUuidOrNull(payload.student?.id || payload.studentId),
         student_name: payload.student?.name || payload.studentName || 'Anonymous',
         student_email: payload.student?.email || payload.studentEmail || '',
         student_meta: payload.student || payload.student_meta || {},
         assigned_to: payload.assignedTo || null,
-        assigned_to_id: payload.assignedTo?.id || payload.assigned_to_id || null,
+        assigned_to_id: toUuidOrNull(payload.assignedTo?.id || payload.assigned_to_id),
         assigned_to_name: payload.assignedTo?.name || payload.assigned_to_name || null,
         assigned_to_department: payload.assignedTo?.department || payload.assigned_to_department || payload.departmentName || '',
-        department_id: resolvedDeptId,
+        department_id: toUuidOrNull(resolvedDeptId),
         sla_response_due: payload.slaResponseDue || payload.sla_response_due || null,
         sla_resolve_due: payload.slaResolveDue || payload.sla_resolve_due || null,
         sla_breached: Boolean(payload.slaBreached || payload.sla_breached),
@@ -245,6 +254,9 @@ export const complaintApi = {
         ...fields,
         updated_at: new Date().toISOString(),
       };
+      if ('student_id' in fields) payload.student_id = toUuidOrNull(fields.student_id);
+      if ('assigned_to_id' in fields) payload.assigned_to_id = toUuidOrNull(fields.assigned_to_id);
+      if ('department_id' in fields) payload.department_id = toUuidOrNull(fields.department_id);
 
       const { data, error } = await supabase
         .from('complaints')
@@ -280,7 +292,7 @@ export const complaintApi = {
       const payload = {
         id: commentPayload.id || `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         complaint_id: commentPayload.complaintId || commentPayload.complaint_id,
-        sender_id: commentPayload.senderId || commentPayload.sender_id || '',
+        sender_id: toUuidOrNull(commentPayload.senderId || commentPayload.sender_id),
         sender_name: commentPayload.senderName || commentPayload.sender_name || 'Anonymous',
         sender_role: commentPayload.senderRole || commentPayload.sender_role || 'user',
         text: commentPayload.text,

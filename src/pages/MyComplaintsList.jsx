@@ -118,7 +118,7 @@ export default function MyComplaintsList() {
     } catch (err) {
       console.error('[MyComplaintsList] Failed to load complaints:', err);
     }
-  }, [user, sortBy]);
+  }, [user?.id, user?.email, sortBy]);
 
   useEffect(() => {
     let isMounted = true;

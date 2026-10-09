@@ -107,6 +107,8 @@ export default function AdminDepartments() {
     showToast(`Removed category "${catToRemove}"`, 'info');
   };
 
+  const categoriesKey = (categories || []).join(',');
+
   // Derive default SLA targets from category names
   const defaultSlaTargets = useMemo(() => {
     const map = {};
@@ -118,7 +120,7 @@ export default function AdminDepartments() {
       else map[cat] = 24;
     });
     return map;
-  }, [categories]);
+  }, [categoriesKey]);
 
   const [slaTargets, setSlaTargets] = useState(defaultSlaTargets);
 
@@ -141,7 +143,7 @@ export default function AdminDepartments() {
               }
             });
             if (Object.keys(remoteMap).length > 0) {
-              setSlaTargets((prev) => ({ ...prev, ...remoteMap }));
+              setSlaTargets((prev) => ({ ...defaultSlaTargets, ...prev, ...remoteMap }));
             }
           }
         })
@@ -153,7 +155,7 @@ export default function AdminDepartments() {
     return () => {
       isMounted = false;
     };
-  }, [orgKey, defaultSlaTargets]);
+  }, [orgKey, categoriesKey]);
 
   // Atomic single-category SLA mutation (eliminates serial N+1 loop)
   const handleUpdateSla = async (cat, newHours) => {

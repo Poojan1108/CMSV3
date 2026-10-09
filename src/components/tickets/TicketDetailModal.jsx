@@ -35,6 +35,7 @@ export default React.memo(function TicketDetailModal({
   ticket,
   onClose,
   onQuickStatus,
+  onClaimTicket,
   onAddInternalNote,
   onStatusSubmit,
   navigate,
@@ -86,6 +87,18 @@ export default React.memo(function TicketDetailModal({
         readOnly ? null : (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {!ticket.assignedTo && typeof onClaimTicket === 'function' && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ minHeight: 38, height: 38 }}
+                  onClick={() => {
+                    onClaimTicket(ticket.id);
+                  }}
+                >
+                  Claim Ticket
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -147,6 +160,25 @@ export default React.memo(function TicketDetailModal({
             <span className="cell-sub" style={{ display: 'block', wordBreak: 'break-word' }}>
               {ticket.assignedTo.department}
             </span>
+          )}
+          {!ticket.assignedTo && !readOnly && typeof onClaimTicket === 'function' && (
+            <button
+              type="button"
+              onClick={() => onClaimTicket(ticket.id)}
+              style={{
+                fontSize: 11.5,
+                padding: 0,
+                marginTop: 2,
+                display: 'inline-block',
+                border: 'none',
+                background: 'none',
+                color: 'var(--app-tone-accent, #2563eb)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Assign to me
+            </button>
           )}
         </div>
       </div>

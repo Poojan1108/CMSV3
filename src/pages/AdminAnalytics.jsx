@@ -130,7 +130,7 @@ export default function AdminAnalytics() {
           id: p.id,
           name: p.name,
           department: p.department || (p.role === ROLES.ADMIN ? 'Administrator' : 'Staff Resolver'),
-          departmentId: p.department_id || null,
+          departmentId: p.departmentId || p.department_id || null,
         });
       }
     });

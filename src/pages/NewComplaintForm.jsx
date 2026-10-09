@@ -91,6 +91,16 @@ export default function NewComplaintForm() {
     }
   }, []);
 
+  // Auto-synchronize category state when organization categories load asynchronously
+  useEffect(() => {
+    if (Array.isArray(categories) && categories.length > 0) {
+      if (!category || category === 'General' || !categories.includes(category)) {
+        setCategory(categories[0]);
+        setSubCategory(getSubCategories(categories[0])[0]);
+      }
+    }
+  }, [categories]);
+
   // Auto-save draft on changes (debounced by React state updates)
   useEffect(() => {
     try {

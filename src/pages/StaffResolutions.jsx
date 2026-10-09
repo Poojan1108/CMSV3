@@ -243,7 +243,12 @@ export default function StaffResolutions() {
                 ticket.resolutionDetails?.userFeedback;
 
               return (
-                <article key={ticket.id} className="ticket-card" style={{ padding: '16px 20px' }}>
+                <article
+                  key={ticket.id}
+                  className="ticket-card"
+                  onClick={() => handleOpenTicketDetails(ticket)}
+                  style={{ padding: '16px 20px', cursor: 'pointer' }}
+                >
                   <div
                     style={{
                       display: 'flex',
@@ -264,8 +269,7 @@ export default function StaffResolutions() {
 
                   <h3
                     className="ticket-title"
-                    style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, cursor: 'pointer' }}
-                    onClick={() => handleOpenTicketDetails(ticket)}
+                    style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}
                   >
                     {ticket.title}
                   </h3>
@@ -315,7 +319,10 @@ export default function StaffResolutions() {
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
-                      onClick={() => handleOpenTicketDetails(ticket)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenTicketDetails(ticket);
+                      }}
                       style={{ minHeight: 30, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     >
                       Audit Details

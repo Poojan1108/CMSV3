@@ -120,9 +120,21 @@ export default function TicketTracker() {
           await complaintService.syncFromSupabase();
           if (!isMounted) return;
 
-          const myTickets = isStaffOrAdmin
+          let myTickets = isStaffOrAdmin
             ? complaintService.getAll()
             : complaintService.getAll({ studentId: user?.id });
+
+          // Defensive fallback: match by email if studentId query yielded no results
+          if (!isStaffOrAdmin && myTickets.length === 0 && user?.email) {
+            const allTickets = complaintService.getAll();
+            myTickets = allTickets.filter(
+              (c) =>
+                c.student?.id === user.id ||
+                c.student?.email?.toLowerCase() === user.email.toLowerCase() ||
+                c.studentEmail?.toLowerCase() === user.email.toLowerCase() ||
+                c.student_email?.toLowerCase() === user.email.toLowerCase()
+            );
+          }
 
           if (myTickets.length > 0) {
             const first = myTickets[0];

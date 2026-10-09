@@ -715,48 +715,67 @@ export const AuthProvider = ({ children }) => {
     return list;
   }, [orgProfiles, currentUser]);
 
-  const value = {
-    user: currentUser ? { ...currentUser, role: normalizedRole } : null,
-    currentUser: currentUser ? { ...currentUser, role: normalizedRole } : null,
-    role: normalizedRole,
-    isStudent: normalizedRole === ROLES.STUDENT,
-    isStaff: normalizedRole === ROLES.STAFF,
-    isAdmin: normalizedRole === ROLES.ADMIN,
+  const activeCategories = useMemo(() => {
+    return activeOrg.categories || [];
+  }, [activeOrg.categories]);
+
+  const value = useMemo(() => {
+    const userObj = currentUser ? { ...currentUser, role: normalizedRole } : null;
+    return {
+      user: userObj,
+      currentUser: userObj,
+      role: normalizedRole,
+      isStudent: normalizedRole === ROLES.STUDENT,
+      isStaff: normalizedRole === ROLES.STAFF,
+      isAdmin: normalizedRole === ROLES.ADMIN,
+      loading,
+      isInitializing,
+      authError,
+      login,
+      signup,
+      updateUserRole,
+      updateMemberRoleAndDept,
+      reloadOrgProfiles,
+      resetPassword,
+      logout,
+      setUser,
+      orgProfiles,
+      availableUsers: allAvailableUsers,
+
+      // Dynamic Multi-Tenant Organization State
+      currentOrg: activeOrg,
+      orgKey: currentOrgKey,
+      orgTemplates,
+      createCustomOrg,
+      updateOrgSettings,
+      switchOrgTemplate,
+      categories: activeCategories,
+      locationLabel: activeOrg.locationLabel || 'Location / Room / Desk',
+      userLabel: activeOrg.userLabel || activeOrg.userTerm || 'Member',
+      userTerm: activeOrg.userTerm || activeOrg.userLabel || 'Member',
+      getRoleTerm: (targetRole) => {
+        const r = targetRole || currentUser?.role;
+        if (r === ROLES.ADMIN) {
+          const term = activeOrg.adminTerm || 'Workspace Admin';
+          return term === 'Operations / HR Admin' || term === 'Admin & HR' ? 'Workspace Admin' : term;
+        }
+        if (r === ROLES.STAFF) return activeOrg.staffTerm || 'Staff Resolver';
+        return activeOrg.userTerm || activeOrg.userLabel || 'Member';
+      },
+    };
+  }, [
+    currentUser,
+    normalizedRole,
     loading,
     isInitializing,
     authError,
-    login,
-    signup,
-    updateUserRole,
-    updateMemberRoleAndDept,
-    reloadOrgProfiles,
-    resetPassword,
-    logout,
-    setUser,
     orgProfiles,
-    availableUsers: allAvailableUsers,
-
-    // Dynamic Multi-Tenant Organization State
-    currentOrg: activeOrg,
-    orgKey: currentOrgKey,
+    allAvailableUsers,
+    activeOrg,
+    currentOrgKey,
     orgTemplates,
-    createCustomOrg,
-    updateOrgSettings,
-    switchOrgTemplate,
-    categories: activeOrg.categories || [],
-    locationLabel: activeOrg.locationLabel || 'Location / Room / Desk',
-    userLabel: activeOrg.userLabel || activeOrg.userTerm || 'Member',
-    userTerm: activeOrg.userTerm || activeOrg.userLabel || 'Member',
-    getRoleTerm: (targetRole) => {
-      const r = targetRole || currentUser?.role;
-      if (r === ROLES.ADMIN) {
-        const term = activeOrg.adminTerm || 'Workspace Admin';
-        return term === 'Operations / HR Admin' || term === 'Admin & HR' ? 'Workspace Admin' : term;
-      }
-      if (r === ROLES.STAFF) return activeOrg.staffTerm || 'Staff Resolver';
-      return activeOrg.userTerm || activeOrg.userLabel || 'Member';
-    },
-  };
+    activeCategories,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

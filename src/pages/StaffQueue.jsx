@@ -86,7 +86,8 @@ export default function StaffQueue() {
   const isAssignedRoute = location.pathname.includes('/staff/assigned');
 
   // URL-driven filter parameters (Plane / Linear standard)
-  const scopeFilter = isAssignedRoute ? 'assigned' : (searchParams.get('scope') || 'all');
+  const scopeParam = searchParams.get('scope');
+  const scopeFilter = scopeParam || (isAssignedRoute ? 'assigned' : 'all');
   const statusFilter = searchParams.get('status') || 'all';
   const priorityFilter = searchParams.get('priority') || 'all';
   const departmentFilter = searchParams.get('dept') || 'all';
@@ -107,8 +108,42 @@ export default function StaffQueue() {
     }
   }, [searchParams]);
 
-  // Helper to update URL query params
+  // Helper to update URL query params with seamless route switching
   const updateFilters = useCallback((updates) => {
+    // If user explicitly asks for scope: 'all' while on /staff/assigned, navigate to /staff/queue
+    if (updates.scope === 'all' && isAssignedRoute) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('scope');
+      Object.entries(updates).forEach(([key, val]) => {
+        if (key === 'scope') return;
+        if (!val || val === 'all' || val === 'newest') {
+          next.delete(key);
+        } else {
+          next.set(key, val);
+        }
+      });
+      const qs = next.toString();
+      navigate(`/staff/queue${qs ? `?${qs}` : ''}`, { replace: true });
+      return;
+    }
+
+    // If user explicitly asks for scope: 'assigned' while on /staff/queue, navigate to /staff/assigned
+    if (updates.scope === 'assigned' && !isAssignedRoute) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('scope');
+      Object.entries(updates).forEach(([key, val]) => {
+        if (key === 'scope') return;
+        if (!val || val === 'all' || val === 'newest') {
+          next.delete(key);
+        } else {
+          next.set(key, val);
+        }
+      });
+      const qs = next.toString();
+      navigate(`/staff/assigned${qs ? `?${qs}` : ''}`, { replace: true });
+      return;
+    }
+
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       Object.entries(updates).forEach(([key, val]) => {
@@ -120,7 +155,7 @@ export default function StaffQueue() {
       });
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [isAssignedRoute, navigate, searchParams, setSearchParams]);
 
   // Dynamic taxonomy of categories across user config and records
   const availableCategories = useMemo(() => {
@@ -297,6 +332,31 @@ export default function StaffQueue() {
     }
   }, [complaints, selectedTicket, actor, showToast]);
 
+  const handleClaimTicket = useCallback(async (ticketId) => {
+    const currentActor = actor();
+    try {
+      const updated = await complaintService.reassign(
+        ticketId,
+        {
+          id: currentActor.id || user?.id,
+          name: currentActor.name || user?.name || 'Staff Resolver',
+          department: currentActor.department || user?.department || 'Staff Department',
+          departmentId: currentActor.departmentId || user?.departmentId || null,
+        },
+        currentActor,
+        'Claimed ticket from queue'
+      );
+      if (updated) {
+        setComplaints((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+        if (selectedTicket?.id === ticketId) setSelectedTicket(updated);
+        showToast('Ticket claimed successfully', 'success');
+      }
+    } catch (err) {
+      console.error('[StaffQueue] Failed to claim ticket:', err);
+      showToast('Failed to claim ticket', 'error');
+    }
+  }, [actor, user, selectedTicket, showToast]);
+
   const handleOpenTicketDetails = useCallback(async (ticket) => {
     setSelectedTicket(ticket);
     try {
@@ -336,8 +396,12 @@ export default function StaffQueue() {
 
   const handleResetFilters = useCallback(() => {
     setSearchQuery('');
-    setSearchParams(new URLSearchParams(), { replace: true });
-  }, [setSearchParams]);
+    if (isAssignedRoute) {
+      navigate('/staff/queue', { replace: true });
+    } else {
+      setSearchParams(new URLSearchParams(), { replace: true });
+    }
+  }, [isAssignedRoute, navigate, setSearchParams]);
 
   return (
     <div
@@ -746,12 +810,14 @@ export default function StaffQueue() {
               <article
                 key={ticket.id}
                 className={`ticket-card ${isBreach ? 'has-breach' : ''}`}
+                onClick={() => handleOpenTicketDetails(ticket)}
                 style={{
                   width: '100%',
                   maxWidth: '100%',
                   minWidth: 0,
                   boxSizing: 'border-box',
                   padding: 'clamp(14px, 3.5vw, 18px)',
+                  cursor: 'pointer',
                 }}
               >
                 <div
@@ -780,8 +846,7 @@ export default function StaffQueue() {
 
                 <h3
                   className="ticket-card-title"
-                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
-                  onClick={() => handleOpenTicketDetails(ticket)}
+                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                 >
                   {ticket.title}
                 </h3>
@@ -829,7 +894,11 @@ export default function StaffQueue() {
                   <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--app-text-muted)' }}>Set status:</span>
                   <select
                     value={ticket.status}
-                    onChange={(e) => handleQuickStatusChange(ticket.id, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleQuickStatusChange(ticket.id, e.target.value);
+                    }}
                     aria-label={`Update status for ${ticket.id}`}
                     style={{ flex: '1 1 140px', minWidth: 0, height: 36, maxWidth: '100%' }}
                   >
@@ -859,13 +928,30 @@ export default function StaffQueue() {
                       {ticket.assignedTo.name}
                     </span>
                   ) : (
-                    <span className="handler-line">Unassigned</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span className="handler-line">Unassigned</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClaimTicket(ticket.id);
+                        }}
+                        style={{ height: 26, fontSize: 11, padding: '0 8px', borderRadius: 4 }}
+                        title="Claim this ticket"
+                      >
+                        + Claim
+                      </button>
+                    </div>
                   )}
 
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => handleOpenTicketDetails(ticket)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenTicketDetails(ticket);
+                    }}
                     style={{ minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
                     Details
@@ -884,6 +970,7 @@ export default function StaffQueue() {
           ticket={selectedTicket}
           onClose={() => setSelectedTicket(null)}
           onQuickStatus={handleQuickStatusChange}
+          onClaimTicket={handleClaimTicket}
           onAddInternalNote={handleModalAddInternalNote}
           onStatusSubmit={handleModalStatusSubmit}
           navigate={navigate}

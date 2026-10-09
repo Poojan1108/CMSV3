@@ -526,6 +526,19 @@ export const complaintService = {
       complaint.resolvedAt = now;
     }
 
+    // Auto-assign unassigned tickets to staff member when moving to IN_PROGRESS
+    let autoAssignData = null;
+    const isStaffOrAdmin = updaterRole === ROLES.STAFF || updaterRole === ROLES.ADMIN;
+    if (newStatus === STATUSES.IN_PROGRESS && !complaint.assignedTo && isStaffOrAdmin && updatedBy && typeof updatedBy === 'object') {
+      autoAssignData = {
+        id: updatedBy.id || '',
+        name: updatedBy.name || updaterName,
+        department: updatedBy.department || 'Staff Department',
+        departmentId: updatedBy.departmentId || null,
+      };
+      complaint.assignedTo = autoAssignData;
+    }
+
     if (!complaint.statusHistory) {
       complaint.statusHistory = [];
     }
@@ -533,18 +546,37 @@ export const complaintService = {
     complaint.statusHistory.push({
       status: newStatus,
       updatedBy: updaterName || 'System',
-      note: note || `Status changed to ${newStatus}`,
+      note: note || (autoAssignData ? `Status changed to ${newStatus} and assigned to ${autoAssignData.name}` : `Status changed to ${newStatus}`),
       timestamp: now,
     });
 
     memoryComplaints[index] = complaint;
     notifyLiveChange({ type: 'status_change', id, status: newStatus, complaint });
 
-    // Direct atomic PostgREST update
-    complaintApi.updateComplaint(id, {
+    const updatePayload = {
       status: newStatus,
       resolved_at: newStatus === STATUSES.RESOLVED ? now : null,
-    }).catch((err) => {
+    };
+    if (autoAssignData) {
+      updatePayload.assigned_to_id = autoAssignData.id || null;
+      updatePayload.assigned_to_name = autoAssignData.name;
+      updatePayload.assigned_to_department = autoAssignData.department;
+      if (autoAssignData.departmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(autoAssignData.departmentId)) {
+        updatePayload.department_id = autoAssignData.departmentId;
+      }
+    }
+
+    // Direct atomic PostgREST update + timeline history
+    Promise.all([
+      complaintApi.updateComplaint(id, updatePayload),
+      complaintApi.insertHistory({
+        complaintId: id,
+        status: newStatus,
+        updatedBy: updaterName || 'System',
+        note: note || (autoAssignData ? `Status changed to ${newStatus} and assigned to ${autoAssignData.name}` : `Status changed to ${newStatus}`),
+        timestamp: now,
+      }),
+    ]).catch((err) => {
       console.warn('[complaintService.updateStatus] Sync warning:', err);
     });
 
@@ -665,15 +697,25 @@ export const complaintService = {
     memoryComplaints[index] = complaint;
     notifyLiveChange({ type: 'reassign', id, complaint });
 
-    // Direct atomic PostgREST update + comment record
+    const deptId = targetAssignee?.departmentId;
+    const isDeptUuid = Boolean(deptId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deptId));
+
+    // Direct atomic PostgREST update + comment record + timeline history
     Promise.all([
       complaintApi.updateComplaint(id, {
         assigned_to_id: targetAssignee?.id || null,
         assigned_to_name: targetAssignee.name,
         assigned_to_department: targetAssignee.department,
-        department_id: targetAssignee.departmentId || null,
+        department_id: isDeptUuid ? deptId : null,
       }),
       complaintApi.insertComment({ ...reassignmentComment, complaintId: id }),
+      complaintApi.insertHistory({
+        complaintId: id,
+        status: complaint.status,
+        updatedBy: reassignerName || 'Staff',
+        note,
+        timestamp: now,
+      }),
     ]).catch((err) => {
       console.warn('[complaintService.reassign] Sync warning:', err);
     });
@@ -707,6 +749,18 @@ export const complaintService = {
       proposedAt: now,
     };
 
+    // Auto-assign unassigned tickets to staff member when proposing resolution
+    let autoAssignData = null;
+    if (!complaint.assignedTo && staffUser && typeof staffUser === 'object') {
+      autoAssignData = {
+        id: staffId || '',
+        name: staffName,
+        department: staffUser.department || 'Staff Department',
+        departmentId: staffUser.departmentId || null,
+      };
+      complaint.assignedTo = autoAssignData;
+    }
+
     if (!complaint.statusHistory) complaint.statusHistory = [];
     complaint.statusHistory.push({
       status: STATUSES.PENDING_CONFIRMATION,
@@ -732,12 +786,29 @@ export const complaintService = {
     memoryComplaints[index] = complaint;
     notifyLiveChange({ type: 'resolution_proposed', id, complaint });
 
+    const updatePayload = {
+      status: STATUSES.PENDING_CONFIRMATION,
+      resolution_details: complaint.resolutionDetails,
+    };
+    if (autoAssignData) {
+      updatePayload.assigned_to_id = autoAssignData.id || null;
+      updatePayload.assigned_to_name = autoAssignData.name;
+      updatePayload.assigned_to_department = autoAssignData.department;
+      if (autoAssignData.departmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(autoAssignData.departmentId)) {
+        updatePayload.department_id = autoAssignData.departmentId;
+      }
+    }
+
     Promise.all([
-      complaintApi.updateComplaint(id, {
-        status: STATUSES.PENDING_CONFIRMATION,
-        resolution_details: complaint.resolutionDetails,
-      }),
+      complaintApi.updateComplaint(id, updatePayload),
       complaintApi.insertComment({ ...propComment, complaintId: id }),
+      complaintApi.insertHistory({
+        complaintId: id,
+        status: STATUSES.PENDING_CONFIRMATION,
+        updatedBy: staffName,
+        note: `Resolution proposed: ${resolutionNotes || 'Issue fixed. Awaiting user confirmation.'}`,
+        timestamp: now,
+      }),
     ]).catch((err) => {
       console.warn('[complaintService.proposeResolution] Sync warning:', err);
     });

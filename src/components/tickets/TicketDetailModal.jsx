@@ -69,13 +69,6 @@ export default React.memo(function TicketDetailModal({
     setInternalNote('');
   };
 
-  const handleStatusWithNoteSubmit = (e, newStatus) => {
-    e.preventDefault();
-    if (typeof onStatusSubmit === 'function') {
-      onStatusSubmit(e, newStatus, statusNote.trim());
-    }
-    setStatusNote('');
-  };
 
   return (
     <Modal
@@ -86,12 +79,12 @@ export default React.memo(function TicketDetailModal({
       footer={
         readOnly ? null : (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%' }}>
               {!ticket.assignedTo && typeof onClaimTicket === 'function' && (
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  style={{ minHeight: 38, height: 38 }}
+                  style={{ minHeight: 38, height: 38, flex: '1 1 auto' }}
                   onClick={() => {
                     onClaimTicket(ticket.id);
                   }}
@@ -102,9 +95,13 @@ export default React.memo(function TicketDetailModal({
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                style={{ minHeight: 38, height: 38 }}
-                onClick={() => {
-                  onQuickStatus(ticket.id, STATUSES.IN_PROGRESS, statusNote.trim() || 'Started working on issue.');
+                style={{ minHeight: 38, height: 38, flex: '1 1 auto' }}
+                onClick={(e) => {
+                  if (typeof onStatusSubmit === 'function') {
+                    onStatusSubmit(e, STATUSES.IN_PROGRESS, statusNote.trim() || 'Started working on issue.');
+                  } else if (typeof onQuickStatus === 'function') {
+                    onQuickStatus(ticket.id, STATUSES.IN_PROGRESS, statusNote.trim() || 'Started working on issue.');
+                  }
                   setStatusNote('');
                 }}
               >
@@ -113,9 +110,13 @@ export default React.memo(function TicketDetailModal({
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                style={{ minHeight: 38, height: 38 }}
-                onClick={() => {
-                  onQuickStatus(ticket.id, STATUSES.RESOLVED, statusNote.trim() || 'Resolution completed.');
+                style={{ minHeight: 38, height: 38, flex: '1 1 auto' }}
+                onClick={(e) => {
+                  if (typeof onStatusSubmit === 'function') {
+                    onStatusSubmit(e, STATUSES.RESOLVED, statusNote.trim() || 'Resolution completed.');
+                  } else if (typeof onQuickStatus === 'function') {
+                    onQuickStatus(ticket.id, STATUSES.RESOLVED, statusNote.trim() || 'Resolution completed.');
+                  }
                   setStatusNote('');
                 }}
               >
@@ -184,8 +185,15 @@ export default React.memo(function TicketDetailModal({
       </div>
 
       {/* Description */}
-      <div className="resolution-summary" style={{ margin: 0, wordBreak: 'break-word' }}>
-        <p className="resolution-summary-text" style={{ wordBreak: 'break-word', margin: 0 }}>{ticket.description}</p>
+      <div style={{ width: '100%', minWidth: 0 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--app-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+          Description
+        </div>
+        <div className="resolution-summary" style={{ margin: 0, wordBreak: 'break-word', padding: '12px 14px', borderRadius: 8, background: 'var(--app-inset, #f8fafc)', border: '1px solid var(--app-border-soft, #e2e8f0)' }}>
+          <p className="resolution-summary-text" style={{ wordBreak: 'break-word', margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--app-text, #1e293b)' }}>
+            {ticket.description || 'No description provided.'}
+          </p>
+        </div>
       </div>
 
       {/* Attached Media & Photo Evidence */}
@@ -278,19 +286,28 @@ export default React.memo(function TicketDetailModal({
 
       {/* Status audit log */}
       <div style={{ width: '100%', minWidth: 0 }}>
-        <h4 className="section-heading" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+        <h4 className="section-heading" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
           <Clock size={14} className="tone-accent" />
           Audit Log
         </h4>
         <div className="history-notes" style={{ marginTop: 0, width: '100%', minWidth: 0 }}>
           {ticket.statusHistory?.length ? (
             ticket.statusHistory.map((item, idx) => (
-              <div key={idx} className="history-note" style={{ flexWrap: 'wrap', gap: 6 }}>
-                <span className="history-author" style={{ flexShrink: 0 }}>{item.updatedBy}</span>
-                <span style={{ minWidth: 0, flex: 1, wordBreak: 'break-word' }}>
-                  <strong>{STATUS_LABELS[item.status] || item.status}</strong> — {item.note}
-                </span>
-                <span className="history-time" style={{ flexShrink: 0 }}>{formatRelativeTime(item.timestamp)}</span>
+              <div key={idx} className="history-note">
+                <div className="history-note-header">
+                  <div className="history-note-meta">
+                    <span className="history-author">{item.updatedBy || 'Staff'}</span>
+                    <span className="history-status-badge">
+                      {STATUS_LABELS[item.status] || item.status}
+                    </span>
+                  </div>
+                  <span className="history-time">{formatRelativeTime(item.timestamp)}</span>
+                </div>
+                {item.note && (
+                  <div className="history-note-text">
+                    {item.note}
+                  </div>
+                )}
               </div>
             ))
           ) : (
@@ -489,32 +506,22 @@ export default React.memo(function TicketDetailModal({
         )}
       </div>
 
-      {/* Optional resolution note before marking resolved */}
+      {/* Optional resolution / status note */}
       {!readOnly && (
-        <div className="form-group" style={{ width: '100%', boxSizing: 'border-box' }}>
-          <label htmlFor="modal-status-note" className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <div style={{ width: '100%', boxSizing: 'border-box', marginTop: 4 }}>
+          <label htmlFor="modal-status-note" className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 12, fontWeight: 600 }}>
             <FileText size={13} className="tone-accent" />
-            <span>Resolution / status note (attached when you mark a status below)</span>
+            <span>Resolution / status note (attached when marking status)</span>
           </label>
           <textarea
             id="modal-status-note"
             className="form-textarea"
             rows={2}
-            placeholder="Optional context saved with the next status change…"
+            placeholder="Add context for next status update (optional)…"
             value={statusNote}
             onChange={(e) => setStatusNote(e.target.value)}
-            style={{ width: '100%', boxSizing: 'border-box' }}
+            style={{ width: '100%', boxSizing: 'border-box', fontSize: 13 }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={(e) => handleStatusWithNoteSubmit(e, STATUSES.RESOLVED)}
-              style={{ minHeight: 38, height: 38 }}
-            >
-              Submit Resolution with Note
-            </button>
-          </div>
         </div>
       )}
 

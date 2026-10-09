@@ -528,17 +528,19 @@ export default function NewComplaintForm() {
 
             <div className="quick-pills">
               <span className="pills-caption">Quick select:</span>
-              {quickPills.map((pill) => (
-                <button
-                  key={pill}
-                  type="button"
-                  className={`choice-pill ${location === pill ? 'is-active' : ''}`}
-                  onClick={() => setLocation(pill)}
-                >
-                  <MapPin size={11} />
-                  {pill}
-                </button>
-              ))}
+              <div className="quick-pills-list">
+                {quickPills.map((pill) => (
+                  <button
+                    key={pill}
+                    type="button"
+                    className={`choice-pill ${location === pill ? 'is-active' : ''}`}
+                    onClick={() => setLocation(pill)}
+                  >
+                    <MapPin size={11} />
+                    <span>{pill}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

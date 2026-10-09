@@ -1378,25 +1378,35 @@ button.app-shell-metric-active,
 /* Quick location pills */
 .app-shell .quick-pills {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 2px;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+  width: 100%;
 }
 
 .app-shell .pills-caption {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--app-text-muted);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.app-shell .quick-pills-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .app-shell .choice-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 5px 11px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: transparent;
+  background: var(--app-card-bg-subtle, #f8fafc);
   border: 1px solid var(--app-border);
   color: var(--app-text-secondary);
   font-family: inherit;
@@ -1404,17 +1414,40 @@ button.app-shell-metric-active,
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .app-shell .choice-pill:hover {
   background: var(--app-raised);
   color: var(--app-text);
+  border-color: var(--app-border-strong);
 }
 
 .app-shell .choice-pill.is-active {
   background: var(--app-accent-subtle);
   border-color: var(--app-accent-border);
   color: var(--app-accent-text);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .app-shell .quick-pills-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+
+  .app-shell .choice-pill {
+    width: 100%;
+    min-height: 38px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 11.5px;
+    line-height: 1.25;
+    white-space: normal;
+  }
 }
 
 /* Priority selector */
@@ -1946,6 +1979,23 @@ button.app-shell-metric-active,
   font-weight: 600;
 }
 
+@media (max-width: 640px) {
+  .app-shell .time-slot-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .app-shell .time-slot-option {
+    width: 100%;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 14px;
+    font-size: 13px;
+    justify-content: flex-start;
+    border-radius: 8px;
+  }
+}
+
 /* Discussion & activity timeline event styling */
 .app-shell .discussion-event-item {
   display: flex;
@@ -2401,32 +2451,65 @@ button.app-shell-metric-active,
 .app-shell .history-notes {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-top: 8px;
 }
 
 .app-shell .history-note {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  background: var(--app-inset, #f8fafc);
+  border: 1px solid var(--app-border-soft, #e2e8f0);
+  padding: 8px 12px;
+  border-radius: var(--app-radius-md, 8px);
+  color: var(--app-text, #1e293b);
+}
+
+.app-shell .history-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 12px;
-  background: var(--app-inset);
-  border: 1px solid var(--app-border-soft);
-  padding: 6px 10px;
-  border-radius: var(--app-radius-sm);
-  color: var(--app-text-secondary);
+}
+
+.app-shell .history-note-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .app-shell .history-author {
   font-weight: 600;
-  color: var(--app-accent-text);
+  color: var(--app-text, #0f172a);
+  font-size: 12px;
+}
+
+.app-shell .history-status-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--app-surface, #ffffff);
+  border: 1px solid var(--app-border-strong, #cbd5e1);
+  color: var(--app-text, #334155);
 }
 
 .app-shell .history-time {
-  color: var(--app-text-muted);
+  color: var(--app-text-muted, #64748b);
   font-size: 11px;
   margin-left: auto;
+  white-space: nowrap;
+}
+
+.app-shell .history-note-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-text-secondary, #475569);
+  word-break: break-word;
 }
 
 /* Segmented Control Component (Tabs / Filter Strip) */
@@ -3599,11 +3682,65 @@ body .toast-icon.error { color: #e05d6f; }
   .app-shell .tracker-milestones-card {
     padding: 16px 14px;
   }
+
+  .app-shell .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .app-shell .metric-card {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    border-radius: 10px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    min-height: unset !important;
+  }
+
+  .app-shell .metric-icon {
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .app-shell .metric-icon svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .app-shell .metric-value {
+    font-size: 17px !important;
+    line-height: 1.1 !important;
+  }
+
+  .app-shell .metric-label {
+    font-size: 11px !important;
+    margin-top: 1px !important;
+  }
+
+  .app-shell .page-stack {
+    gap: 14px !important;
+  }
+
+  .app-shell .page-header {
+    gap: 8px !important;
+  }
+
+  .app-shell .page-title {
+    font-size: 18px !important;
+  }
+
+  .app-shell .page-desc {
+    font-size: 11.5px !important;
+    margin: 2px 0 0 !important;
+    line-height: 1.35 !important;
+  }
 }
 
 @media (max-width: 480px) {
   .app-shell .stat-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
   }
 
   .app-shell .priority-tiles {
@@ -3701,21 +3838,25 @@ body .toast-icon.error { color: #e05d6f; }
   }
 
   .modal-card .modal-footer {
-    padding: 12px 14px;
-    flex-direction: column-reverse;
-    align-items: stretch;
+    padding: 10px 14px;
+    flex-direction: row;
+    align-items: center;
     gap: 8px;
-  }
-
-  .modal-card .modal-footer .btn,
-  .modal-card .modal-footer > div {
-    width: 100%;
   }
 
   .modal-card .modal-footer > div {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: row;
     gap: 8px;
+    width: 100%;
+  }
+
+  .modal-card .modal-footer .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 38px;
+    padding: 0 8px;
+    font-size: 12.5px;
   }
 }
 

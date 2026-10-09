@@ -438,8 +438,16 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (data?.user) {
-          const profile = await getUserProfile(data.user.id);
-          const role = (profile?.role || data.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+          // Slow network resilience: catch timeout/lag and fallback gracefully to user_metadata
+          let profile = null;
+          try {
+            profile = await getUserProfile(data.user.id);
+          } catch (profileErr) {
+            console.warn('[AuthContext] Slow network fallback during profile fetch:', profileErr);
+          }
+
+          const rawRole = profile?.role || data.user.user_metadata?.role || ROLES.STUDENT;
+          const role = String(rawRole).toLowerCase();
           const org = profile?.org_key || data.user.user_metadata?.orgKey || currentOrgKey;
 
           loggedInUser = {
@@ -452,9 +460,11 @@ export const AuthProvider = ({ children }) => {
             avatar: profile?.avatar_url || data.user.user_metadata?.avatar || null,
           };
 
-          // Synchronize profile if not yet in database
+          // Synchronize profile in background if missing without blocking login completion
           if (!profile) {
-            await upsertUserProfile(loggedInUser);
+            upsertUserProfile(loggedInUser).catch((e) =>
+              console.warn('[AuthContext] Background profile sync deferred:', e)
+            );
           }
         }
       }
@@ -466,6 +476,18 @@ export const AuthProvider = ({ children }) => {
       // Normalize role
       if (loggedInUser.role) {
         loggedInUser.role = String(loggedInUser.role).toLowerCase();
+      }
+
+      // Synchronously write to localStorage IMMEDIATELY so route guards have zero race delay
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(loggedInUser));
+          if (loggedInUser.orgKey) {
+            localStorage.setItem(STORAGE_ORG_KEY, loggedInUser.orgKey);
+          }
+        } catch (storageErr) {
+          console.warn('[AuthContext] Synchronous localStorage write warning:', storageErr);
+        }
       }
 
       // Auto-activate user's bound organization

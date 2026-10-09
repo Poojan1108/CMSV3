@@ -1250,6 +1250,7 @@ button.app-shell-metric-active,
   margin: 0 0 12px;
 }
 
+.loading-state,
 .app-shell .loading-state {
   display: flex;
   flex-direction: column;
@@ -1257,15 +1258,17 @@ button.app-shell-metric-active,
   justify-content: center;
   gap: 14px;
   padding: 72px 20px;
-  color: var(--app-text-secondary);
+  color: var(--app-text-secondary, #475569);
   font-size: 13px;
+  font-family: inherit;
 }
 
+.spinner,
 .app-shell .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--app-border);
-  border-top-color: var(--app-accent);
+  border: 2px solid var(--app-border, #e2e8f0);
+  border-top-color: var(--app-accent, #18181b);
   border-radius: 50%;
   animation: app-spin 0.7s linear infinite;
   display: inline-block;

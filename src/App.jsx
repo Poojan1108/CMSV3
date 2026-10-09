@@ -7,7 +7,6 @@ import { ROLES } from './utils/constants';
 // Layout & Guards
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
-import { LoadingState } from './components/ui';
 
 // Lazy-loaded Pages (Code-split per Route)
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -27,7 +26,81 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-          <Suspense fallback={<LoadingState label="Loading workspace..." />}>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  minHeight: '100vh',
+                  width: '100vw',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--rx-canvas, #f8fafc)',
+                  padding: '20px',
+                  boxSizing: 'border-box',
+                  fontFamily: "var(--app-font, 'Plus Jakarta Sans', -apple-system, sans-serif)",
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '14px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '11px',
+                      background: 'var(--rx-obsidian-brand, #18181b)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 16px rgba(24, 24, 27, 0.18)',
+                      fontWeight: 800,
+                      fontSize: '17px',
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    RX
+                  </div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 14px',
+                      background: 'var(--rx-surface, #ffffff)',
+                      border: '1px solid var(--rx-border, #e2e8f0)',
+                      borderRadius: '999px',
+                      fontSize: '12.5px',
+                      fontWeight: 500,
+                      color: 'var(--rx-text-secondary, #475569)',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    }}
+                  >
+                    <span
+                      className="spinner"
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderWidth: '2px',
+                        borderTopColor: 'var(--rx-obsidian-brand, #18181b)',
+                      }}
+                    />
+                    <span>Loading ResolveX…</span>
+                  </div>
+                </div>
+              </div>
+            }
+          >
             <Routes>
               {/* Public Landing & Authentication Pages */}
               <Route path="/" element={<LandingPage initialMode="landing" />} />

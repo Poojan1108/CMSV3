@@ -84,13 +84,13 @@ export default function LandingPage({ initialMode = 'landing' }) {
         }}
         onSuccess={(loggedUser) => {
           const effectiveRole = (loggedUser?.role || role || ROLES.STUDENT).toLowerCase();
-          if (effectiveRole === ROLES.ADMIN) {
-            navigate('/admin/dashboard');
-          } else if (effectiveRole === ROLES.STAFF) {
-            navigate('/staff/queue');
-          } else {
-            navigate('/dashboard');
-          }
+          const target =
+            effectiveRole === ROLES.ADMIN
+              ? '/admin/dashboard'
+              : effectiveRole === ROLES.STAFF
+              ? '/staff/queue'
+              : '/dashboard';
+          navigate(target, { replace: true });
         }}
       />
     );

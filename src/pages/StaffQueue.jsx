@@ -91,6 +91,7 @@ export default function StaffQueue() {
   const priorityFilter = searchParams.get('priority') || 'all';
   const departmentFilter = searchParams.get('dept') || 'all';
   const sortBy = searchParams.get('sort') || 'newest';
+  const slaFilter = searchParams.get('sla') || 'all';
 
   // Search input state (local for responsive typing, synced on change)
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -200,6 +201,11 @@ export default function StaffQueue() {
       if (priorityFilter !== 'all' && item.priority !== priorityFilter) return false;
       if (departmentFilter !== 'all' && item.category !== departmentFilter) return false;
 
+      if (slaFilter === 'breached') {
+        const sla = getSlaStatus(item);
+        if (!sla.isBreached || sla.isCompleted) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
         const haystack = [
@@ -233,13 +239,14 @@ export default function StaffQueue() {
     });
 
     return result;
-  }, [complaints, scopeFilter, statusFilter, priorityFilter, departmentFilter, searchQuery, sortBy, user]);
+  }, [complaints, scopeFilter, statusFilter, priorityFilter, departmentFilter, slaFilter, searchQuery, sortBy, user]);
 
   const hasActiveFilters =
     scopeFilter !== 'all' ||
     statusFilter !== 'all' ||
     priorityFilter !== 'all' ||
     departmentFilter !== 'all' ||
+    slaFilter !== 'all' ||
     searchQuery.trim() !== '';
 
   const actor = useCallback(() => {
@@ -489,17 +496,17 @@ export default function StaffQueue() {
           <button
             type="button"
             role="tab"
-            aria-selected={priorityFilter === PRIORITIES.URGENT}
+            aria-selected={slaFilter === 'breached'}
             className="status-segment-pill"
             style={{
               flexShrink: 0,
               whiteSpace: 'nowrap',
               borderColor: 'var(--app-danger)',
               color: 'var(--app-danger)',
-              background: priorityFilter === PRIORITIES.URGENT ? 'var(--app-danger-subtle)' : 'var(--app-surface)',
+              background: slaFilter === 'breached' ? 'var(--app-danger-subtle)' : 'var(--app-surface)',
             }}
             onClick={() =>
-              updateFilters({ priority: priorityFilter === PRIORITIES.URGENT ? 'all' : PRIORITIES.URGENT })
+              updateFilters({ sla: slaFilter === 'breached' ? 'all' : 'breached' })
             }
           >
             <AlertTriangle size={13} style={{ color: 'var(--app-danger)' }} />
@@ -654,6 +661,18 @@ export default function StaffQueue() {
               title="Remove priority filter"
             >
               Priority: {PRIORITY_LABELS[priorityFilter] || priorityFilter}
+              <X size={12} style={{ marginLeft: 4 }} />
+            </button>
+          )}
+
+          {slaFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => updateFilters({ sla: 'all' })}
+              style={chipStyle}
+              title="Remove SLA filter"
+            >
+              SLA: Breached
               <X size={12} style={{ marginLeft: 4 }} />
             </button>
           )}

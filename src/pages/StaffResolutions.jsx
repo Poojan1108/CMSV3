@@ -338,6 +338,7 @@ export default function StaffResolutions() {
           onAddInternalNote={() => {}}
           onStatusSubmit={() => {}}
           navigate={navigate}
+          readOnly={true}
         />
       )}
     </div>

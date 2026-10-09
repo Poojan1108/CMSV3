@@ -38,6 +38,7 @@ export default React.memo(function TicketDetailModal({
   onAddInternalNote,
   onStatusSubmit,
   navigate,
+  readOnly = false,
 }) {
   const [commentTab, setCommentTab] = useState('all');
   const [selectedLightboxImage, setSelectedLightboxImage] = useState(null);
@@ -82,26 +83,34 @@ export default React.memo(function TicketDetailModal({
       onClose={onClose}
       maxWidth={860}
       footer={
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ minHeight: 38, height: 38 }}
-              onClick={() => onQuickStatus(ticket.id, STATUSES.IN_PROGRESS, 'Started working on issue.')}
-            >
-              Mark In Progress
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              style={{ minHeight: 38, height: 38 }}
-              onClick={() => onQuickStatus(ticket.id, STATUSES.RESOLVED, 'Resolution completed.')}
-            >
-              Mark Resolved
-            </button>
+        readOnly ? null : (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ minHeight: 38, height: 38 }}
+                onClick={() => {
+                  onQuickStatus(ticket.id, STATUSES.IN_PROGRESS, statusNote.trim() || 'Started working on issue.');
+                  setStatusNote('');
+                }}
+              >
+                Mark In Progress
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ minHeight: 38, height: 38 }}
+                onClick={() => {
+                  onQuickStatus(ticket.id, STATUSES.RESOLVED, statusNote.trim() || 'Resolution completed.');
+                  setStatusNote('');
+                }}
+              >
+                Mark Resolved
+              </button>
+            </div>
           </div>
-        </div>
+        )
       }
     >
       {/* Badges row */}
@@ -237,7 +246,8 @@ export default React.memo(function TicketDetailModal({
 
       {/* Status audit log */}
       <div style={{ width: '100%', minWidth: 0 }}>
-        <h4 className="section-heading" style={{ marginBottom: 10 }}>
+        <h4 className="section-heading" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <Clock size={14} className="tone-accent" />
           Audit Log
         </h4>
         <div className="history-notes" style={{ marginTop: 0, width: '100%', minWidth: 0 }}>
@@ -335,11 +345,12 @@ export default React.memo(function TicketDetailModal({
               const roleDisplay = authorRole === ROLES.ADMIN || authorRole === 'admin' ? 'ADMIN' : isStaffOrAdmin ? 'STAFF' : 'REPORTER';
 
               return (
-                <div key={c.id || `${authorName}-${timeVal}`} className="comment-row">
+                <div key={c.id || `${authorName}-${timeVal}`} className="comment-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <span
                     className={`comment-avatar ${c.isInternal || isStaffOrAdmin ? 'staff' : 'user'}`}
                     style={{
                       flexShrink: 0,
+                      marginTop: 2,
                       background: c.isInternal ? '#0f172a' : isStaffOrAdmin ? '#334155' : '#f1f5f9',
                       color: isStaffOrAdmin || c.isInternal ? '#ffffff' : '#334155',
                     }}
@@ -386,10 +397,11 @@ export default React.memo(function TicketDetailModal({
                             color: '#ffffff',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 3,
+                            gap: 4,
                           }}
                         >
-                          <Lock size={8} /> INTERNAL NOTE
+                          <Lock size={9} style={{ flexShrink: 0 }} />
+                          <span>INTERNAL NOTE</span>
                         </span>
                       )}
                       <span className="comment-time" style={{ color: '#64748b' }}>
@@ -407,57 +419,72 @@ export default React.memo(function TicketDetailModal({
         </div>
 
         {/* Internal note form */}
-        <form onSubmit={handleInternalNoteSubmit} className="comment-form" style={{ width: '100%', boxSizing: 'border-box' }}>
-          <span className="inline-note-head" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Lock size={11} style={{ flexShrink: 0 }} />
-            <span>Post internal audit note</span>
-          </span>
-          <div className="inline-note-row" style={{ display: 'flex', gap: 6, width: '100%', boxSizing: 'border-box' }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Log internal action, parts required…"
-              value={internalNote}
-              onChange={(e) => setInternalNote(e.target.value)}
-              style={{ flex: 1, minWidth: 0, height: 38 }}
-            />
-            <button
-              type="submit"
-              className="btn btn-sm btn-outline"
-              disabled={!internalNote.trim()}
-              style={{ flexShrink: 0, height: 38, padding: '0 12px' }}
-            >
-              Log Note
-            </button>
-          </div>
-        </form>
+        {!readOnly && (
+          <form onSubmit={handleInternalNoteSubmit} className="comment-form" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 12.5, fontWeight: 600 }}>
+              <Lock size={12} style={{ flexShrink: 0 }} className="tone-accent" />
+              <span>Post internal audit note</span>
+            </label>
+            <div className="inline-note-row" style={{ display: 'flex', gap: 8, width: '100%', boxSizing: 'border-box' }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Log internal action, parts required…"
+                value={internalNote}
+                onChange={(e) => setInternalNote(e.target.value)}
+                style={{ flex: 1, minWidth: 0, height: 38 }}
+              />
+              <button
+                type="submit"
+                className="btn btn-sm btn-secondary"
+                disabled={!internalNote.trim()}
+                style={{
+                  flexShrink: 0,
+                  height: 38,
+                  padding: '0 14px',
+                  border: '1px solid var(--app-border-strong, #cbd5e1)',
+                  background: internalNote.trim() ? '#0f172a' : 'var(--app-raised, #ffffff)',
+                  color: internalNote.trim() ? '#ffffff' : 'var(--app-text-muted, #94a3b8)',
+                  fontWeight: 600,
+                  cursor: internalNote.trim() ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Log Note
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Optional resolution note before marking resolved */}
-      <div className="form-group" style={{ width: '100%', boxSizing: 'border-box' }}>
-        <label htmlFor="modal-status-note" className="field-label" style={{ display: 'block' }}>
-          Resolution / status note (attached when you mark a status below)
-        </label>
-        <textarea
-          id="modal-status-note"
-          className="form-textarea"
-          rows={2}
-          placeholder="Optional context saved with the next status change…"
-          value={statusNote}
-          onChange={(e) => setStatusNote(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={(e) => handleStatusWithNoteSubmit(e, STATUSES.RESOLVED)}
-            style={{ minHeight: 38, height: 38 }}
-          >
-            Submit Resolution with Note
-          </button>
+      {!readOnly && (
+        <div className="form-group" style={{ width: '100%', boxSizing: 'border-box' }}>
+          <label htmlFor="modal-status-note" className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <FileText size={13} className="tone-accent" />
+            <span>Resolution / status note (attached when you mark a status below)</span>
+          </label>
+          <textarea
+            id="modal-status-note"
+            className="form-textarea"
+            rows={2}
+            placeholder="Optional context saved with the next status change…"
+            value={statusNote}
+            onChange={(e) => setStatusNote(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={(e) => handleStatusWithNoteSubmit(e, STATUSES.RESOLVED)}
+              style={{ minHeight: 38, height: 38 }}
+            >
+              Submit Resolution with Note
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Photo Evidence Lightbox Modal */}
       {selectedLightboxImage && (

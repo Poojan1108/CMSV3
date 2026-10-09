@@ -54,16 +54,43 @@ export default function AdminMembers() {
   const staffTerm = currentOrg?.staffTerm || 'Staff Resolver';
   const adminTerm = currentOrg?.adminTerm || 'Admin';
 
+  const categoriesKey = (categories || []).join(',');
+
   // Load available departments for the active organization
   useEffect(() => {
     let isMounted = true;
     const fetchDepartments = async () => {
       if (isSupabaseConfigured && supabase && orgKey) {
         try {
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from('departments')
             .select('id, name, description')
             .eq('org_key', orgKey);
+
+          // Proactively seed missing departments based on categories to guarantee UUID availability
+          const existingNames = new Set((data || []).map(d => d.name));
+          const missingCategories = (categories || []).filter(cat => !existingNames.has(cat));
+          
+          if (missingCategories.length > 0) {
+            const inserts = missingCategories.map(cat => ({
+              org_key: orgKey,
+              name: cat,
+              sla_resolve_hours: 24,
+              sla_response_hours: 8
+            }));
+            
+            await supabase.from('departments').insert(inserts);
+            
+            // Re-fetch to capture the newly generated Postgres UUIDs
+            const refresh = await supabase
+              .from('departments')
+              .select('id, name, description')
+              .eq('org_key', orgKey);
+              
+            if (!refresh.error && refresh.data) {
+              data = refresh.data;
+            }
+          }
 
           if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
             setDepartments(data);
@@ -73,7 +100,7 @@ export default function AdminMembers() {
           console.warn('[AdminMembers] Department fetch warning:', err);
         }
       }
-      // Fallback: derive virtual departments from configured organization categories
+      // Fallback: derive virtual departments only if Supabase is offline/unconfigured
       if (isMounted) {
         setDepartments(
           (categories || []).map((cat, idx) => ({
@@ -89,7 +116,7 @@ export default function AdminMembers() {
     return () => {
       isMounted = false;
     };
-  }, [orgKey, categories]);
+  }, [orgKey, categoriesKey]);
 
   // Initial roster refresh on mount
   useEffect(() => {

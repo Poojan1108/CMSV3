@@ -14,6 +14,7 @@ import {
   FileCheck,
   Sparkles,
   RotateCcw,
+  Calendar,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -379,15 +380,7 @@ export default function NewComplaintForm() {
   }, [categories, category]);
 
   return (
-    <div
-      className="page-stack"
-      style={{
-        width: '100%',
-        maxWidth: '100%',
-        minWidth: 0,
-        boxSizing: 'border-box',
-      }}
-    >
+    <div className="page-stack">
       <PageHeader
         breadcrumb={
           <Breadcrumb to="/complaints" onNavigate={() => navigate('/complaints')}>
@@ -402,22 +395,7 @@ export default function NewComplaintForm() {
       />
 
       {hasRestoredDraft && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 14px',
-            background: 'var(--app-info-bg, #eff6ff)',
-            border: '1px solid var(--app-info-border, #bfdbfe)',
-            borderRadius: '8px',
-            color: 'var(--app-info-text, #1e40af)',
-            fontSize: '13px',
-            marginBottom: '16px',
-            width: '100%',
-            boxSizing: 'border-box',
-          }}
-        >
+        <div className="alert-banner alert-banner-info">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={16} />
             <span>Restored your saved draft from your previous session.</span>
@@ -426,7 +404,7 @@ export default function NewComplaintForm() {
             type="button"
             onClick={handleDiscardDraft}
             className="btn btn-ghost btn-sm"
-            style={{ color: 'var(--app-danger, #ef4444)', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+            style={{ color: 'var(--app-danger, #ef4444)' }}
           >
             <RotateCcw size={13} />
             <span>Discard Draft</span>
@@ -434,24 +412,12 @@ export default function NewComplaintForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="form-stack" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+      <form onSubmit={handleSubmit} className="form-stack">
         {/* Cluster 1: The Issue & Location (Core Identification) */}
-        <div
-          className="card card-pad"
-          style={{
-            padding: 'clamp(14px, 4vw, 22px)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            width: '100%',
-            maxWidth: '100%',
-            minWidth: 0,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
-            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>1</span>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>The Issue & Location</h2>
+        <div className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-badge">1</span>
+            <h2 className="form-section-title">The Issue & Location</h2>
           </div>
 
           <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
@@ -568,22 +534,10 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Cluster 2: Details & Evidence */}
-        <div
-          className="card card-pad"
-          style={{
-            padding: 'clamp(14px, 4vw, 22px)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            width: '100%',
-            maxWidth: '100%',
-            minWidth: 0,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
-            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>2</span>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Details & Evidence</h2>
+        <div className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-badge">2</span>
+            <h2 className="form-section-title">Details & Evidence</h2>
           </div>
 
           <div className="form-group" style={{ width: '100%', minWidth: 0 }}>
@@ -789,28 +743,21 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Cluster 3: Access Window & Privacy Preferences */}
-        <div
-          className="card card-pad"
-          style={{
-            padding: 'clamp(14px, 4vw, 22px)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            width: '100%',
-            maxWidth: '100%',
-            minWidth: 0,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--app-border-soft)', paddingBottom: 12 }}>
-            <span className="step-num" style={{ background: 'var(--app-accent)', color: '#fff', width: 22, height: 22, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>3</span>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--app-text)', margin: 0 }}>Access Window & Privacy</h2>
+        <div className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-badge">3</span>
+            <h2 className="form-section-title">Access Window & Privacy</h2>
           </div>
 
-          <div className="form-grid-2" style={{ width: '100%', minWidth: 0 }}>
+          <div className="form-grid-2" style={{ width: '100%', minWidth: 0, alignItems: 'start' }}>
             <div className="form-group" style={{ minWidth: 0 }}>
-              <label htmlFor="access-date" className="form-label">
-                Preferred inspection date
+              <label
+                htmlFor="access-date"
+                className="form-label"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Calendar size={13} style={{ color: 'var(--app-text-muted)', flexShrink: 0 }} />
+                <span>Preferred inspection date</span>
               </label>
               <input
                 id="access-date"
@@ -819,22 +766,30 @@ export default function NewComplaintForm() {
                 value={accessDate}
                 min={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setAccessDate(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 42, boxSizing: 'border-box' }}
               />
             </div>
 
             <div className="form-group" style={{ minWidth: 0 }}>
-              <span className="form-label">Preferred inspection window</span>
-              <div className="quick-pills">
+              <span
+                className="form-label"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Clock size={13} style={{ color: 'var(--app-text-muted)', flexShrink: 0 }} />
+                <span>Preferred inspection window</span>
+              </span>
+              <div className="time-slot-grid" role="radiogroup" aria-label="Preferred inspection window">
                 {ACCESS_TIME_SLOTS.map((slot) => (
                   <button
                     key={slot}
                     type="button"
-                    className={`choice-pill ${timeSlot === slot ? 'is-active' : ''}`}
+                    role="radio"
+                    aria-checked={timeSlot === slot}
+                    className={`time-slot-option ${timeSlot === slot ? 'is-active' : ''}`}
                     onClick={() => setTimeSlot(slot)}
                   >
-                    <Clock size={11} />
-                    {slot}
+                    <Clock size={12} style={{ flexShrink: 0 }} />
+                    <span>{slot}</span>
                   </button>
                 ))}
               </div>
@@ -862,33 +817,21 @@ export default function NewComplaintForm() {
         </div>
 
         {/* Action Footer */}
-        <div
-          className="form-footer"
-          style={{
-            marginTop: 16,
-            width: '100%',
-            maxWidth: '100%',
-            boxSizing: 'border-box',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-          }}
-        >
+        <div className="form-footer-actions">
           <button
             type="submit"
-            className="btn btn-primary btn-lg"
+            className="btn btn-primary"
             disabled={isSubmitting}
-            style={{ width: '100%', minHeight: '44px', height: '44px' }}
           >
             {isSubmitting ? (
               <>
                 <span className="spinner" />
-                Submitting…
+                <span>Submitting…</span>
               </>
             ) : (
               <>
                 <PlusCircle size={16} />
-                Submit Complaint
+                <span>Submit Complaint</span>
               </>
             )}
           </button>
@@ -897,7 +840,6 @@ export default function NewComplaintForm() {
             className="btn btn-secondary"
             onClick={() => navigate('/complaints')}
             disabled={isSubmitting}
-            style={{ width: '100%', minHeight: '42px', height: '42px' }}
           >
             Cancel
           </button>
@@ -908,10 +850,10 @@ export default function NewComplaintForm() {
               onClick={handleDiscardDraft}
               disabled={isSubmitting}
               title="Clear all saved draft fields"
-              style={{ width: '100%', padding: '8px 0' }}
+              style={{ marginLeft: 'auto' }}
             >
               <RotateCcw size={14} />
-              Discard Draft
+              <span>Discard Draft</span>
             </button>
           )}
         </div>

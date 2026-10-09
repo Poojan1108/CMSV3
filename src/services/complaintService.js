@@ -419,12 +419,16 @@ export const complaintService = {
     const autoDept = getCategoryDepartment(data.category);
 
     const studentMeta = {
-      id: data.student?.id || data.studentId || 'anonymous',
+      id: data.student?.id || data.studentId || null,
       name: data.student?.name || data.studentName || userLabel,
       email: data.student?.email || data.studentEmail || '',
       rollNo: data.student?.rollNo || data.student?.roll_no || '',
       room: data.student?.room || data.location || locationLabel,
       phone: data.student?.phone || '',
+      isAnonymous: Boolean(data.isAnonymous),
+      accessDate: data.accessDate || null,
+      timeSlot: data.timeSlot || null,
+      urgencyJustification: data.urgencyJustification || null,
     };
 
     const newComplaint = {
@@ -456,6 +460,9 @@ export const complaintService = {
       ],
       comments: [],
       attachments: data.attachments || [],
+      accessDate: data.accessDate || null,
+      timeSlot: data.timeSlot || null,
+      urgencyJustification: data.urgencyJustification || null,
     };
 
     // Optimistic memory cache insertion
@@ -464,7 +471,19 @@ export const complaintService = {
     notifyLiveChange({ type: 'create', complaint: newComplaint, id: newId });
 
     // Persist to Supabase PostgREST asynchronously
-    const syncPromise = complaintApi.insertComplaint(newComplaint).then((saved) => {
+    const syncPromise = complaintApi.insertComplaint(newComplaint).then(async (saved) => {
+      try {
+        await complaintApi.insertHistory({
+          complaintId: newId,
+          status: (data.status || STATUSES.PENDING).toLowerCase(),
+          updatedBy: studentMeta.name || userLabel,
+          note: 'Complaint registered in system.',
+          timestamp: now,
+        });
+      } catch (err) {
+        console.warn('[complaintService.create] History sync warning:', err);
+      }
+
       const idx = memoryComplaints.findIndex((c) => c.id === newId);
       if (idx !== -1 && saved) {
         memoryComplaints[idx] = saved;
@@ -778,6 +797,13 @@ export const complaintService = {
         resolution_details: complaint.resolutionDetails,
       }),
       complaintApi.insertComment({ ...confComment, complaintId: id }),
+      complaintApi.insertHistory({
+        complaintId: id,
+        status: STATUSES.RESOLVED,
+        updatedBy: userName,
+        note: `Resolution confirmed by user.${feedbackNote ? ` Feedback: ${feedbackNote}` : ''}`,
+        timestamp: now,
+      }),
     ]).catch((err) => {
       console.warn('[complaintService.confirmResolution] Sync warning:', err);
     });
@@ -835,6 +861,13 @@ export const complaintService = {
         resolution_details: complaint.resolutionDetails,
       }),
       complaintApi.insertComment({ ...rejComment, complaintId: id }),
+      complaintApi.insertHistory({
+        complaintId: id,
+        status: STATUSES.IN_PROGRESS,
+        updatedBy: userName,
+        note: `Resolution rejected by user. Reopened ticket. Reason: ${rejectionReason || 'Issue not resolved yet.'}`,
+        timestamp: now,
+      }),
     ]).catch((err) => {
       console.warn('[complaintService.rejectResolution] Sync warning:', err);
     });

@@ -130,6 +130,7 @@ export default function AdminAnalytics() {
           id: p.id,
           name: p.name,
           department: p.department || (p.role === ROLES.ADMIN ? 'Administrator' : 'Staff Resolver'),
+          departmentId: p.department_id || null,
         });
       }
     });
@@ -139,6 +140,7 @@ export default function AdminAnalytics() {
           id: u.id,
           name: u.name,
           department: u.department || (u.role === ROLES.ADMIN ? 'Administrator' : 'Staff Resolver'),
+          departmentId: u.department_id || u.departmentId || null,
         });
       }
     });
@@ -267,6 +269,7 @@ export default function AdminAnalytics() {
           id: targetUser.id,
           name: targetUser.name,
           department: targetUser.department || 'Staff Department',
+          departmentId: targetUser.departmentId || null,
         },
         user || { name: 'Admin', role: ROLES.ADMIN },
         reassignReason || 'Reassigned via admin console'
@@ -281,7 +284,7 @@ export default function AdminAnalytics() {
   };
 
   const downloadFile = (content, filename, mimeType) => {
-    if (!complaints.length) {
+    if (!filteredComplaints.length) {
       showToast('No complaints available to export', 'warning');
       return;
     }
@@ -300,7 +303,7 @@ export default function AdminAnalytics() {
   const handleExportCSV = () => {
     const dateStamp = new Date().toISOString().split('T')[0];
     downloadFile(
-      generateComplaintsCSV(complaints, currentOrg),
+      generateComplaintsCSV(filteredComplaints, currentOrg),
       `complaints_report_${dateStamp}.csv`,
       'text/csv;charset=utf-8;'
     );
@@ -309,7 +312,7 @@ export default function AdminAnalytics() {
   const handleExportJSON = () => {
     const dateStamp = new Date().toISOString().split('T')[0];
     downloadFile(
-      JSON.stringify(complaints, null, 2),
+      JSON.stringify(filteredComplaints, null, 2),
       `complaints_data_${dateStamp}.json`,
       'application/json'
     );

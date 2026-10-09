@@ -466,14 +466,13 @@ export default function TicketTracker() {
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
           <Link to="/complaints" className="btn btn-ghost btn-sm" style={{ paddingLeft: 0, flexShrink: 0 }}>
             <ArrowLeft size={15} />
-            Back to Complaints
+            <span>Back to Complaints</span>
           </Link>
-          <span style={{ color: 'var(--app-border-strong)', flexShrink: 0 }}>|</span>
           {complaint && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <TicketId id={complaint.id} />
               <button
                 type="button"
@@ -483,13 +482,13 @@ export default function TicketTracker() {
                 style={{ height: 32, padding: '0 8px' }}
               >
                 {copiedId ? <Check size={13} style={{ color: 'var(--app-success)' }} /> : <Copy size={13} />}
-                {copiedId ? 'Copied' : 'Copy'}
+                <span>{copiedId ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
           )}
         </div>
 
-        <form onSubmit={handleLookupSubmit} className="search-field tracker-jump-search" style={{ margin: 0, minWidth: 0 }}>
+        <form onSubmit={handleLookupSubmit} className="search-field tracker-jump-search" style={{ margin: 0, height: 38, minWidth: 0 }}>
           <Search size={14} />
           <input
             type="text"
@@ -497,6 +496,7 @@ export default function TicketTracker() {
             value={lookupId}
             onChange={(e) => setLookupId(e.target.value)}
             aria-label="Quick lookup ticket ID"
+            style={{ height: 38, width: '100%' }}
           />
         </form>
       </div>
@@ -920,53 +920,20 @@ export default function TicketTracker() {
                         return (
                           <div
                             key={item.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              margin: '4px 0',
-                              position: 'relative',
-                              width: '100%',
-                            }}
+                            className="discussion-event-item"
                           >
-                            <div
-                              style={{
-                                position: 'absolute',
-                                left: 0,
-                                right: 0,
-                                height: 1,
-                                background: 'var(--app-border-soft)',
-                                zIndex: 1,
-                              }}
-                            />
-                            <div
-                              style={{
-                                relative: true,
-                                zIndex: 2,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                padding: '4px 12px',
-                                borderRadius: 999,
-                                background: '#f8fafc',
-                                border: '1px solid #e2e8f0',
-                                fontSize: 11.5,
-                                color: '#334155',
-                                maxWidth: '96%',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                wordBreak: 'break-word',
-                                flexWrap: 'wrap',
-                              }}
-                            >
+                            <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}>
                               {renderEventIcon(item.eventCategory)}
-                              <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                                {item.actorName}
-                              </span>
-                              <span>{item.title}</span>
-                              <span style={{ color: '#94a3b8', fontSize: 10.5 }}>
-                                • {formatRelativeTime(item.timestamp)}
-                              </span>
-                            </div>
+                            </span>
+                            <span className="discussion-event-actor">
+                              {item.actorName}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                              {item.title}
+                            </span>
+                            <span className="discussion-event-time">
+                              {formatRelativeTime(item.timestamp)}
+                            </span>
                           </div>
                         );
                       }

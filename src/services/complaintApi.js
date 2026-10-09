@@ -166,6 +166,22 @@ export const complaintApi = {
     }
 
     try {
+      const orgKey = payload.org || payload.org_key || payload.currentOrg || '';
+      let resolvedDeptId = payload.departmentId || payload.department_id || null;
+
+      if (!resolvedDeptId && payload.category && orgKey) {
+        const { data: dept } = await supabase
+          .from('departments')
+          .select('id')
+          .eq('org_key', orgKey)
+          .ilike('name', payload.category)
+          .maybeSingle();
+        
+        if (dept && dept.id) {
+          resolvedDeptId = dept.id;
+        }
+      }
+
       const dbPayload = {
         id: payload.id,
         title: payload.title,
@@ -174,7 +190,7 @@ export const complaintApi = {
         priority: (payload.priority || 'medium').toLowerCase(),
         status: (payload.status || 'pending').toLowerCase(),
         location: payload.location || '',
-        org_key: payload.org || payload.org_key || payload.currentOrg || '',
+        org_key: orgKey,
         created_at: payload.createdAt || payload.created_at || new Date().toISOString(),
         updated_at: payload.updatedAt || payload.updated_at || new Date().toISOString(),
         resolved_at: payload.resolvedAt || payload.resolved_at || null,
@@ -186,7 +202,7 @@ export const complaintApi = {
         assigned_to_id: payload.assignedTo?.id || payload.assigned_to_id || null,
         assigned_to_name: payload.assignedTo?.name || payload.assigned_to_name || null,
         assigned_to_department: payload.assignedTo?.department || payload.assigned_to_department || payload.departmentName || '',
-        department_id: payload.departmentId || payload.department_id || null,
+        department_id: resolvedDeptId,
         sla_response_due: payload.slaResponseDue || payload.sla_response_due || null,
         sla_resolve_due: payload.slaResolveDue || payload.sla_resolve_due || null,
         sla_breached: Boolean(payload.slaBreached || payload.sla_breached),
@@ -300,6 +316,44 @@ export const complaintApi = {
   },
 
   /**
+   * Appends a history record to the ticket timeline in public.complaint_history.
+   *
+   * @param {Object} historyPayload
+   * @returns {Promise<Object>} Inserted history row
+   */
+  async insertHistory(historyPayload) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase client is not configured.');
+    }
+
+    try {
+      const payload = {
+        complaint_id: historyPayload.complaintId || historyPayload.complaint_id,
+        status: historyPayload.status,
+        updated_by: historyPayload.updatedBy || historyPayload.updated_by || 'System',
+        note: historyPayload.note || '',
+        created_at: historyPayload.timestamp || historyPayload.created_at || new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('complaint_history')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[complaintApi.insertHistory Error]:', error.message || error);
+        throw error;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[complaintApi.insertHistory Exception]:', err);
+      throw err;
+    }
+  },
+
+  /**
    * Fetches active departments for an organization from public.departments.
    *
    * @param {string} orgKey
@@ -383,6 +437,9 @@ function normalizeComplaintRow(row) {
     departmentId: row.department_id,
     departmentName: row.assigned_to_department || (row.assigned_to && row.assigned_to.department) || '',
     attachments: row.attachments || [],
+    accessDate: row.student_meta?.accessDate || null,
+    timeSlot: row.student_meta?.timeSlot || null,
+    urgencyJustification: row.student_meta?.urgencyJustification || null,
     student: row.student_meta || {
       id: row.student_id,
       name: row.student_name,

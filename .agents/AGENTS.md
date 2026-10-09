@@ -28,4 +28,10 @@
    - The agent MUST NEVER advance to the next workflow step until all identified optimizations are surfaced and resolved.
    - Whenever auditing or diagnosing code, the agent MUST ALWAYS explicitly cite the exact file path and exact line numbers (e.g. `[NewComplaintForm.jsx:255](file:///...)`) to eliminate search delays and expedite surgical in-place refactoring.
 
-
+8. **Mandatory 4-Layer Blueprint Analysis Before Fixes:**
+   For each new issue, before proposing or making any code changes, the agent MUST analyze the problem and explicitly state what needs to change across these four areas:
+   - **UI/Frontend** – Do we need to update the UI code?
+   - **Backend** – Do we need to change the business logic?
+   - **API** – Do we need to modify the endpoints or request/response handling?
+   - **Database** – Do we need to update the schema, relationships, or data?
+   The agent MUST define a clear implementation task based on this analysis and ask for explicit permission before proceeding. Avoid random trial and error.

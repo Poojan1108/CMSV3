@@ -66,7 +66,7 @@ export default function AdminDepartments() {
     showToast('Organization profile updated successfully!', 'success');
   };
 
-  const handleAddCustomCategory = (e) => {
+  const handleAddCustomCategory = async (e) => {
     e.preventDefault();
     const trimmed = newCategoryInput.trim();
     if (!trimmed) return;
@@ -75,6 +75,23 @@ export default function AdminDepartments() {
       return;
     }
     const updatedCategories = [...(categories || []), trimmed];
+    
+    // Proactively create the department row in PostgreSQL
+    if (isSupabaseConfigured && supabase && orgKey) {
+      try {
+        await supabase
+          .from('departments')
+          .insert({
+            org_key: orgKey,
+            name: trimmed,
+            sla_resolve_hours: 24,
+            sla_response_hours: 8,
+          });
+      } catch (err) {
+        console.warn('[AdminDepartments] Failed to proactive insert new department:', err);
+      }
+    }
+
     updateOrgSettings(orgKey, { categories: updatedCategories });
     setNewCategoryInput('');
     showToast(`Added category "${trimmed}"`, 'success');

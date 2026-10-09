@@ -333,6 +333,7 @@ export async function fetchOrgProfiles(orgKey, roleFilter = ['staff', 'admin']) 
 
   const promise = (async () => {
     try {
+      // 1. Fetch profiles without relational JOIN to bypass missing foreign keys
       let query = supabase.from('profiles').select('*');
 
       if (roleFilter && roleFilter !== 'all' && Array.isArray(roleFilter)) {
@@ -345,18 +346,33 @@ export async function fetchOrgProfiles(orgKey, roleFilter = ['staff', 'admin']) 
 
       query = query.order('name', { ascending: true });
 
-      const { data, error } = await query;
-      if (error) {
-        console.warn('[Supabase fetchOrgProfiles Error]:', error.message);
+      const [profilesRes, deptsRes] = await Promise.all([
+        query,
+        orgKey !== 'ALL' 
+          ? supabase.from('departments').select('id, name').eq('org_key', orgKey)
+          : supabase.from('departments').select('id, name')
+      ]);
+
+      if (profilesRes.error) {
+        console.warn('[Supabase fetchOrgProfiles Error]:', profilesRes.error.message);
         return [];
       }
-      return (data || []).map((p) => ({
+
+      // Map departments for in-memory lookup
+      const deptMap = {};
+      if (!deptsRes.error && Array.isArray(deptsRes.data)) {
+        deptsRes.data.forEach(d => {
+          deptMap[d.id] = d.name;
+        });
+      }
+
+      return (profilesRes.data || []).map((p) => ({
         id: p.id,
         name: p.name,
         email: p.email,
         role: (p.role || 'student').toLowerCase(),
         orgKey: p.org_key,
-        department: p.department_name || '',
+        department: deptMap[p.department_id] || p.department || '',
         departmentId: p.department_id,
         avatar: p.avatar_url,
         phone: p.phone,
@@ -390,10 +406,13 @@ export async function updateMemberRole(userId, { role, departmentId = null, depa
   try {
     const isUuid = departmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
 
+    if (departmentId && !isUuid) {
+      throw new Error(`Invalid department assignment: "${departmentId}" is not a valid Postgres UUID. Cannot save to database.`);
+    }
+
     const payload = {
       role: (role || 'student').toLowerCase(),
-      department_id: isUuid ? departmentId : null,
-      department_name: departmentName || null,
+      department_id: departmentId || null,
       assigned_categories: assignedCategories || [],
       updated_at: new Date().toISOString(),
     };

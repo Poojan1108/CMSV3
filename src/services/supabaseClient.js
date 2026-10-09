@@ -404,15 +404,31 @@ export async function fetchOrgProfiles(orgKey, roleFilter = ['staff', 'admin']) 
 export async function updateMemberRole(userId, { role, departmentId = null, departmentName = null, assignedCategories = [] }) {
   if (!isSupabaseConfigured || !supabase || !userId) return null;
   try {
-    const isUuid = departmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId);
+    let targetDeptId = departmentId;
+    let isUuid = Boolean(targetDeptId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetDeptId));
 
-    if (departmentId && !isUuid) {
-      throw new Error(`Invalid department assignment: "${departmentId}" is not a valid Postgres UUID. Cannot save to database.`);
+    if (!isUuid && departmentName) {
+      const cleanName = departmentName.replace(/\s+Department$/i, '').trim();
+      const { data: dept } = await supabase
+        .from('departments')
+        .select('id')
+        .or(`name.ilike."${departmentName}",name.ilike."${cleanName}"`)
+        .limit(1)
+        .maybeSingle();
+
+      if (dept?.id) {
+        targetDeptId = dept.id;
+        isUuid = true;
+      }
+    }
+
+    if (targetDeptId && !isUuid) {
+      throw new Error(`Invalid department assignment: "${targetDeptId}" is not a valid Postgres UUID. Cannot save to database.`);
     }
 
     const payload = {
       role: (role || 'student').toLowerCase(),
-      department_id: departmentId || null,
+      department_id: targetDeptId || null,
       assigned_categories: assignedCategories || [],
       updated_at: new Date().toISOString(),
     };

@@ -64,31 +64,34 @@ export default function AdminMembers() {
         try {
           let { data, error } = await supabase
             .from('departments')
-            .select('id, name, description')
-            .eq('org_key', orgKey);
+            .select('id, name')
+            .eq('org_key', orgKey)
+            .order('name', { ascending: true });
 
           // Proactively seed missing departments based on categories to guarantee UUID availability
-          const existingNames = new Set((data || []).map(d => d.name));
-          const missingCategories = (categories || []).filter(cat => !existingNames.has(cat));
+          const existingNames = new Set((data || []).map((d) => (d.name || '').toLowerCase()));
+          const missingCategories = (categories || []).filter((cat) => !existingNames.has(cat.toLowerCase()));
           
           if (missingCategories.length > 0) {
-            const inserts = missingCategories.map(cat => ({
+            const inserts = missingCategories.map((cat) => ({
               org_key: orgKey,
               name: cat,
               sla_resolve_hours: 24,
-              sla_response_hours: 8
+              sla_response_hours: 8,
             }));
             
-            await supabase.from('departments').insert(inserts);
-            
-            // Re-fetch to capture the newly generated Postgres UUIDs
-            const refresh = await supabase
-              .from('departments')
-              .select('id, name, description')
-              .eq('org_key', orgKey);
-              
-            if (!refresh.error && refresh.data) {
-              data = refresh.data;
+            const insertRes = await supabase.from('departments').insert(inserts);
+            if (!insertRes.error) {
+              // Re-fetch to capture the newly generated Postgres UUIDs
+              const refresh = await supabase
+                .from('departments')
+                .select('id, name')
+                .eq('org_key', orgKey)
+                .order('name', { ascending: true });
+                
+              if (!refresh.error && refresh.data) {
+                data = refresh.data;
+              }
             }
           }
 
@@ -101,7 +104,7 @@ export default function AdminMembers() {
         }
       }
       // Fallback: derive virtual departments only if Supabase is offline/unconfigured
-      if (isMounted) {
+      if (isMounted && (!isSupabaseConfigured || !supabase)) {
         setDepartments(
           (categories || []).map((cat, idx) => ({
             id: `dept_${idx + 1}`,
@@ -160,10 +163,25 @@ export default function AdminMembers() {
         ? ROLES.STAFF
         : ROLES.STAFF;
     setTargetRole(initialRole);
-    setSelectedDeptId(member.departmentId || '');
-    setSelectedDeptName(member.department || '');
+
+    let initialDeptId = member.departmentId || '';
+    let initialDeptName = member.department || '';
+
+    // If departmentId is missing, attempt to find matching department by name
+    if (!initialDeptId && initialDeptName) {
+      const match = departments.find(
+        (d) => d.name?.toLowerCase() === initialDeptName.toLowerCase()
+      );
+      if (match) {
+        initialDeptId = match.id;
+        initialDeptName = match.name;
+      }
+    }
+
+    setSelectedDeptId(initialDeptId);
+    setSelectedDeptName(initialDeptName);
     setSelectedCategories(member.assignedCategories || []);
-  }, []);
+  }, [departments]);
 
   const handleCloseModal = useCallback(() => {
     setActiveModalMember(null);

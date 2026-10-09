@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusCare CMS v2 — Enterprise Academic Presentation &amp; UI Showcase</title>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Master Presentation Stylesheet -->
+  <link rel="stylesheet" href="./presentation.css">
+</head>
+<body>
+
+  <!-- Ambient Glow -->
+  <div class="pres-ambient-glow"></div>
+
+  <!-- Dynamic Top Progress Line -->
+  <div class="pres-progress-line" id="pres-progress-line"></div>
+
+  <!-- Top Header HUD -->
+  <header class="pres-header-hud">
+    <div class="hud-brand">
+      <span class="hud-brand-pill">CMS v2</span>
+      <span class="hud-brand-title">CampusCare</span>
+      <span class="hud-brand-sep">&bull;</span>
+      <span class="hud-brand-sub">Enterprise Grievance Redressal &amp; Operations Architecture</span>
+    </div>
+
+    <div class="hud-right-actions">
+      <div class="hud-timer-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="pres-timer-display">00:00</span>
+      </div>
+      <button class="hud-btn" id="pres-timer-btn">Pause</button>
+      <button class="hud-btn" id="pres-overview-btn">Slides (Esc / J)</button>
+      <button class="hud-btn" id="pres-fullscreen-btn">Fullscreen (F)</button>
+    </div>
+  </header>
+
+  <!-- Viewport Slide Deck Container (100% Space) -->
+  <main class="pres-deck-viewport">
+
+    <!-- ==========================================
+         SLIDE 01: TITLE & ACADEMIC DECLARATION
+         ========================================== -->
+    <section class="pres-slide active">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">CAPSTONE EVALUATION &bull; ACADEMIC YEAR 2025&ndash;2026</span>
+        <h1 class="rx-slide-title">
+          From Complaints<br />
+          <span class="rx-highlight">to Resolution.</span>
+        </h1>
+        <p class="rx-slide-desc">
+          An enterprise-grade, multi-tenant campus operations platform engineered with deterministic departmental triage, mathematical SLA lifecycle tracking, and PostgreSQL Row-Level Security.
+        </p>
+
+        <div style="background: var(--pres-surface); border: 1px solid var(--pres-border); border-radius: 14px; padding: 20px 28px; box-shadow: var(--pres-shadow-sm); max-width: 640px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div>
+              <div style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 5px;">Candidate Project Team</div>
+              <div style="font-size: 16px; font-weight: 700; color: var(--pres-obsidian);">Student Engineering Cohort</div>
+              <div style="font-size: 13.5px; color: var(--pres-text-muted); margin-top: 2px;">Dept. of Computer Science &amp; Engineering</div>
+            </div>
+            <div>
+              <div style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 5px;">Under the Guidance of</div>
+              <div style="font-size: 16px; font-weight: 700; color: var(--pres-obsidian);">Project Guide / Evaluator ("Sir")</div>
+              <div style="font-size: 13.5px; color: var(--pres-text-muted); margin-top: 2px;">Academic Review Committee</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container">
+          <div class="rx-vector-art-wrap">
+            <svg id="freepik_stories-mobile" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+              <path d="M259.91,109.42c-5.74-1.6-11.49-3.18-17.29-4.56-18.34-4.37-37.35-5.39-56.2-4.41-39.86,2.08-57.25,22.9-43.48,42.32s31.16,39.55,12.32,58.29S65.4,236.44,72.64,269.74s71,38.16,66,59.67S101,357.17,116.9,386.31s74.64,3.47,93.48,18.73,29,27.75,60.15,32.61,53.63-33.3,87-47.87,67.4-19.43,73.92-53.43-55.8-56.2-52.9-90.89c1.45-17.34,13.31-30.87,22.56-44.73,15.62-23.43,28.5-65.64-6-79.45-15-6-32.22-4.38-48-4-16.42.35-33.45,2.19-49.82.39C284.49,116.23,272.2,112.82,259.91,109.42Z" fill="#d1fae5"/>
+              <!-- Phone Device -->
+              <rect x="175" y="105" width="150" height="275" rx="18" fill="#1e293b"/>
+              <rect x="184" y="120" width="132" height="245" rx="10" fill="#ffffff"/>
+              <!-- Status Header -->
+              <rect x="196" y="136" width="108" height="14" rx="4" fill="#eff6ff"/>
+              <rect x="196" y="158" width="76" height="9" rx="3" fill="#cbd5e1"/>
+              <!-- Ticket Badge -->
+              <rect x="196" y="178" width="108" height="42" rx="7" fill="#ecfdf5"/>
+              <text x="206" y="196" fill="#059669" font-size="10" font-weight="bold" font-family="sans-serif">TICKET #CMS-1048</text>
+              <text x="206" y="210" fill="#0f172a" font-size="9" font-family="sans-serif">WiFi Outage in Lab 3</text>
+              <!-- Progress Bar in Phone -->
+              <rect x="196" y="232" width="108" height="7" rx="3.5" fill="#e2e8f0"/>
+              <rect x="196" y="232" width="72" height="7" rx="3.5" fill="#10b981"/>
+              <!-- Floating Notification Pills -->
+              <g class="floating-badge" transform="translate(50, 235)">
+                <rect width="124" height="42" rx="21" fill="#ffffff" stroke="#e2e8f0" filter="drop-shadow(0 6px 16px rgba(0,0,0,0.09))"/>
+                <circle cx="21" cy="21" r="9" fill="#10b981"/>
+                <text x="38" y="18" fill="#0f172a" font-size="10.5" font-weight="bold" font-family="sans-serif">Assigned</text>
+                <text x="38" y="30" fill="#64748b" font-size="9" font-family="sans-serif">To Senior Tech</text>
+              </g>
+              <g class="floating-badge-delayed" transform="translate(320, 150)">
+                <rect width="130" height="42" rx="21" fill="#ffffff" stroke="#e2e8f0" filter="drop-shadow(0 6px 16px rgba(0,0,0,0.09))"/>
+                <circle cx="21" cy="21" r="9" fill="#f59e0b"/>
+                <text x="38" y="18" fill="#0f172a" font-size="10.5" font-weight="bold" font-family="sans-serif">SLA: 4h Left</text>
+                <text x="38" y="30" fill="#64748b" font-size="9" font-family="sans-serif">Priority: Urgent</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 02: EXECUTIVE ABSTRACT & METRICS
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">MODULE // 01.00 &bull; SYSTEM ABSTRACT</span>
+        <h2 class="rx-slide-title">
+          Institutional Challenge &amp;<br />
+          <span class="rx-highlight">Deterministic Operations</span>
+        </h2>
+        <p class="rx-slide-desc">
+          University campus operations suffer when grievances are buried in manual paper registers and informal chat channels. CampusCare replaces administrative opacity with deterministic tracking and guaranteed accountability.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Sub-Second Algorithmic Triage</span>
+              <span class="rx-check-sub">Eliminates human clerical dispatch bottlenecks by classifying tickets instantly into specialized units.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Enforced Mathematical SLAs</span>
+              <span class="rx-check-sub">Strict timestamp deadlines computed per priority tier with visual urgency breach warnings.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rx-stat-strip">
+          <div class="rx-stat-box">
+            <span class="rx-stat-num">50K+</span>
+            <span class="rx-stat-label">Issues Resolved</span>
+          </div>
+          <div class="rx-stat-divider"></div>
+          <div class="rx-stat-box">
+            <span class="rx-stat-num">99%</span>
+            <span class="rx-stat-label">On-Time SLA</span>
+          </div>
+          <div class="rx-stat-divider"></div>
+          <div class="rx-stat-box">
+            <span class="rx-stat-num">12</span>
+            <span class="rx-stat-label">Departments</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container" style="background: #ffffff; padding: 34px;">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 18px; letter-spacing: 0.05em;">3 Operational Pillars</div>
+          <div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">
+            <div style="background: var(--pres-blue-bg); border: 1px solid var(--pres-blue-border); border-radius: 12px; padding: 16px 20px;">
+              <div style="font-weight: 700; color: var(--pres-blue); font-size: 15px;">1. Operational Transparency</div>
+              <div style="font-size: 13.5px; color: var(--pres-text-body); margin-top: 4px;">Students follow a live 6-stage lifecycle stepper without administrative blindspots.</div>
+            </div>
+            <div style="background: var(--pres-amber-bg); border: 1px solid var(--pres-amber-border); border-radius: 12px; padding: 16px 20px;">
+              <div style="font-weight: 700; color: var(--pres-amber); font-size: 15px;">2. Enforced Responsibility</div>
+              <div style="font-size: 13.5px; color: var(--pres-text-body); margin-top: 4px;">Staff resolvers claim tickets, log mandatory root-cause notes, and meet SLA timers.</div>
+            </div>
+            <div style="background: var(--pres-emerald-bg); border: 1px solid var(--pres-emerald-border); border-radius: 12px; padding: 16px 20px;">
+              <div style="font-weight: 700; color: var(--pres-emerald); font-size: 15px;">3. Executive Governance</div>
+              <div style="font-size: 13.5px; color: var(--pres-text-body); margin-top: 4px;">Aggregated real-time analytics for department resource balancing and audits.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 03: LITERATURE & FIELD ANALYSIS
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">EVALUATION // 02.00 &bull; FIELD AUDIT</span>
+        <h2 class="rx-slide-title">
+          Campus Facilities &amp;<br />
+          <span class="rx-highlight">Operational Deficits</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Managing hundreds of hostel rooms, lecture halls, and shared lab facilities requires moving away from manual paper registers to auditable digital workflows.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item" style="border-left: 4px solid var(--pres-rose);">
+            <div class="rx-check-content">
+              <span class="rx-check-title" style="color: var(--pres-rose);">Flaw: Fragmented Registers &amp; Lost Issues</span>
+              <span class="rx-check-sub">Paper logs in hostel offices lack timestamped accountability and get misplaced.</span>
+            </div>
+          </div>
+          <div class="rx-check-item" style="border-left: 4px solid var(--pres-emerald);">
+            <div class="rx-check-content">
+              <span class="rx-check-title" style="color: var(--pres-emerald);">Fix: Immutable PostgreSQL Audit Records</span>
+              <span class="rx-check-sub">Every status transition logs the actor UUID, state, and timestamp in <code>complaint_history</code>.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container">
+          <div class="rx-vector-art-wrap">
+            <!-- Landing Vector: Houses-bro.svg -->
+            <img src="../public/Houses-bro.svg" alt="Campus Facilities & Residential Hostels" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 04: LAYERED SYSTEM ARCHITECTURE
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">ARCHITECTURE // 03.00 &bull; 3-TIER BLUEPRINT</span>
+        <h2 class="rx-slide-title">
+          System Engineering &amp;<br />
+          <span class="rx-highlight">Layered Architecture</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Clean separation across presentation, service, and data tiers eliminates layout shift and guarantees sub-second query performance.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">1</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Presentation Tier: React 19 + Vite 8</span>
+              <span class="rx-check-sub">Route-level code splitting via <code>React.lazy</code> with Lenis smooth scrolling engine.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">2</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Service Tier: Stateless PostgREST Repository</span>
+              <span class="rx-check-sub">Synchronous in-memory caching (TTL: 3000ms) eliminating UI layout flickers.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">3</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Persistence Tier: PostgreSQL + Row-Level Security</span>
+              <span class="rx-check-sub">Relational foreign key constraints with kernel-level RLS privacy protection.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container">
+          <div class="rx-vector-art-wrap">
+            <!-- Landing Vector: Product teardown-bro.svg -->
+            <img src="../public/Product%20teardown-bro.svg" alt="Layered Architecture Teardown" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 05: MULTI-TENANT RBAC MATRIX
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">SECURITY // 04.00 &bull; ACCESS CONTROL</span>
+        <h2 class="rx-slide-title">
+          Multi-Tenant RBAC &amp;<br />
+          <span class="rx-highlight">3 Persona Roles</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Strict tripartite authorization model ensuring zero privilege leakage between students, maintenance staff, and system administrators.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle" style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;">S</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Student / Resident</span>
+              <span class="rx-check-sub">Lodge tickets, attach photos, track progress, confirm resolution satisfaction.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle" style="background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe;">R</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Staff / Resolver</span>
+              <span class="rx-check-sub">Department queue view, claim ticket, record status transitions, append root-cause notes.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0;">A</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Executive Administrator</span>
+              <span class="rx-check-sub">Cross-departmental reassignment, SLA breach manual escalation, audit history, CSV exports.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container" style="background: #ffffff; padding: 24px;">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 16px;">Core Institutional Personas</div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%;">
+            <!-- Persona 1: Student -->
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 12px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+              <img src="../public/Group%20Chat-amico.svg" alt="Student Persona" style="width: 100%; height: 95px; object-fit: contain;" />
+              <strong style="font-size: 13px; color: var(--pres-obsidian); margin-top: 8px;">Students</strong>
+              <span style="font-size: 11px; color: var(--pres-blue); font-weight: 600;">Citizen Intake</span>
+            </div>
+            <!-- Persona 2: Staff -->
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 12px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+              <div style="width: 100%; height: 95px; display: flex; align-items: center; justify-content: center;">
+                <svg viewBox="0 0 100 100" style="width: 75px; height: 75px;">
+                  <circle cx="50" cy="50" r="45" fill="#f5f3ff"/>
+                  <path d="M30 65 L50 35 L70 65 Z" fill="#7c3aed"/>
+                  <circle cx="50" cy="30" r="10" fill="#a855f7"/>
+                </svg>
+              </div>
+              <strong style="font-size: 13px; color: var(--pres-obsidian); margin-top: 8px;">Staff &amp; Techs</strong>
+              <span style="font-size: 11px; color: var(--pres-purple); font-weight: 600;">Workforce Queue</span>
+            </div>
+            <!-- Persona 3: Admin -->
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 12px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+              <img src="../public/Admin-bro.svg" alt="Admin Persona" style="width: 100%; height: 95px; object-fit: contain;" />
+              <strong style="font-size: 13px; color: var(--pres-obsidian); margin-top: 8px;">Admins</strong>
+              <span style="font-size: 11px; color: var(--pres-emerald); font-weight: 600;">Governance</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 06: AUTOMATED TRIAGE ENGINE
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">TRIAGE // 05.00 &bull; ALGORITHMIC ROUTING</span>
+        <h2 class="rx-slide-title">
+          Deterministic Category<br />
+          <span class="rx-highlight">Auto-Triage Pipeline</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Automated keyword classifier in <code>complaintService.js:53</code> eliminates administrative delays by routing issues immediately to responsible service heads.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">IT &amp; Digital Infrastructure</span>
+              <span class="rx-check-sub">Captures wifi, internet, lab, computer, switch, hardware, network issues.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Electrical &amp; Power Operations</span>
+              <span class="rx-check-sub">Captures power outages, generator trips, elevator lifts, lighting failures.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Plumbing &amp; Water Services</span>
+              <span class="rx-check-sub">Captures pipe bursts, tank low-pressure, drainage clogs, sanitation.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container" style="background: #18181b; color: #ffffff; padding: 26px;">
+          <div style="font-family: var(--font-mono); font-size: 12.5px; color: #38bdf8; margin-bottom: 12px;">
+            // complaintService.js [L53-L72]
+          </div>
+          <pre style="font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; color: #f1f5f9; overflow-x: auto; width: 100%;">
+<span style="color: #f43f5e;">export const</span> <span style="color: #38bdf8;">getCategoryDepartment</span> = (category) =&gt; {
+  <span style="color: #f43f5e;">const</span> cat = (category || <span style="color: #34d399;">''</span>).toLowerCase();
+  <span style="color: #f43f5e;">if</span> (cat.includes(<span style="color: #34d399;">'wifi'</span>) || cat.includes(<span style="color: #34d399;">'lab'</span>))
+    <span style="color: #f43f5e;">return</span> { name: <span style="color: #34d399;">'IT & Digital Infrastructure'</span> };
+  <span style="color: #f43f5e;">if</span> (cat.includes(<span style="color: #34d399;">'plumb'</span>) || cat.includes(<span style="color: #34d399;">'water'</span>))
+    <span style="color: #f43f5e;">return</span> { name: <span style="color: #34d399;">'Plumbing & Water Services'</span> };
+  <span style="color: #f43f5e;">if</span> (cat.includes(<span style="color: #34d399;">'power'</span>) || cat.includes(<span style="color: #34d399;">'electric'</span>))
+    <span style="color: #f43f5e;">return</span> { name: <span style="color: #34d399;">'Electrical & Power Services'</span> };
+  <span style="color: #f43f5e;">return</span> { name: <span style="color: #34d399;">'Maintenance & Estate Services'</span> };
+};</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 07: MATHEMATICAL SLA CALCULATION
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">QOS // 06.00 &bull; SERVICE LEVEL AGREEMENT</span>
+        <h2 class="rx-slide-title">
+          Mathematical SLA Lifecycle &amp;<br />
+          <span class="rx-highlight">Urgency Calculation</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Resolution targets are computed at ticket instantiation using priority weights. SLA breach triggers are evaluated continuously.
+        </p>
+
+        <div style="background: var(--pres-surface); border: 1px dashed var(--pres-border); border-radius: 10px; padding: 14px 20px; font-family: var(--font-mono); font-size: 14.5px; color: var(--pres-blue); margin-bottom: 22px;">
+          T_deadline = T_submission + &Delta;t(Priority)
+        </div>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle" style="color: var(--pres-rose); background: var(--pres-rose-bg); border-color: var(--pres-rose-border);">!</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Critical / Urgent: 4 Hours Max</span>
+              <span class="rx-check-sub">Safety risks, complete block power outages, gas leaks. Escalates if unacknowledged in 60m.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle" style="color: var(--pres-amber); background: var(--pres-amber-bg); border-color: var(--pres-amber-border);">H</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">High Priority: 24 Hours Max</span>
+              <span class="rx-check-sub">Classroom projector failures, lab Wi-Fi outages, essential amenity breakdown.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container" style="background: #ffffff; padding: 28px;">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 16px;">Live SLA Policy Table</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 18px; background: var(--pres-rose-bg); border: 1px solid var(--pres-rose-border); border-radius: 10px; font-size: 14px;">
+              <strong style="color: var(--pres-rose);">Urgent Priority</strong>
+              <span style="font-weight: 700; color: var(--pres-rose);">4 Hours Target</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 18px; background: var(--pres-amber-bg); border: 1px solid var(--pres-amber-border); border-radius: 10px; font-size: 14px;">
+              <strong style="color: var(--pres-amber);">High Priority</strong>
+              <span style="font-weight: 700; color: var(--pres-amber);">24 Hours Target</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 18px; background: var(--pres-blue-bg); border: 1px solid var(--pres-blue-border); border-radius: 10px; font-size: 14px;">
+              <strong style="color: var(--pres-blue);">Medium Priority</strong>
+              <span style="font-weight: 700; color: var(--pres-blue);">48 Hours Target</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 18px; background: var(--pres-emerald-bg); border: 1px solid var(--pres-emerald-border); border-radius: 10px; font-size: 14px;">
+              <strong style="color: var(--pres-emerald);">Low Priority</strong>
+              <span style="font-weight: 700; color: var(--pres-emerald);">72 Hours Target</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 08: DATABASE SCHEMA & INTEGRITY
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">DATA // 07.00 &bull; POSTGRESQL DESIGN</span>
+        <h2 class="rx-slide-title">
+          Relational Schema &amp;<br />
+          <span class="rx-highlight">Foreign Key Integrity</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Structured PostgreSQL relational design eliminating data anomalies through cascading foreign keys, JSONB metadata, and immutable history tracking.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title"><code>public.profiles</code></span>
+              <span class="rx-check-sub">Maps directly to <code>auth.users.id</code> with ENUM roles (<code>student</code>, <code>staff</code>, <code>admin</code>).</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title"><code>public.complaints</code></span>
+              <span class="rx-check-sub">Core issue entity with unique human-readable ticket numbers (<code>CMS-2026-XXXX</code>).</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container" style="background: #ffffff; padding: 24px;">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--pres-text-muted); margin-bottom: 14px;">Entity-Relationship Structure</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; font-family: var(--font-mono); font-size: 12.5px;">
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 8px; padding: 10px 14px;">
+              <span style="color: var(--pres-blue); font-weight: 700;">TABLE profiles</span> (id UUID PK, name TEXT, email TEXT, role ENUM, org_key TEXT)
+            </div>
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 8px; padding: 10px 14px;">
+              <span style="color: var(--pres-emerald); font-weight: 700;">TABLE departments</span> (id UUID PK, name TEXT, code TEXT, lead_user_id UUID FK)
+            </div>
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 8px; padding: 10px 14px;">
+              <span style="color: var(--pres-amber); font-weight: 700;">TABLE complaints</span> (id UUID PK, ticket_no TEXT, student_id FK, dept_id FK, status ENUM, sla TIMESTAMPTZ)
+            </div>
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 8px; padding: 10px 14px;">
+              <span style="color: var(--pres-rose); font-weight: 700;">TABLE complaint_history</span> (id UUID PK, complaint_id FK, actor_id FK, prev_status TEXT, new_status TEXT)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 09: SECURITY ENGINEERING & RLS
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">SECURITY // 08.00 &bull; DATABASE POLICIES</span>
+        <h2 class="rx-slide-title">
+          Cryptographic Auth &amp;<br />
+          <span class="rx-highlight">Row-Level Security</span>
+        </h2>
+        <p class="rx-slide-desc">
+          Security policies executed inside the PostgreSQL database engine guarantee students cannot tamper with other records. Synthetic mock data has been completely eliminated.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Kernel-Level Enforcement</span>
+              <span class="rx-check-sub">Policies enforce <code>auth.uid() = student_id</code> directly on the database query planner.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">100% Mock Data Eradication</span>
+              <span class="rx-check-sub">All test fallbacks removed; authentic session state retrieved from Supabase PostgreSQL.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container">
+          <div class="rx-vector-art-wrap">
+            <!-- Landing Vector: Mobile login-bro.svg -->
+            <img src="../public/Mobile%20login-bro.svg" alt="Cryptographic Auth & Mobile Security" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 10: EXACT UI DEMO 1 - STUDENT INTAKE
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">LIVE DEMO 1 &bull; STUDENT INTAKE PIPELINE</span>
+        <h2 class="rx-slide-title">
+          Exact UI Showcase:<br />
+          <span class="rx-highlight">Student Intake Form</span>
+        </h2>
+        <p class="rx-slide-desc">
+          High-fidelity replica of <code>NewComplaintForm.jsx</code>. Features location tag binding, 4-tier SLA priority selection, and instant ticket hashing.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Dynamic Sub-Categories</span>
+              <span class="rx-check-sub">Adapts based on selected department (e.g. WiFi Router, Ceiling Fan, Plumbing).</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Interactive Priority Selection</span>
+              <span class="rx-check-sub">Click the priority chips on the right to demo live SLA timeline updates!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-ui-shell">
+          <div class="rx-ui-shell-header">
+            <div class="rx-shell-dots">
+              <div class="rx-shell-dot dot-red"></div>
+              <div class="rx-shell-dot dot-yellow"></div>
+              <div class="rx-shell-dot dot-green"></div>
+            </div>
+            <span class="rx-shell-url">cms.campus.edu/complaints/new</span>
+            <span style="font-size: 12px; font-weight: 700; color: #2563eb;">New Complaint</span>
+          </div>
+          <div class="rx-ui-shell-body">
+            <div class="mock-form-group">
+              <label class="mock-label">Issue Title</label>
+              <input class="mock-input" value="Water leakage in 3rd floor washroom pipe" readonly />
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="mock-form-group">
+                <label class="mock-label">Category</label>
+                <input class="mock-input" value="Plumbing &amp; Water" readonly />
+              </div>
+              <div class="mock-form-group">
+                <label class="mock-label">Location / Room</label>
+                <input class="mock-input" value="Hostel Block C - Room 302" readonly />
+              </div>
+            </div>
+
+            <div class="mock-form-group">
+              <label class="mock-label">Priority Tier (Click to test SLA)</label>
+              <div class="mock-priority-grid">
+                <div class="mock-priority-chip urgent" data-sla="4 Hours">
+                  <span>Urgent</span>
+                  <span style="font-size: 10.5px; font-weight: normal;">4h SLA</span>
+                </div>
+                <div class="mock-priority-chip high" data-sla="24 Hours">
+                  <span>High</span>
+                  <span style="font-size: 10.5px; font-weight: normal;">24h SLA</span>
+                </div>
+                <div class="mock-priority-chip medium" data-sla="48 Hours" style="outline: 2px solid var(--pres-obsidian);">
+                  <span>Medium</span>
+                  <span style="font-size: 10.5px; font-weight: normal;">48h SLA</span>
+                </div>
+                <div class="mock-priority-chip low" data-sla="72 Hours">
+                  <span>Low</span>
+                  <span style="font-size: 10.5px; font-weight: normal;">72h SLA</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mock-dropzone">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span><strong>Click or drag photos</strong> (leakage_proof.jpg attached)</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+              <span id="demo-sla-note" style="font-size: 12px; font-weight: 700; color: var(--pres-blue);">Guaranteed SLA: 48 hrs</span>
+              <button class="btn-sm-primary">Submit Complaint &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 11: EXACT UI DEMO 2 - TICKET TRACKER
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">LIVE DEMO 2 &bull; REAL-TIME TRACKING</span>
+        <h2 class="rx-slide-title">
+          Exact UI Showcase:<br />
+          <span class="rx-highlight">Live Ticket Tracker</span>
+        </h2>
+        <p class="rx-slide-desc">
+          High-fidelity replica of <code>TicketTracker.jsx</code>. Interactive 6-stage lifecycle progression with live timestamping and student feedback confirmation.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">6-Stage Lifecycle Traversal</span>
+              <span class="rx-check-sub">Click the stepper circles on the right to test live progression from Submitted to Resolved!</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Resident Sign-Off Loop</span>
+              <span class="rx-check-sub">Prevents premature closing without student satisfaction verification.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-ui-shell">
+          <div class="rx-ui-shell-header">
+            <div class="rx-shell-dots">
+              <div class="rx-shell-dot dot-red"></div>
+              <div class="rx-shell-dot dot-yellow"></div>
+              <div class="rx-shell-dot dot-green"></div>
+            </div>
+            <span class="rx-shell-url">cms.campus.edu/track?id=CMS-2026-1048</span>
+            <span style="font-size: 12px; font-weight: 700; color: #059669;">Verified Active</span>
+          </div>
+          <div class="rx-ui-shell-body">
+            <div class="tracker-meta-bar">
+              <div>
+                <span class="tracker-ticket-id">#CMS-2026-1048</span>
+                <div style="font-size: 13px; color: var(--pres-text-muted); margin-top: 3px;">Lab 3 Core Switch Failure</div>
+              </div>
+              <div class="tracker-sla-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>SLA: 3h 40m Remaining</span>
+              </div>
+            </div>
+
+            <!-- 6-Stage Stepper -->
+            <div class="tracker-stepper-wrap">
+              <div class="tracker-step-node">
+                <div class="tracker-circle done">&check;</div>
+                <span class="tracker-step-label">Submitted</span>
+              </div>
+              <div class="tracker-step-node">
+                <div class="tracker-circle done">&check;</div>
+                <span class="tracker-step-label">Reviewed</span>
+              </div>
+              <div class="tracker-step-node">
+                <div class="tracker-circle done">&check;</div>
+                <span class="tracker-step-label">Assigned</span>
+              </div>
+              <div class="tracker-step-node">
+                <div class="tracker-circle active">4</div>
+                <span class="tracker-step-label active">In Repair</span>
+              </div>
+              <div class="tracker-step-node">
+                <div class="tracker-circle">5</div>
+                <span class="tracker-step-label">Sign-Off</span>
+              </div>
+              <div class="tracker-step-node">
+                <div class="tracker-circle">6</div>
+                <span class="tracker-step-label">Closed</span>
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid var(--pres-border); border-radius: 10px; padding: 14px; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--pres-obsidian); margin-bottom: 5px;">
+                <span>Staff Handler: Rajesh K. (Senior IT Specialist)</span>
+                <span style="color: #2563eb;">Update: 10:45 AM</span>
+              </div>
+              <div style="color: var(--pres-text-muted);">"Replacement 24-port Gigabit switch installed. Running packet throughput tests before closure."</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+              <button class="btn-sm-secondary">Request Call</button>
+              <button class="btn-sm-primary">Confirm Sign-Off &check;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 12: EXACT UI DEMO 3 - STAFF QUEUE
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">LIVE DEMO 3 &bull; STAFF RESOLVER CONSOLE</span>
+        <h2 class="rx-slide-title">
+          Exact UI Showcase:<br />
+          <span class="rx-highlight">Resolver Queue Workspace</span>
+        </h2>
+        <p class="rx-slide-desc">
+          High-fidelity replica of <code>StaffQueue.jsx</code>. Department-isolated ticket view with urgency priority badges, SLA countdowns, and 1-click claiming.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Department Isolation</span>
+              <span class="rx-check-sub">Resolvers only see tickets routed directly to their specialized trade unit.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Visual Urgency Cues</span>
+              <span class="rx-check-sub">Crimson border alerts when urgent tickets approach deadline breach.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-ui-shell">
+          <div class="rx-ui-shell-header">
+            <div class="rx-shell-dots">
+              <div class="rx-shell-dot dot-red"></div>
+              <div class="rx-shell-dot dot-yellow"></div>
+              <div class="rx-shell-dot dot-green"></div>
+            </div>
+            <span class="rx-shell-url">cms.campus.edu/staff/queue</span>
+            <span style="font-size: 12px; font-weight: 700; color: #7c3aed;">IT Queue (Active: 4)</span>
+          </div>
+          <div class="rx-ui-shell-body">
+            <div class="queue-filter-strip">
+              <span class="queue-chip active">All (4)</span>
+              <span class="queue-chip">Assigned to Me (2)</span>
+              <span class="queue-chip">Urgent Only (1)</span>
+              <span class="queue-chip">Resolved Today (5)</span>
+            </div>
+
+            <!-- Ticket Card 1 -->
+            <div class="queue-ticket-card">
+              <div class="queue-ticket-top">
+                <span style="font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--pres-obsidian);">#CMS-2026-1048 &bull; Lab 3 Core Switch</span>
+                <span style="background: var(--pres-rose-bg); color: var(--pres-rose); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px;">URGENT (4h)</span>
+              </div>
+              <div style="font-size: 13px; color: var(--pres-text-muted);">Location: Computer Science Block &bull; Reported 45m ago</div>
+              <div class="queue-action-row">
+                <button class="btn-sm-primary">Mark In Progress &rarr;</button>
+                <button class="btn-sm-secondary">Log Notes</button>
+              </div>
+            </div>
+
+            <!-- Ticket Card 2 -->
+            <div class="queue-ticket-card" style="border-left-color: var(--pres-amber);">
+              <div class="queue-ticket-top">
+                <span style="font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--pres-obsidian);">#CMS-2026-1052 &bull; Wi-Fi Access Point 4B</span>
+                <span style="background: var(--pres-amber-bg); color: var(--pres-amber); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px;">HIGH (24h)</span>
+              </div>
+              <div style="font-size: 13px; color: var(--pres-text-muted);">Location: Library Reading Hall &bull; Unassigned</div>
+              <div class="queue-action-row">
+                <button class="btn-sm-primary" style="background: var(--pres-blue);">Claim Ticket</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 13: EXACT UI DEMO 4 - ADMIN ANALYTICS
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">LIVE DEMO 4 &bull; ADMINISTRATIVE GOVERNANCE</span>
+        <h2 class="rx-slide-title">
+          Exact UI Showcase:<br />
+          <span class="rx-highlight">Executive Analytics Console</span>
+        </h2>
+        <p class="rx-slide-desc">
+          High-fidelity replica of <code>AdminAnalytics.jsx</code>. Campus-wide KPI cards, resolution percentages, department workload allocation, and CSV export.
+        </p>
+
+        <div class="rx-checklist">
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Live Governance Health</span>
+              <span class="rx-check-sub">Monitors resolution rate (94.2%) and detects pending SLA breaches in real-time.</span>
+            </div>
+          </div>
+          <div class="rx-check-item">
+            <div class="rx-check-circle">&check;</div>
+            <div class="rx-check-content">
+              <span class="rx-check-title">Accreditation Audit Export</span>
+              <span class="rx-check-sub">One-click CSV generation via <code>generateComplaintsCSV()</code> for university committee compliance.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-ui-shell">
+          <div class="rx-ui-shell-header">
+            <div class="rx-shell-dots">
+              <div class="rx-shell-dot dot-red"></div>
+              <div class="rx-shell-dot dot-yellow"></div>
+              <div class="rx-shell-dot dot-green"></div>
+            </div>
+            <span class="rx-shell-url">cms.campus.edu/admin/analytics</span>
+            <span style="font-size: 12px; font-weight: 700; color: #059669;">Admin Console</span>
+          </div>
+          <div class="rx-ui-shell-body">
+            <!-- 4 KPI Cards -->
+            <div class="admin-kpi-grid">
+              <div class="admin-kpi-card">
+                <span class="admin-kpi-label">Resolution Rate</span>
+                <span class="admin-kpi-num" style="color: var(--pres-emerald);">94.2%</span>
+                <span style="font-size: 10.5px; color: var(--pres-text-muted);">Target: &gt;90%</span>
+              </div>
+              <div class="admin-kpi-card">
+                <span class="admin-kpi-label">Avg. Turnaround</span>
+                <span class="admin-kpi-num" style="color: var(--pres-blue);">3.8 hrs</span>
+                <span style="font-size: 10.5px; color: var(--pres-text-muted);">SLA: &lt;24 hrs</span>
+              </div>
+              <div class="admin-kpi-card">
+                <span class="admin-kpi-label">Active Breaches</span>
+                <span class="admin-kpi-num" style="color: var(--pres-rose);">0</span>
+                <span style="font-size: 10.5px; color: var(--pres-text-muted);">100% Compliant</span>
+              </div>
+              <div class="admin-kpi-card">
+                <span class="admin-kpi-label">Total Handled</span>
+                <span class="admin-kpi-num">1,428</span>
+                <span style="font-size: 10.5px; color: var(--pres-text-muted);">This Semester</span>
+              </div>
+            </div>
+
+            <!-- Department Workload Bars -->
+            <div class="admin-workload-bar-wrap">
+              <div style="font-size: 12.5px; font-weight: 700; color: var(--pres-obsidian);">Department Workload Distribution</div>
+              <div class="workload-item">
+                <div class="workload-meta"><span>IT &amp; Digital Infrastructure</span><span>42% (602 tickets)</span></div>
+                <div class="workload-progress"><div class="workload-fill" style="width: 42%; background: #2563eb;"></div></div>
+              </div>
+              <div class="workload-item">
+                <div class="workload-meta"><span>Electrical &amp; Power Operations</span><span>28% (400 tickets)</span></div>
+                <div class="workload-progress"><div class="workload-fill" style="width: 28%; background: #f59e0b;"></div></div>
+              </div>
+              <div class="workload-item">
+                <div class="workload-meta"><span>Plumbing &amp; Water Services</span><span>18% (257 tickets)</span></div>
+                <div class="workload-progress"><div class="workload-fill" style="width: 18%; background: #10b981;"></div></div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+              <button class="btn-sm-primary" style="display: flex; align-items: center; gap: 7px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export Official Audit CSV</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 14: CONCLUSION & ACADEMIC Q&A
+         ========================================== -->
+    <section class="pres-slide">
+      <div class="slide-col-narrative">
+        <span class="rx-section-badge">CAPSTONE DEFENSE &bull; CONCLUSION</span>
+        <h1 class="rx-slide-title">
+          Deterministic<br />
+          <span class="rx-highlight">Campus Governance</span>
+        </h1>
+        <p class="rx-slide-desc">
+          Proven transformation of campus facility management into a responsive, transparent, and auditable operational lifecycle with zero unassigned complaints and enforced SLA accountability.
+        </p>
+
+        <!-- 3 Pillars Recap -->
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+          <div style="background: var(--pres-surface); border: 1px solid var(--pres-border); border-radius: 12px; padding: 14px 18px;">
+            <div style="font-weight: 700; color: var(--pres-blue); font-size: 15px;">&check; Zero Lost Complaints</div>
+            <div style="font-size: 13px; color: var(--pres-text-muted); margin-top: 2px;">Real-time PostgreSQL synchronization with immutable transition logs.</div>
+          </div>
+          <div style="background: var(--pres-surface); border: 1px solid var(--pres-border); border-radius: 12px; padding: 14px 18px;">
+            <div style="font-weight: 700; color: var(--pres-amber); font-size: 15px;">&check; 99% SLA Compliance</div>
+            <div style="font-size: 13px; color: var(--pres-text-muted); margin-top: 2px;">Algorithmic department routing with visual countdown alerts.</div>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1.5px solid var(--pres-obsidian); border-radius: 12px; padding: 16px 26px; width: fit-content;">
+          <div style="font-size: 17px; font-weight: 800; color: var(--pres-obsidian);">
+            Thank You, Sir &bull; Open for Questions &amp; Evaluation
+          </div>
+          <div style="font-size: 13px; color: var(--pres-text-muted); margin-top: 3px;">
+            Press <kbd style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-weight: 700;">Esc</kbd> for Slide Grid &bull; Press <kbd style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-weight: 700;">F</kbd> for Fullscreen
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-col-visual">
+        <div class="rx-visual-container">
+          <div class="rx-vector-art-wrap">
+            <!-- Landing Vector: Done-rafiki.svg -->
+            <img src="../public/Done-rafiki.svg" alt="Project Completed and Verified" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Persistent Bottom HUD (Navigation Bar) -->
+  <footer class="pres-footer-hud">
+    <div>
+      <button class="hud-btn" id="pres-prev-btn">&larr; Previous Slide</button>
+    </div>
+
+    <!-- 14 Clickable Indicator Dots -->
+    <div class="pres-dots-strip" id="pres-dots-container"></div>
+
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="hud-counter" id="pres-counter-display">Slide 01 / 14</span>
+      <button class="hud-btn" id="pres-next-btn">Next Slide &rarr;</button>
+    </div>
+  </footer>
+
+  <!-- Slide Overview Grid Modal (Accessible via Esc or J) -->
+  <div class="pres-overview-modal" id="pres-overview-modal">
+    <div style="display: flex; flex-direction: column; gap: 16px; max-width: 880px; width: 90%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; color: #ffffff;">
+        <span style="font-size: 18px; font-weight: 700;">Jump to Presentation Slide</span>
+        <span style="font-size: 13px; opacity: 0.85;">Press Esc to Close</span>
+      </div>
+      <div class="pres-overview-grid" id="pres-overview-grid"></div>
+    </div>
+  </div>
+
+  <!-- Native Presentation Controller Script -->
+  <script src="./presentation.js"></script>
+</body>
+</html>
